@@ -1,5 +1,7 @@
-as_xvx(f) = f[:, 1, 1, :, 1, 1]
-ax_yvy(f) = f[1, :, 1, 1, :, 1]
+export as_xvx, as_yvy
+
+as_xvx(f) = f[:, 1, 1, :, 1, 1] |> Array |> copy
+ax_yvy(f) = f[1, :, 1, 1, :, 1] |> Array |> copy
 
 # Scheme may be :WENO or :fourier.
 # points gives the number of points to interpolate to per cell.
