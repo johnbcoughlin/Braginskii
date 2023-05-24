@@ -1,0 +1,140 @@
+import Base.size, Base.getproperty
+
+struct Grid1D
+    N::Int
+    dx::Float64
+    min::Float64
+    max::Float64
+    nodes::Vector{Float64}
+end
+
+# A periodic grid from [0, L), with nodes at 0, Δx, 2Δx, ...
+struct PeriodicGrid1D
+    N::Int
+    dx::Float64
+    L::Float64
+    nodes::Vector{Float64}
+end
+
+# Create a non-periodic uniform grid, with points at cell centers.
+grid1d(N, min, max) = begin
+    dx = (max - min) / N
+    cell_centers = collect(LinRange(min+dx/2, max-dx/2, N))
+    Grid1D(N, dx, min, max, cell_centers)
+end
+
+periodic_grid1d(N, L) = begin
+    dx = L / N
+    nodes = collect((0:N-1) * dx)
+    PeriodicGrid1D(N, dx, L, nodes)
+end
+
+struct XGrid
+    x::Grid1D
+    y::PeriodicGrid1D
+    z::PeriodicGrid1D
+end
+
+size(grid::XGrid) = (grid.x.N, grid.y.N, grid.z.N)
+
+struct VGrid
+    x::Grid1D
+    y::Grid1D
+    z::Grid1D
+
+    VGrid(dims, x, y, z) = begin
+        # Check that it's suitable for reflecting wall BCs
+        if :x ∈ dims
+            @assert iseven(x.N) && x.max == -x.min
+        end
+        new(x, y, z)
+    end
+end
+
+size(grid::VGrid) = (grid.x.N, grid.y.N, grid.z.N)
+
+struct Grid
+    x::XGrid
+    v::VGrid
+end
+
+size(grid::Grid) = (size(grid.x)..., size(grid.v)...)
+
+getproperty(grid::Grid, sym::Symbol) = begin
+    if sym == :X
+        grid.x.x.nodes
+    elseif sym == :Y
+        reshape(grid.x.y.nodes, (1, :))
+    elseif sym == :Z
+        reshape(grid.x.z.nodes, (1, 1, :))
+    elseif sym == :VX
+        reshape(grid.v.x.nodes, (1, 1, 1, :))
+    elseif sym == :VY
+        reshape(grid.v.y.nodes, (1, 1, 1, 1, :))
+    elseif sym == :VZ
+        reshape(grid.v.z.nodes, (1, 1, 1, 1, 1, :))
+    else
+        getfield(grid, sym)
+    end
+end
+
+struct Species
+    name::String
+    grid::Grid
+    v_grid::VGrid
+    x_dims::Vector{Symbol}
+    v_dims::Vector{Symbol}
+end
+
+struct SimulationMetadata
+    x_dims::Vector{Symbol}
+    x_grid::XGrid
+
+    species::Vector{Species}
+end
+
+struct Simulation
+    metadata::SimulationMetadata
+    u
+end
+
+getproperty(sim::Simulation, sym::Symbol) = begin
+    if sym ∈ (:u, :metadata)
+        getfield(sim, sym)
+    else
+        getproperty(sim.metadata, sym)
+    end
+end
+
+function vlasov_fokker_planck_step!(du, u, p, t)
+    (; sim, λmax, buffer) = p
+    vlasov_fokker_planck!(du, u, sim, λmax, buffer)
+end
+
+function vlasov_fokker_planck!(du, u, sim, λmax, buffer)
+    λmax[] = 0.0
+    for i in eachindex(sim.species)
+        α = sim.species[i]
+        free_streaming!(du.x[i], u.x[i], α, buffer)
+    end
+end
+
+function runsim_lightweight!(sim, T, Δt)
+    set_default_buffer_size!(100_000_000)
+
+    buffer = default_buffer()
+
+    t = 0.0
+    λmax = Ref(0.0)
+    u = sim.u
+    while t < T
+        stepdt = min(Δt, T-t)
+        success, sf = ssp_rk43(vlasov_fokker_planck_step!, u, (; sim=sim.metadata, λmax, buffer), t, stepdt, 1.0, buffer)
+
+        if success
+            t += stepdt
+        else
+            Δt *= sf
+        end
+    end
+end

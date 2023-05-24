@@ -1,0 +1,240 @@
+\documentclass{article}
+
+\title{Pseudospectral Finite Difference methods for the Vlasov-Dougherty-Fokker-Planck Equation}
+\input{~/dotfiles/latex/notes_header.tex}
+
+\newcommand{\Tab}{T_{\alpha\beta}}
+\newcommand{\uab}{u_{\alpha\beta}}
+\newcommand{\nuab}{\nu_{\alpha\beta}}
+\newcommand{\fa}{f_{\alpha}}
+\newcommand{\faky}{\hat{f}_{\alpha,k_y}}
+\newcommand{\intOy}[1]{\int_{\Omega_y} #1 \,\mathrm{d}y}
+\newcommand{\Dx}{\nabla_x}
+\newcommand{\Dv}{\nabla_v}
+
+\begin{document}
+\maketitle
+
+Here we're interested in numerical methods for the equation
+\begin{align}
+    \label{eqn:vlasov}
+\partial_t \fa + v \cdot \Dx \fa + (E + v \times B) \cdot \Dv \fa = \nuab \Dv \cdot \left( \frac{\Tab}{m_\alpha} \Dv f + (v - \uab) f \right).
+\end{align}
+
+\section{Two-D Two-V}
+
+\subsection{Fourier discretization in $y$}
+
+We consider periodic domains in $y$, so that $f(x, y, v_x, v_y) = f(x, y+L, v_x, v_y)$ where $L$ is the domain length.
+For the periodic direction we propose a pseudospectral Fourier discretization.
+That is, we look for solutions of the form
+\begin{align*}
+    f(x, y, v_x, v_y, t) &= \hat{f}_{k_y}(x, v_x, v_y, t) \sum_{k_y = 0}^{N_y-1} e^{2 \pi ik_y y/L_y} = \hat{\bm{f}}(x, v_x, v_y, t)^T \bm{\phi}(y) \\
+    E(x, y, t) &= \hat{E}_{k_y}(x, t) \sum_{k_y = 0}^{N_y-1} e^{2 \pi ik_y y/L_y} = \hat{\bm{E}}(x, t)^T \bm{\phi}(y)
+\end{align*}
+so that the wavenumber $k_y$ ranges from $0$ to $N_y-1$.
+
+We ask that \eqref{eqn:vlasov} is satisfied at a uniform grid of collocation points $y_i$.
+The $y$ derivative is to be evaluated pseudospectrally by a Fourier transform to $\hat{f}_{k_y}$,
+followed by multiplication by $\frac{2\pi i k_y}{L_y}$, followed by an inverse Fourier transform.
+The nonlinear terms are to be evaluated as follows:
+\begin{itemize}
+    \item For a quadratic nonlinearity, first perform the Fourier transform of both factors, then pad the
+        matrix of coefficients with zeros up to $2N_y$.
+        Then transform back to physical space and perform the multiplication pointwise.
+        Then perform another Fourier transform and truncate the result down to $N_y$ modes.
+        Finally, transform back to physical space.
+    \item For a cubic nonlinearity, do the same but with padding up to $3N_y$.
+\end{itemize}
+This amount of padding is potentially wasteful, likely you only need 2/3rds this amount (Orszag).
+
+\subsection{Finite difference discretization in $x, v_x, v_y$}
+We now describe the finite difference discretization of the other dimensions.
+Each dimension $x, v_x, v_y$ is discretized on a uniform Cartesian grid, with collocation points
+at cell centers.
+\begin{align*}
+    x \in [a, b], \quad \Delta x = \frac{b - a}{N_x}, \quad x_i = a + i\frac{\Delta x}{2} - \frac{\Delta x}{2}
+\end{align*}
+The cell faces are at $x_{i+1/2}$.
+
+\subsubsection{Velocity-space Laplacian}
+The operator $\Dv^2$ is discretized using a sixth-order centered finite difference stencil:
+\begin{align*}
+    (\partial_{v_x}^2 f)_i = \frac{f_{i-3}/90 - 3f_{i-2}/20 + 3f_{i-1}/2 - 49f_i/18 + 3f_{i+1}/2 - 3f_{i+2}/20 + f_{i+3}/90}{\Delta v_x^2}.
+\end{align*}
+All ghost cells in velocity space are set to zero.
+
+\subsubsection{WENO discretization of hyperbolic terms}
+We discretize a flux term in conservation form,
+\begin{align*}
+    \partial_x F(u)_i = \frac{1}{\Delta x} (\hat{F}_{i+1/2} - \hat{F}_{i-1/2}).
+\end{align*}
+The flux is first split into positive (right-going) and negative (left-going) parts,
+according to the sign of the flux coefficient.
+
+\textbf{Left-biased stencil}:
+To estimate $u_{i+1/2}$ from $u_{i-2}, u_{i-1}, u_i, u_{i+1}, u_{i+2}$, which are each cell averages
+over the respective cells, we follow the procedure described
+in \cite{shuHighOrderWeighted2009}. First, form the polynomials
+\begin{align*}
+    P_1(x) &= \mathcal{I}[(x_{i-5/2}, 0), (x_{i-3/2}, u_{i-2}), (x_{i-1/2}, u_{i-2}+u_{i-1}), (x_{i+1/2}, u_{i-2}+u_{i-1}+u_i)] \\
+    P_2(x) &= \mathcal{I}[(x_{i-3/2}, 0), (x_{i-1/2}, u_{i-1}), (x_{i+1/2}, u_{i-1}+u_{i}), (x_{i+3/2}, u_{i-1}+u_{i}+u_{i+1})] \\
+    P_3(x) &= \mathcal{I}[(x_{i-1/2}, 0), (x_{i+1/2}, u_{i}), (x_{i+3/2}, u_{i} + u_{i+1}), (x_{i+5/2}, u_i + u_{i+1} + u_{i+2})].
+\end{align*}
+Then the 3-wide stencil approximations are
+\begin{align*}
+    u^{(1)}_{i+1/2} = P_1'(x_{i+1/2}) = \frac{u_{i-2}}{3} - \frac{7u_{i-1}}{6} + \frac{11 u_i}{6}, \quad u^{(2)}_{i+1/2} = P_2'(x_{i+1/2}) = \frac{-u_{i-1}}{6} + \frac{5 u_i}{6} + \frac{u_{i+1}}{3},
+\end{align*}
+\begin{align*}
+u^{(3)}_{i+1/2} = P_3'(x_{i+1/2}) = \frac{u_i}{3} + \frac{5u_{i+1}}{6} - \frac{u_{i+2}}{6}.
+\end{align*}
+The 5-wide reconstruction polynomial is given by the first-derivative of
+\begin{align*}
+    P(x) = \mathcal{I}[&(x_{i-5/2}, 0), (x_{i-3/2}, u_{i-2}), (x_{i-1/2}, u_{i-2}+u_{i-1}), (x_{i+1/2}, u_{i-2}+u_{i-1}+u_i), \\
+                &(x_{i+3/2}, u_{i-2}+u_{i-1} + u_{i} + u_{i+1}), (x_{i+5/2}, u_{i-2}+u_{i-1} + u_i + u_{i+1} + u_{i+2})]
+\end{align*}
+and is
+\begin{align*}
+    u_{i+1/2} &= P'(x_{i+1/2}) = \frac{u_{i-2}}{30} - \frac{13 u_{i-1}}{60} + \frac{47 u_i}{60} + \frac{9 u_{i+1}}{20} - \frac{u_{i+2}}{20} \\
+              &= \gamma_1 u^{(1)}_{i+1/2} + \gamma_2 u^{(2)}_{i+1/2} + \gamma_3 u^{(3)}_{i+1/2},
+\end{align*}
+where the linear weights are
+\begin{align*}
+\gamma_1 = \frac{1}{10}, \quad \gamma_2 = \frac{3}{5}, \quad \gamma_3 = \frac{3}{10}.
+\end{align*}
+
+The smoothness indicators are given by
+\begin{align*}
+    \beta_j = \sum_{l=1}^k \Delta x^{2l-1} \int_{x_{i-1/2}}^{x_{i+1/2}} \left( \frac{d^l}{dx^l}p_j(x) \right)^2\,\mathrm{d} x,
+\end{align*}
+and are
+\begin{align*}
+    \beta_1 &= \frac{13}{12}(u_{i-2} - 2 u_{i-1} + u_i)^2 + \frac{1}{4}(u_{i-2} - 4u_{i-1} + 3u_i)^2, \\
+    \beta_2 &= \frac{13}{12}(u_{i-1} - 2 u_i + u_{i+1})^2 + \frac{1}{4}(u_{i-1} - u_{i+1})^2, \\
+    \beta_3 &= \frac{13}{12}(u_i - 2u_{i+1} + u_{i+2})^2 + \frac{1}{4}(3u_i - 4u_{i+1} + u_{i+2})^2.
+\end{align*}
+
+\textbf{Right-biased stencil}
+Here we use the stencil $[x_{i-1}, x_i, x_{i+1}, x_{i+2}, x_{i+3}]$ to estimate $u_{i+1/2}$.
+The 3-wide approximations are
+\begin{align*}
+    u^{(1)}_{i+1/2} = P_1'(x_{i+1/2}) = \frac{-u_{i-1}}{6} + \frac{5u_i}{6} + \frac{u_{i+1}}{3}, \quad u^{(2)}_{i+1/2} = P_2'(x_{i+1/2}) = \frac{u_i}{3} + \frac{5u_{i+1}}{6} - \frac{u_{i+2}}{6},
+\end{align*}
+\begin{align*}
+    u^{(3)}_{i+1/2} = P_3'(x_{i+1/2}) = \frac{11u_{i+1}}{6} - \frac{7u_{i+2}}{6} + \frac{u_{i+3}}{6}.
+\end{align*}
+The 5-wide reconstruction estimate is
+\begin{align*}
+    u_{i+1/2} &= P'(x_{i+1/2}) = -\frac{u_{i-1}}{20} + \frac{9u_{i}}{20} + \frac{47 u_{i+1}}{60} - \frac{13u_{i+2}}{60} + \frac{u_{i+3}}{30} \\
+              &= \gamma_1 u^{(1)}_{i+1/2} + \gamma_2 u^{(2)}_{i+1/2} + \gamma_3 u^{(3)}_{i+1/2},
+\end{align*}
+where the linear weights are
+\begin{align*}
+\gamma_1 = \frac{3}{10}, \quad \gamma_2 = \frac{3}{5}, \quad \gamma_3 = \frac{1}{10}.
+\end{align*}
+The smoothness indicators, which this time are computed by integration over the interval $x_{i+1/2}, x_{i+3/2}$, are
+\begin{align*}
+    \beta_j = \sum_{l=1}^k \Delta x^{2l-1} \int_{x_{i+1/2}}^{x_{i+3/2}} \left( \frac{d^l}{dx^l}p_j(x) \right)^2\,\mathrm{d} x,
+\end{align*}
+\begin{align*}
+    \beta_1 &= \frac{13}{12}(u_{i-1} - 2u_{i} + u_{i+1})^2 + \frac{1}{4}(u_{i-1} - 4u_{i} + 3u_{i+1})^2 \\
+    \beta_2 &= \frac{13}{12}(u_{i} - 2 u_{i+1} + u_{i+2})^2 + \frac{1}{4}(u_{i} - u_{i+2})^2, \\
+    \beta_3 &= \frac{13}{12}(u_{i+1} - 2 u_{i+2} + u_{i+3})^2 + \frac{1}{4}(3u_{i+1} - 4u_{i+2} + u_{i+3})^2. \\
+\end{align*}
+
+\subsection{Lorentz force flux}
+For each point $(x, y, z)$, we can compute the velocity-dependent force $E + v\times B$.
+For the electrostatic approximation, there is then a specific range of coordinates where 
+the acceleration force is positive, depending only on velocity:
+\begin{align*}
+v_y : v_y B_z > -E_x, \quad v_x : v_x B_z > E_y.
+\end{align*}
+In the electrostatic case, this will form a rectangular region of velocity space which
+may be iterated over efficiently.
+
+\textbf{Flux in $v_x$}
+The flux is
+\begin{align*}
+    df_{v_x} = -\frac{1}{\Delta v_x} \left( \hat{F}^+_{i+1/2} - \hat{F}^+_{i-1/2} \right),
+\end{align*}
+where $\hat{F}^+_{i+1/2}$ is determined from the left-biased WENO reconstruction procedure.
+
+We will use the linear WENO reconstruction procedure with the linear weights, since we don't expect
+much "action" in velocity space so to speak.
+Thus,
+\begin{align*}
+    F^+_{i+1/2} = \frac{F^+_{i-2}}{30} - \frac{13 F^+_{i-1}}{60} + \frac{47 F^+_i}{60} + \frac{9 F^+_{i+1}}{20} - \frac{F^+_{i+2}}{20},
+\end{align*}
+and 
+\begin{align*}
+    df_{v_x} &= -\frac{1}{\Delta v_x} \left( \frac{F^+_{i-2}}{30} - \frac{13 F^+_{i-1}}{60} + \frac{47 F^+_i}{60} + \frac{9 F^+_{i+1}}{20} - \frac{F^+_{i+2}}{20} \right. \\
+             &\qquad \left. - \frac{F^+_{i-3}}{30} + \frac{13 F^+_{i-2}}{60} - \frac{47 F^+_{i-1}}{60} - \frac{9 F^+_{i}}{20} + \frac{F^+_{i+1}}{20} \right) \\
+             &= -\frac{1}{\Delta v_x} \left( -\frac{F^+_{i-3}}{30} + \frac{F^+_{i-2}}{4} - F^+_{i-1} + \frac{F^+_{i}}{3} + \frac{F^+_{i+1}}{2} - \frac{F^+_{i+2}}{20} \right) \\
+             &= -\frac{1}{\Delta v_x} \left( -\frac{f_{i-3}}{30} + \frac{f_{i-2}}{4} - f_{i-1} + \frac{f_{i}}{3} + \frac{f_{i+1}}{2} - \frac{f_{i+2}}{20} \right) \max(E_x + v_y B_z, 0) \\
+\end{align*}
+Here, $F^+_i = (E_x + v_y B_z) f_i$.
+So the positivity or negativity of the acceleration force is determined for any given set of $(x, y, v_y)$, and we can iterate over the whole
+range in $v_x$.
+
+Similarly, for the negative part of the acceleration flux, we have
+\begin{align*}
+    df_{v_x} &= -\frac{1}{\Delta v_x} \left( -\frac{F^-_{i-1}}{20} + \frac{9F^-_i}{20} + \frac{47 F^-_{i+1}}{60} - \frac{13F^-_{i+2}}{60} + \frac{F^-_{i+3}}{30} \right. \\
+             &\qquad \left. + \frac{F^-_{i-2}}{20} - \frac{9F^-_{i-1}}{20} - \frac{47F^-_i}{60} + \frac{13F^-_{i+1}}{60} - \frac{F^-_{i+2}}{30} \right) \\
+             &= -\frac{1}{\Delta v_x} \left( \frac{F^-_{i-2}}{20} - \frac{F^-_{i-1}}{2} - \frac{F^-_{i}}{3} + F^-_{i+1} - \frac{F^-_{i+2}}{4} + \frac{F^-_{i+3}}{30} \right) \\
+             &= -\frac{1}{\Delta v_x} \left( \frac{f_{i-2}}{20} - \frac{f_{i-1}}{2} - \frac{f_{i}}{3} + f_{i+1} - \frac{f_{i+2}}{4} + \frac{f_{i+3}}{30} \right) \min(E_x + v_y B_z, 0)
+\end{align*}
+At the boundary, we will assume $f_{-2} = f_{-1} = f_{0} = 0$.
+
+\subsection{Free-streaming flux in $x$}
+
+For $v_x > 0$,
+\begin{align*}
+df_x = -\frac{v_x}{\Delta x}\left( -\frac{f_{i-3}}{30} + \frac{f_{i-2}}{4} - f_{i-1} + \frac{f_{i}}{3} + \frac{f_{i+1}}{2} - \frac{f_{i+2}}{20} \right).
+\end{align*}
+When $v_x \leq 0$,
+\begin{align*}
+df_x = -\frac{v_x}{\Delta x}\left( \frac{f_{i-2}}{20} - \frac{f_{i-1}}{2} - \frac{f_{i}}{3} + f_{i+1} - \frac{f_{i+2}}{4} + \frac{f_{i+3}}{30} \right).
+\end{align*}
+
+\subsection{Fokker-Planck collisions}
+The collision operator is
+\begin{align*}
+    C(f_\alpha, f_\beta) &= \nu_{\alpha\beta} \nabla \cdot \left( v_{t\alpha\beta}^2 \nabla v f_\alpha + (v - u_{\alpha\beta})f_\alpha \right) \\
+                         &= \frac{\nu_{\alpha\beta} T_{\alpha\beta}}{m_\alpha} \nabla \cdot \left( M_{\alpha\beta} \nabla (M_{\alpha\beta}^{-1} f_{\alpha}) \right).
+\end{align*}
+Here,
+\begin{align*}
+    v_{t\alpha\beta}^2 = \frac{T_{\alpha\beta}}{m_{\alpha}}, \quad M_{\alpha\beta} = \left( \frac{m_\alpha}{2\pi T_{\alpha\beta}} \right)^{d/2} e^{-\frac{m_\alpha|v - u_{\alpha\beta}|^2}{2T_{\alpha\beta}}}.
+\end{align*}
+
+If we discretize both derivatives using a centered finite difference scheme of order 2, then we'll have
+\begin{align*}
+    \partial_{v_x} (M^{-1}f)_i &= \frac{1}{\Delta v_x / 2} \left( - \frac{f_{i-1/2}}{2M_{i-1/2}} + \frac{f_{i+1/2}}{2M_{i+1/2}}\right)  \\
+    (M \partial_{v_x} M^{-1}f)_i &= \frac{1}{\Delta v_x / 2} \left( - \frac{f_{i-1/2}M_i}{2M_{i-1/2}} + \frac{f_{i+1/2}M_i}{2M_{i+1/2}}\right) 
+\end{align*}
+\begin{align*}
+    \partial_{v_x} (M \partial_{v_x}(M^{-1}f)) &= \frac{1}{\Delta v_x/2} \left( - \frac{(M \partial_{v_x}(M^{-1}f))_{i-1/2}}{2} + \frac{(M \partial_{v_x}(M^{-1}f))_{i+1/2}}{2} \right) \\
+                                               &= \frac{1}{\Delta v_x^2/4} \left( \frac{f_{i-1} M_{i-1/2}}{4M_{i-1}} - \frac{f_i M_{i-1/2}}{4M_i} - \frac{f_i M_{i+1/2}}{4M_i} + \frac{f_{i+1} M_{i+1/2}}{4M_{i+1}} \right) \\
+                                               &= \frac{1}{\Delta v_x^2} \left( f_{i-1} \frac{M_{i-1/2}}{M_{i-1}} - f_i \left( \frac{M_{i-1/2} + M_{i+1/2}}{M_i} \right) + f_{i+1} \frac{M_{i+1/2}}{M_{i+1}} \right) 
+\end{align*}
+
+If we discretize both derivatives using a centered finite difference scheme of order 4, then we do not get any cancellation of the fractional point values such as $f_{i-3/2}$, so
+we have to compose a stencil from $i_{i-2}$ with itself, and thus end up with a stencil of width 9, which seems excessive.
+\begin{align*}
+    \partial_{v_x} (M^{-1} f)_i &= \frac{1}{\Delta v_x / 2} \left( \frac{f_{i-1}}{12 M_{i-1}} - \frac{2f_{i-1/2}}{3 M_{i-1/2}} + \frac{2f_{i+1/2}}{3 M_{i+1/2}} - \frac{f_{i+1}}{12 M_{i+1}} \right), \\
+    (M \partial_{v_x} (M^{-1} f))_i &= \frac{1}{\Delta v_x / 2} \left( \frac{f_{i-1} M_i}{12 M_{i-1}} - \frac{2f_{i-1/2} M_i}{3 M_{i-1/2}} + \frac{2f_{i+1/2} M_i}{3 M_{i+1/2}} - \frac{f_{i+1} M_i}{12 M_{i+1}} \right).
+\end{align*}
+
+\begin{align*}
+    \partial_{v_x} (M \partial_{v_x} (M^{-1} f)) &= \frac{1}{\Delta v_x / 2} \left[ \frac{1}{12} (M \partial_{v_x} (M^{-1} f))_{i-1} - \frac{2}{3} (M \partial_{v_x} (M^{-1} f))_{i-1/2} \right. \\
+                                                 &\qquad\qquad\qquad\qquad  \left. +  \frac{2}{3} (M \partial_{v_x} (M^{-1} f))_{i+1/2} - \frac{1}{12} (M \partial_{v_x} (M^{-1} f))_{i+1} \right] \\
+                                                 &= \frac{1}{\Delta v_x^2/4} \left[ \left( \frac{f_{i-2} M_{i-1}}{144 M_{i-2}} - \frac{1 f_{i-3/2} M_{i-1}}{18 M_{i-3/2}} \right)  \right] 
+\end{align*}
+
+Observe that $M_i / M_{i+k}$ is independent of $v_y$:
+\begin{align*}
+    \frac{M_i}{M_{i+k}} &= \exp \left( -\frac{((v_x)_i - u)^2}{2T} + \frac{(v_x)_{i+k} - u)^2}{2T} \right) \\
+                        &= \exp \left( \frac{1}{2T} \left[ v_{i+k}^2 - v_i^2 + 2u(v_i - v_{i+k} \right]  \right)  \\
+                        &= \exp \left( \frac{1}{2T} (v_{i+k} - v_i)(v_{i+k} + v_i - 2u)  \right) 
+\end{align*}
+\end{document}
