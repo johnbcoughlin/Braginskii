@@ -237,4 +237,68 @@ Observe that $M_i / M_{i+k}$ is independent of $v_y$:
                         &= \exp \left( \frac{1}{2T} \left[ v_{i+k}^2 - v_i^2 + 2u(v_i - v_{i+k} \right]  \right)  \\
                         &= \exp \left( \frac{1}{2T} (v_{i+k} - v_i)(v_{i+k} + v_i - 2u)  \right) 
 \end{align*}
+
+\section{Poisson solver}
+We'll use an iterative solver for this.
+The operator in the $y$ and $z$ directions is trivial since those have a pseudospectral Fourier discretization.
+In the $x$ direction, we'll use a centered sixth-order stencil.
+
+The boundary conditions are to be imposed by ghost cells.
+Since the iterative solver is applying a discretization of $\Delta$ to $\phi$,
+we just need to fill the ghost cells with the values which give a fifth-order
+interpolation at $x_1/2$ of $\phi_l$.
+
+The interpolation estimates for $u(x_{1/2})$ using each of the stencils
+$[-2, \dots, 2], [-1, \dots, 3], [0, \dots, 4]$ are
+\begin{align*}
+    \bar{\phi}_{1/2}^1 &= \frac{1}{128}(3\phi_{-2} - 20\phi_{-1} + 90\phi_0 + 60\phi_1 - 5\phi_2) \\
+    \bar{\phi}_{1/2}^2 &= \frac{1}{128}(-5\phi_{-1} + 60\phi_0 + 90\phi_1 - 20\phi_2 + 3\phi_3) \\
+    \bar{\phi}_{1/2}^3 &= \frac{1}{128}(35\phi_0 + 140\phi_1 - 70\phi_2 + 28\phi_3 - 5\phi_4).
+\end{align*}
+This leads to a linear system to solve for $\phi_{-2}, \phi_{-1}, \phi_0$:
+\begin{align*}
+\frac{1}{128}\begin{pmatrix}
+    3 & -20 & 90 \\
+    0 & -5 & 60 \\
+    0 & 0 & 35
+\end{pmatrix} \begin{pmatrix}
+    \phi_{-2} \\ \phi_{-1} \\ \phi_0
+\end{pmatrix}
+=
+-\frac{1}{128}
+\begin{pmatrix}
+    60 & -5 & 0 & 0 \\
+    90 & -20 & 3 & 0 \\
+    140 & -70 & 28 & -5
+\end{pmatrix}
+\begin{pmatrix}
+\phi_1 \\ \phi_2 \\ \phi_3 \\ \phi_4
+\end{pmatrix} + \phi_{1/2}\begin{pmatrix}
+1 \\ 1 \\ 1
+\end{pmatrix}
+\end{align*}
+
+At the right endpoint, we have the system
+\begin{align*}
+\frac{1}{128} \begin{pmatrix}
+    90 & -20 & 3 \\
+    60 & -5 & 0 \\
+    35 & 0 & 0
+\end{pmatrix}
+\begin{pmatrix}
+\phi_1 \\ \phi_2 \\ \phi_3
+\end{pmatrix}
+=
+\frac{-1}{128} \begin{pmatrix}
+    0 & 0 & -5 & 60 \\
+    0 & 3 & -20 & 90 \\
+    -5 & 28 & -70 & 140
+\end{pmatrix}
+\begin{pmatrix}
+    \phi_{-3} \\ \phi_{-2} \\ \phi_{-1} \\ \phi_0
+\end{pmatrix} + \phi_{1/2}\begin{pmatrix}
+1 \\ 1 \\ 1
+\end{pmatrix}
+\end{align*}
+
 \end{document}

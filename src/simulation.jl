@@ -29,10 +29,21 @@ periodic_grid1d(N, L) = begin
     PeriodicGrid1D(N, dx, L, nodes)
 end
 
-struct XGrid
+struct XGrid{XA, YA, ZA}
     x::Grid1D
     y::PeriodicGrid1D
     z::PeriodicGrid1D
+
+    X::XA
+    Y::YA
+    Z::ZA
+
+    XGrid(xgrid, ygrid, zgrid) = begin
+        X = xgrid.nodes
+        Y = reshape(ygrid.nodes, (1, :))
+        Z = reshape(zgrid.nodes, (1, 1, :))
+        new{typeof(X), typeof(Y), typeof(Z)}(xgrid, ygrid, zgrid, X, Y, Z)
+    end
 end
 
 size(grid::XGrid) = (grid.x.N, grid.y.N, grid.z.N)
@@ -53,53 +64,55 @@ end
 
 size(grid::VGrid) = (grid.x.N, grid.y.N, grid.z.N)
 
-struct Grid
+struct Grid{XA, YA, ZA, VXA, VYA, VZA}
     x::XGrid
     v::VGrid
+
+    X::XA
+    Y::YA
+    Z::ZA
+    VX::VXA
+    VY::VYA
+    VZ::VZA
+
+    Grid(xgrid, vgrid) = begin
+        X = xgrid.x.nodes
+        Y = reshape(xgrid.y.nodes, (1, :))
+        Z = reshape(xgrid.z.nodes, (1, 1, :))
+        VX = reshape(vgrid.x.nodes, (1, 1, 1, :))
+        VY = reshape(vgrid.y.nodes, (1, 1, 1, 1, :))
+        VZ = reshape(vgrid.z.nodes, (1, 1, 1, 1, 1, :))
+        new{typeof(X), typeof(Y), typeof(Z), typeof(VX), typeof(VY), typeof(VZ)}(xgrid, vgrid, X, Y, Z, VX, VY, VZ)
+    end
 end
 
 size(grid::Grid) = (size(grid.x)..., size(grid.v)...)
 
-getproperty(grid::Grid, sym::Symbol) = begin
-    if sym == :X
-        grid.x.x.nodes
-    elseif sym == :Y
-        reshape(grid.x.y.nodes, (1, :))
-    elseif sym == :Z
-        reshape(grid.x.z.nodes, (1, 1, :))
-    elseif sym == :VX
-        reshape(grid.v.x.nodes, (1, 1, 1, :))
-    elseif sym == :VY
-        reshape(grid.v.y.nodes, (1, 1, 1, 1, :))
-    elseif sym == :VZ
-        reshape(grid.v.z.nodes, (1, 1, 1, 1, 1, :))
-    else
-        getfield(grid, sym)
-    end
-end
-
-struct Species
+struct Species{G<:Grid}
     name::String
-    grid::Grid
+    grid::G
     v_grid::VGrid
     x_dims::Vector{Symbol}
     v_dims::Vector{Symbol}
+    q::Float64
+    m::Float64
 end
 
-struct SimulationMetadata
+struct SimulationMetadata{SP}
     x_dims::Vector{Symbol}
     x_grid::XGrid
 
-    species::Vector{Species}
+    species::SP
 end
 
-struct Simulation
-    metadata::SimulationMetadata
-    u
+struct Simulation{BA, U, SP}
+    metadata::SimulationMetadata{SP}
+    Bz::BA
+    u::U
 end
 
 getproperty(sim::Simulation, sym::Symbol) = begin
-    if sym ∈ (:u, :metadata)
+    if sym ∈ (:u, :metadata, :Bz)
         getfield(sim, sym)
     else
         getproperty(sim.metadata, sym)
@@ -107,15 +120,23 @@ getproperty(sim::Simulation, sym::Symbol) = begin
 end
 
 function vlasov_fokker_planck_step!(du, u, p, t)
-    (; sim, λmax, buffer) = p
-    vlasov_fokker_planck!(du, u, sim, λmax, buffer)
+    (; sim, Bz, λmax, buffer) = p
+    vlasov_fokker_planck!(du, u, sim, Bz, λmax, buffer)
 end
 
-function vlasov_fokker_planck!(du, u, sim, λmax, buffer)
+function vlasov_fokker_planck!(du, u, sim, Bz, λmax, buffer)
     λmax[] = 0.0
+
+    Ex, Ey = poisson(u, sim, buffer)
+
     for i in eachindex(sim.species)
         α = sim.species[i]
-        free_streaming!(du.x[i], u.x[i], α, buffer)
+
+        df = du.x[i]
+        df .= 0
+
+        @timeit "free streaming" free_streaming!(df, u.x[i], α, buffer)
+        @timeit "electrostatic" electrostatic!(df, u.x[i], Ex, Ey, Bz, α, buffer)
     end
 end
 
@@ -129,7 +150,8 @@ function runsim_lightweight!(sim, T, Δt)
     u = sim.u
     while t < T
         stepdt = min(Δt, T-t)
-        success, sf = ssp_rk43(vlasov_fokker_planck_step!, u, (; sim=sim.metadata, λmax, buffer), t, stepdt, 1.0, buffer)
+        p = (; sim=sim.metadata, λmax, buffer, Bz=sim.Bz)
+        success, sf = ssp_rk43(vlasov_fokker_planck_step!, u, p, t, stepdt, 1.0, buffer)
 
         if success
             t += stepdt

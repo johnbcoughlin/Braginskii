@@ -1,24 +1,28 @@
 function free_streaming!(df, f, species, buffer)
-    df .= 0
     @no_escape buffer begin
+        df_fs = alloc(Float64, buffer, size(df)...)
+        df_fs .= 0
         if :x ∈ species.x_dims
             df_x = alloc(Float64, buffer, size(species.grid)...)
             df_x .= 0
-            free_streaming_x!(df_x, f, species, buffer)
-            df .+= df_x
+            @timeit "x" free_streaming_x!(df_x, f, species, buffer)
+            df_fs .+= df_x
         end
         if :y ∈ species.x_dims
             df_y = alloc(Float64, buffer, size(species.grid)...)
             df_y .= 0
             free_streaming_y!(df_y, f, species, buffer)
-            df .+= df_y
+            df_fs .+= df_y
         end
         if :z ∈ species.x_dims
             df_z = alloc(Float64, buffer, size(species.grid)...)
             df_z .= 0
             free_streaming_z!(df_z, f, species, buffer)
-            df .+= df_z
+            df_fs .+= df_z
         end
+
+        df .+= df_fs
+        nothing
     end
 end
 
@@ -26,46 +30,48 @@ function free_streaming_x!(df, f, species, buffer)
     (; grid) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
+    _, rest... = size(grid)
     dx = grid.x.x.dx
 
-    # Negative vx
-    for λx in 3:Nx-3, λyz in CartesianIndices((Ny, Nz))
-        for λvx in 1:(Nvx ÷ 2), λvyvz in CartesianIndices((Nvy, Nvz))
-            vx = grid.VX[λvx]
-            fm = (
-                + f[λx-2, λyz, λvx, λvyvz] / 20
-                - f[λx-1, λyz, λvx, λvyvz] / 2
-                - f[λx, λyz, λvx, λvyvz] / 3
-                + f[λx+1, λyz, λvx, λvyvz]
-                - f[λx+2, λyz, λvx, λvyvz] / 4 
-                + f[λx+3, λyz, λvx, λvyvz] / 30)
-            df[λx, λyz, λvx, λvyvz] -= 1/dx * fm
-        end
+    @no_escape buffer begin
+        f_with_boundaries = alloc(Float64, buffer, Nx+6, rest...) |> Origin(-2, 1, 1, 1, 1, 1)
+        f_with_boundaries[1:Nx, :, :, :, :, :] .= f
+        reflecting_wall_bcs!(f_with_boundaries, f, grid)
+
+        F⁻ = alloc(Float64, buffer, Nx+6, Ny, Nz, Nvx÷2, Nvy, Nvz)
+        F⁻ .= @view parent(f_with_boundaries)[:, :, :, 1:Nvx÷2, :, :]
+        vx = Array(reshape(grid.VX[1:Nvx÷2], (1, 1, 1, :, 1, 1)))
+        broadcast_mul_over_vx(F⁻, vx)
+
+        F⁺ = alloc(Float64, buffer, Nx+6, Ny, Nz, Nvx÷2, Nvy, Nvz)
+        F⁺ .= @view parent(f_with_boundaries)[:, :, :, Nvx÷2+1:Nvx, :, :]
+        vx = reshape(grid.VX[Nvx÷2+1:Nvx], (1, 1, 1, :))
+        broadcast_mul_over_vx(F⁺, vx)
+
+        right_biased_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1 / dx)
+        left_biased_stencil =  [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1 / dx)
+
+        convolved = alloc(Float64, buffer, Nx, Ny, Nz, Nvx÷2, Nvy, Nvz)
+
+        convolve_x!(convolved, F⁻, right_biased_stencil, true, buffer)
+        df[:, :, :, 1:Nvx÷2, :, :] .+= convolved
+        convolve_x!(convolved, F⁺, left_biased_stencil, true, buffer)
+        df[:, :, :, Nvx÷2+1:Nvx, :, :] .+= convolved
+
+        nothing
     end
 
-    # Positive vx
-    for λx in 4:Nx-2, λyz in CartesianIndices((Ny, Nz))
-        for λvx in (Nvx ÷ 2 + 1):Nvx, λvyvz in CartesianIndices((Nvy, Nvz))
-            vx = grid.VX[λvx]
-            fm = (
-                - f[λx-3, λyz, λvx, λvyvz] / 30
-                + f[λx-2, λyz, λvx, λvyvz] / 4
-                - f[λx-1, λyz, λvx, λvyvz]
-                + f[λx, λyz, λvx, λvyvz] / 3
-                + f[λx+1, λyz, λvx, λvyvz] / 2 
-                - f[λx+2, λyz, λvx, λvyvz] / 20)
-            df[λx, λyz, λvx, λvyvz] -= 1/dx * fm
+end
+
+function broadcast_mul_over_vx(F, vx)
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(F)
+    F = reshape(F, (Nx*Ny*Nz, Nvx, Nvy*Nvz))
+    for λxyz in axes(F, 1)
+        for λvx in 1:Nvx, λvyvz in axes(F, 3)
+            F[λxyz, λvx, λvyvz] *= vx[λvx]
         end
     end
-
-    free_streaming_x_boundaries!(df, f, species, buffer)
-
-    # Multiply by VX
-    for λxyz in CartesianIndices((Nx, Ny, Nz))
-        for λvx in 1:Nvx, λvyvz in CartesianIndices((Nvy, Nvz))
-            df[λxyz, λvx, λvyvz] *= grid.VX[λvx]
-        end
-    end
+    F
 end
 
 function free_streaming_y!(df, f, species, buffer)
@@ -204,34 +210,17 @@ function free_streaming_x_boundaries!(df, f, species, buffer)
     end
 end
 
-function reflecting_wall_bcs!(left_boundary, right_boundary, f, grid)
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
-    for λyz in CartesianIndices((Ny, Nz))
-        for λvyvz in CartesianIndices((Nvy, Nvz))
-            for λvx in 1:Nvx
-                vx = grid.VX[λvx]
+function reflecting_wall_bcs!(f_with_boundaries, f, grid)
+    Nx, _, _, Nvx, _, _ = size(grid)
 
-                if vx > 0
-                    # Inflow
-                    left_boundary[-2, λyz, λvx, λvyvz] = f[3, λyz, Nvx-λvx+1, λvyvz]
-                    left_boundary[-1, λyz, λvx, λvyvz] = f[2, λyz, Nvx-λvx+1, λvyvz]
-                    left_boundary[0, λyz, λvx, λvyvz] = f[1, λyz, Nvx-λvx+1, λvyvz]
-                    # Outflow, copy out
-                    right_boundary[Nx+1, λyz, λvx, λvyvz] = f[Nx, λyz, Nvx-λvx+1, λvyvz]
-                    right_boundary[Nx+2, λyz, λvx, λvyvz] = f[Nx-1, λyz, Nvx-λvx+1, λvyvz]
-                    right_boundary[Nx+3, λyz, λvx, λvyvz] = f[Nx-2, λyz, Nvx-λvx+1, λvyvz]
-                else
-                    # Outflow, copy out
-                    left_boundary[-2, λyz, λvx, λvyvz] = f[3, λyz, Nvx-λvx+1, λvyvz]
-                    left_boundary[-1, λyz, λvx, λvyvz] = f[2, λyz, Nvx-λvx+1, λvyvz]
-                    left_boundary[0, λyz, λvx, λvyvz] = f[1, λyz, Nvx-λvx+1, λvyvz]
-                    # Inflow
-                    right_boundary[Nx+1, λyz, λvx, λvyvz] = f[Nx, λyz, Nvx-λvx+1, λvyvz]
-                    right_boundary[Nx+2, λyz, λvx, λvyvz] = f[Nx-1, λyz, Nvx-λvx+1, λvyvz]
-                    right_boundary[Nx+3, λyz, λvx, λvyvz] = f[Nx-2, λyz, Nvx-λvx+1, λvyvz]
-                end
-            end
-        end
-    end
+    # Left boundary
+    f_with_boundaries[-2, :, :, 1:Nvx, :, :] .= f[3, :, :, Nvx:-1:1, :, :]
+    f_with_boundaries[-1, :, :, 1:Nvx, :, :] .= f[2, :, :, Nvx:-1:1, :, :]
+    f_with_boundaries[0 , :, :, 1:Nvx, :, :] .= f[1, :, :, Nvx:-1:1, :, :]
+
+    # Right boundary
+    f_with_boundaries[Nx+3, :, :, 1:Nvx, :, :] .= f[Nx-2, :, :, Nvx:-1:1, :, :]
+    f_with_boundaries[Nx+2, :, :, 1:Nvx, :, :] .= f[Nx-1, :, :, Nvx:-1:1, :, :]
+    f_with_boundaries[Nx+1, :, :, 1:Nvx, :, :] .= f[Nx  , :, :, Nvx:-1:1, :, :]
 end
 

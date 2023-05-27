@@ -15,9 +15,9 @@ rk_4stage_cache(arr::AbstractArray) = begin
 end
 
 function alloc_vec(buffer, template)
-    return ArrayPartition(
-        [alloc(Float64, buffer, size(template.x[i])...) .= 0 for i in eachindex(template.x)]...
-    )
+    return ArrayPartition((map(template.x) do tmp
+        alloc(Float64, buffer, size(tmp)...) .= 0
+    end)...)
 end
 
 """

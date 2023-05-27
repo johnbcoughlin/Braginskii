@@ -4,7 +4,14 @@ import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Grid, ..Species, ..Simul
 using StrideArrays
 using RecursiveArrayTools
 
-export y_grid_1d, vy_grid_1v, single_species_1d1v_y, single_species_1d1v_x
+export y_grid_1d, vy_grid_1v, single_species_1d1v_y, single_species_1d1v_x, single_species_0d2v,
+    x_grid_3d
+
+#=
+
+1D1V helpers
+
+=#
 
 x_grid_1d(Nx, xmin, xmax) = begin
     x_grid = grid1d(Nx, xmin, xmax)
@@ -44,9 +51,11 @@ function single_species_1d1v_x(f, Nx, Nvx, xmin=-1., xmax=1., vxmax=8.0)
     fe = @StrideArray zeros(size(grid))
     fe .= reshape(f.(grid.X, grid.VX), size(grid))
 
-    electrons = Species("electrons", grid, v_grid, [:x], [:vx])
-    sim = SimulationMetadata([:x], x_grid, [electrons])
-    Simulation(sim, ArrayPartition(fe))
+    Bz = @StrideArray zeros(size(x_grid))
+
+    electrons = Species("electrons", grid, v_grid, [:x], [:vx], 1.0, 1.0)
+    sim = SimulationMetadata([:x], x_grid, (electrons,))
+    Simulation(sim, Bz, ArrayPartition(fe))
 end
 
 function single_species_1d1v_y(f, Ny, Nvy, Ly=2π, vymax=8.0)
@@ -57,9 +66,54 @@ function single_species_1d1v_y(f, Ny, Nvy, Ly=2π, vymax=8.0)
     fe = @StrideArray zeros(size(grid))
     fe .= reshape(f.(grid.Y, grid.VY), size(grid))
 
-    electrons = Species("electrons", grid, v_grid, [:y], [:vy])
-    sim = SimulationMetadata([:y], x_grid, [electrons])
-    Simulation(sim, ArrayPartition(fe))
+    Bz = @StrideArray zeros(size(x_grid))
+
+    electrons = Species("electrons", grid, v_grid, [:y], [:vy], 1.0, 1.0)
+    sim = SimulationMetadata([:y], x_grid, (electrons,))
+    Simulation(sim, Bz, ArrayPartition(fe))
+end
+
+#=
+
+0D2V helpers
+
+=#
+
+x_grid_0d() = begin
+    XGrid(grid1d(1, 0., 0.), periodic_grid1d(1, 0.0), periodic_grid1d(1, 0.0))
+end
+
+vxvy_grid_2v(Nvx, Nvy, vxmax, vymax, vxmin=-vxmax, vymin=-vymax) = begin
+    vx_grid = grid1d(Nvx, vxmin, vxmax)
+    vy_grid = grid1d(Nvy, vymin, vymax)
+    vz_grid = grid1d(1, 0.0, 0.0)
+    VGrid([:x, :y], vx_grid, vy_grid, vz_grid)
+end
+
+function single_species_0d2v((; f, Bz), Nvx, Nvy, vxmax=8.0, vymax=8.0)
+    x_grid = x_grid_0d()
+    v_grid = vxvy_grid_2v(Nvx, Nvy, vxmax, vymax)
+    grid = Grid(x_grid, v_grid)
+
+    fe = @StrideArray zeros(size(grid))
+    fe .= reshape(f.(grid.VX, grid.VY), size(grid))
+
+    Bz0 = @StrideArray zeros(size(x_grid))
+    Bz0 .= (Bz::Number)
+
+    electrons = Species("electrons", grid, v_grid, Symbol[], [:vx, :vy], 1.0, 1.0)
+    sim = SimulationMetadata(Symbol[], x_grid, (electrons,))
+    Simulation(sim, Bz0, ArrayPartition(fe))
+end
+
+# 3D
+
+function x_grid_3d(Nx, Ny, Nz)
+    x_grid = grid1d(Nx, -1., 1.)
+    y_grid = periodic_grid1d(Ny, 2π)
+    z_grid = periodic_grid1d(Nz, 2π)
+
+    XGrid(x_grid, y_grid, z_grid)
 end
 
 end

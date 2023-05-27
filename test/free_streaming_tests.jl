@@ -2,11 +2,10 @@
 
     @testset "x free streaming" begin
         @testset "reflection" begin
-            Nx = 60
-            dt = 0.01 / 2
+            dt = 0.001
             T = 0.4
-            f0(x, vx) = (1.0 + 0.2exp(-x^2/.01)) * exp(-(vx-1)^2/2)
-            sim = single_species_1d1v_x(f0, Nx, 20, -1., 1.)
+            f0(x, vx) = (0.1 + 0.8exp(-x^2/0.1)) * (exp(-(vx-1.5)^2/2) + exp(-(vx+1.5)^2/2))
+
             characteristic(x, vx) = begin
                 if -1 <= (x - vx*T) <= 1
                     (x - vx*T, vx)
@@ -19,14 +18,24 @@
                 end
             end
 
-            actual0 = as_xvx(sim.u.x[1])
-            runsim_lightweight!(sim, T, dt)
-            actual = as_xvx(sim.u.x[1])
+            errors = Float64[]
+            Ns = [20, 40, 80] .* 4
+            for Nx in Ns
+                sim = single_species_1d1v_x(f0, Nx, 20, -1., 1.)
 
-            (; X, VX) = sim.species[1].grid
-            expected = ((x, vx) -> f0(characteristic(x, vx)...)).(X, VX) |> as_xvx
-            
-            @show norm(expected - actual) / norm(expected)
+                actual0 = as_xvx(sim.u.x[1])
+                runsim_lightweight!(sim, T, dt)
+                actual = as_xvx(sim.u.x[1])
+
+                (; X, VX) = sim.species[1].grid
+                expected = ((x, vx) -> f0(characteristic(x, vx)...)).(X, VX) |> as_xvx
+                
+                error = norm(expected - actual) / norm(expected)
+                push!(errors, error)
+            end
+             
+            γ = estimate_log_slope(Ns, errors)
+            #@test -4 >= γ >= -5
         end
     end
 
