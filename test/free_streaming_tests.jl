@@ -21,7 +21,7 @@
             errors = Float64[]
             Ns = [20, 40, 80] .* 4
             for Nx in Ns
-                sim = single_species_1d1v_x(f0, Nx, 20, -1., 1.)
+                sim = single_species_1d1v_x(f0, Nx, 20, -1., 1., 8.0, 0.0)
 
                 actual0 = as_xvx(sim.u.x[1])
                 runsim_lightweight!(sim, T, dt)
@@ -33,6 +33,8 @@
                 error = norm(expected - actual) / norm(expected)
                 push!(errors, error)
             end
+
+            @show errors
              
             γ = estimate_log_slope(Ns, errors)
             #@test -4 >= γ >= -5
@@ -44,7 +46,7 @@
         dt = 0.001
         T = 1.0
         n(y) = 1 + 0.2*exp((sin(y) + 0cos(2y)))
-        sim = single_species_1d1v_y(Ny, 20) do y, vy
+        sim = single_species_1d1v_y(Ny, 20; q=0.0) do y, vy
             n(y) * exp(-vy^2/2)
         end
         actual0 = sim.u.x[1]

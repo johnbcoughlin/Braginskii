@@ -12,6 +12,7 @@ using RecursiveArrayTools
 using TimerOutputs
 using NNlib
 using StaticArrays
+using IterativeSolvers
 
 StrideArraysCore.boundscheck() = true
 
@@ -25,6 +26,7 @@ include("free_streaming.jl")
 include("electrostatic.jl")
 include("poisson.jl")
 include("fourier.jl")
+include("moments.jl")
 
 include("helpers.jl")
 

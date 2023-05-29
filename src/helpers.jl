@@ -43,7 +43,7 @@ vy_grid_1v(Nvy, vymax, vymin=-vymax) = begin
     VGrid([:y], vx_grid, vy_grid, vz_grid)
 end
 
-function single_species_1d1v_x(f, Nx, Nvx, xmin=-1., xmax=1., vxmax=8.0)
+function single_species_1d1v_x(f, Nx, Nvx, xmin=-1., xmax=1., vxmax=8.0, q=1.0, ϕ_left=0., ϕ_right=0.)
     x_grid = x_grid_1d(Nx, xmin, xmax)
     v_grid = vx_grid_1v(Nvx, vxmax, -vxmax)
     grid = Grid(x_grid, v_grid)
@@ -52,13 +52,17 @@ function single_species_1d1v_x(f, Nx, Nvx, xmin=-1., xmax=1., vxmax=8.0)
     fe .= reshape(f.(grid.X, grid.VX), size(grid))
 
     Bz = @StrideArray zeros(size(x_grid))
+    ϕl = (@StrideArray zeros(1, 1))
+    ϕl .= ϕ_left
+    ϕr = (@StrideArray zeros(1, 1))
+    ϕr .= ϕ_right
 
-    electrons = Species("electrons", grid, v_grid, [:x], [:vx], 1.0, 1.0)
-    sim = SimulationMetadata([:x], x_grid, (electrons,))
-    Simulation(sim, Bz, ArrayPartition(fe))
+    electrons = Species("electrons", grid, v_grid, [:x], [:vx], q, 1.0)
+    sim = SimulationMetadata([:x], x_grid, Bz, ϕl, ϕr, (electrons,))
+    Simulation(sim, ArrayPartition(fe))
 end
 
-function single_species_1d1v_y(f, Ny, Nvy, Ly=2π, vymax=8.0)
+function single_species_1d1v_y(f, Ny, Nvy, Ly=2π, vymax=8.0; q=1.0)
     x_grid = y_grid_1d(Ny, Ly)
     v_grid = vy_grid_1v(Nvy, vymax, -vymax)
     grid = Grid(x_grid, v_grid)
@@ -67,10 +71,12 @@ function single_species_1d1v_y(f, Ny, Nvy, Ly=2π, vymax=8.0)
     fe .= reshape(f.(grid.Y, grid.VY), size(grid))
 
     Bz = @StrideArray zeros(size(x_grid))
+    ϕl = @StrideArray zeros(Ny, 1)
+    ϕr = @StrideArray zeros(Ny, 1)
 
-    electrons = Species("electrons", grid, v_grid, [:y], [:vy], 1.0, 1.0)
-    sim = SimulationMetadata([:y], x_grid, (electrons,))
-    Simulation(sim, Bz, ArrayPartition(fe))
+    electrons = Species("electrons", grid, v_grid, [:y], [:vy], q, 1.0)
+    sim = SimulationMetadata([:y], x_grid, Bz, ϕl, ϕr, (electrons,))
+    Simulation(sim, ArrayPartition(fe))
 end
 
 #=
@@ -100,10 +106,12 @@ function single_species_0d2v((; f, Bz), Nvx, Nvy, vxmax=8.0, vymax=8.0)
 
     Bz0 = @StrideArray zeros(size(x_grid))
     Bz0 .= (Bz::Number)
+    ϕl = @StrideArray zeros(1, 1)
+    ϕr = @StrideArray zeros(1, 1)
 
     electrons = Species("electrons", grid, v_grid, Symbol[], [:vx, :vy], 1.0, 1.0)
-    sim = SimulationMetadata(Symbol[], x_grid, (electrons,))
-    Simulation(sim, Bz0, ArrayPartition(fe))
+    sim = SimulationMetadata(Symbol[], x_grid, Bz0, ϕl, ϕr, (electrons,))
+    Simulation(sim, ArrayPartition(fe))
 end
 
 # 3D

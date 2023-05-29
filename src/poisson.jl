@@ -1,44 +1,170 @@
-function poisson(u, sim, buffer)
-    (; x_grid) = sim
+import LinearAlgebra: mul!
+import Base: eltype, size, *
 
-    Nx, Ny, Nz = size(x_grid)
+function poisson(sim, f, buffer)
+    grid = sim.x_grid
+    Nx, Ny, Nz = size(grid)
 
-    Ex = alloc(Float64, buffer, Nx, Ny, Nz)
-    Ex .= 0
+    ρ_c = alloc(Float64, buffer, Nx, Ny, Nz)
+    ρ_c .= 0
+    for i in eachindex(sim.species)
+        α = sim.species[i]
+        fi = f.x[i]
+        ρ_c .+= density(fi, α.grid, buffer) .* α.q
+    end
 
-    Ey = alloc(Float64, buffer, Nx, Ny, Nz)
-    Ey .= 0
+    if length(sim.species) == 1
+        ρ_sum = sum(ρ_c)
+        ρ_c .-= ρ_sum / length(ρ_c)
+    end
+    @assert sum(ρ_c) < sqrt(eps())
 
-    return Ex, Ey
+    poisson(ρ_c, sim.ϕ_left, sim.ϕ_right, grid, sim.x_dims, buffer)
 end
 
-function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, buffer)
-    Nx, Ny, Nz = size(ϕ)
+function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer)
+    Nx, Ny, Nz = size(grid)
+
+    Ex = alloc(Float64, buffer, Nx, Ny, Nz)
+    Ey = alloc(Float64, buffer, Nx, Ny, Nz)
+    Ez = alloc(Float64, buffer, Nx, Ny, Nz)
+
+    poisson!((Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer)
+
+    return (Ex, Ey, Ez)
+end
+
+function poisson!((Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims, buffer)
+    Δ = LaplacianOperator(grid, x_dims, buffer, ϕ_left, ϕ_right)
+    ϕ = minres(Δ, -ρ_c, reltol=1e-12)
+    residual = Δ * ϕ + vec(ρ_c)
+    if norm(residual) > sqrt(eps())
+        @show norm(residual)
+        #display(ρ_c)
+        minres(Δ, -ρ_c, verbose=true, log=true, reltol=1e-12)
+        error("Poisson solve did not converge")
+    end
+
+    ϕ = reshape(minres(Δ, -ρ_c), size(grid))
+
+    potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer) 
+end
+
+struct LaplacianOperator{BUF, LEFT, RIGHT}
+    grid::XGrid
+    x_dims::Vector{Symbol}
+    buffer::BUF
+    ϕ_left::LEFT
+    ϕ_right::RIGHT
+end
+
+size(Δ::LaplacianOperator, d) = begin
+    # It's a square operator
+    return prod(size(Δ.grid))
+end
+
+*(Δ::LaplacianOperator, ϕ) = begin
+    y = zeros(size(Δ, 1))
+    mul!(y, Δ, ϕ)
+    return y
+end
+
+function mul!(y, Δ::LaplacianOperator, ϕ)
+    @no_escape Δ.buffer begin
+        apply_laplacian!(y, ϕ, Δ.ϕ_left, Δ.ϕ_right, Δ.grid, Δ.x_dims, Δ.buffer)
+    end
+    return y
+end
+
+eltype(Δ::LaplacianOperator) = Float64
+
+function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer)
+    Nx, Ny, Nz = size(grid)
+    ϕ = reshape(ϕ, (Nx, Ny, Nz))
+    dest = reshape(dest, (Nx, Ny, Nz))
 
     dx = grid.x.dx
 
     @no_escape buffer begin
-        ϕ_with_x_bdy = alloc(Float64, buffer, Nx+6, Ny, Nz) |> Origin(-2, 1, 1)
-        ϕ_with_x_bdy[1:Nx, :, :] .= ϕ
-        apply_poisson_bcs!(ϕ_with_x_bdy, ϕ_left, ϕ_right)
+        if :x ∈ x_dims
+            ϕ_with_x_bdy = alloc(Float64, buffer, Nx+6, Ny, Nz) |> Origin(-2, 1, 1)
+            ϕ_with_x_bdy[1:Nx, :, :] .= ϕ
+            apply_poisson_bcs!(ϕ_with_x_bdy, ϕ_left, ϕ_right)
 
-        stencil = [1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dx^2;
-        convolve_x!(dest, ϕ_with_x_bdy, stencil, true, buffer)
-
-        ϕ_yy = alloc(Float64, buffer, Nx, Ny, Nz)
-        ϕ_yy .= ϕ
-        in_ky_domain!(ϕ_yy, buffer) do ϕ̂
-            apply_k²!(ϕ̂)
+            stencil = [1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dx^2;
+            convolve_x!(dest, ϕ_with_x_bdy, stencil, true, buffer)
+        else
+            dest .= 0
         end
 
-        ϕ_zz = alloc(Float64, buffer, Nx, Ny, Nz)
-        ϕ_zz .= ϕ
-        in_kz_domain!(ϕ_zz, buffer) do ϕ̂
-            apply_k²!(ϕ̂)
+        if :y ∈ x_dims
+            ϕ_yy = alloc(Float64, buffer, Nx, Ny, Nz)
+            ϕ_yy .= ϕ
+            in_ky_domain!(ϕ_yy, buffer) do ϕ̂
+                apply_k²!(ϕ̂)
+            end
+            dest .+= ϕ_yy
         end
 
-        dest .+= ϕ_yy .+ ϕ_zz
+        if :z ∈ x_dims
+            ϕ_zz = alloc(Float64, buffer, Nx, Ny, Nz)
+            ϕ_zz .= ϕ
+            in_kz_domain!(ϕ_zz, buffer) do ϕ̂
+                apply_k²!(ϕ̂)
+            end
+            dest .+= ϕ_zz
+        end
+
         nothing
+    end
+end
+
+function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer)
+    Nx, Ny, Nz = size(grid)
+    dx = grid.x.dx
+
+    @no_escape buffer begin
+        if :x ∈ x_dims
+            ϕ_with_x_bdy = alloc(Float64, buffer, Nx+6, Ny, Nz) |> Origin(-2, 1, 1)
+            ϕ_with_x_bdy[1:Nx, :, :] .= ϕ
+            apply_poisson_bcs!(ϕ_with_x_bdy, ϕ_left, ϕ_right)
+
+            stencil = -1 * [-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dx
+            convolve_x!(Ex, ϕ_with_x_bdy, stencil, true, buffer)
+        else
+            Ex .= 0
+        end
+
+        if :y ∈ x_dims
+            ϕ_y = alloc(Float64, buffer, Nx, Ny, Nz)
+            ϕ_y .= ϕ
+            in_ky_domain!(ϕ_y, buffer) do ϕ̂
+                apply_ik!(ϕ̂)
+            end
+            Ey .= -ϕ_y
+        else
+            Ey .= 0
+        end
+
+        if :z ∈ x_dims
+            ϕ_z = alloc(Float64, buffer, Nx, Ny, Nz)
+            ϕ_z .= ϕ
+            in_kz_domain!(ϕ_z, buffer) do ϕ̂
+                apply_ik!(ϕ̂)
+            end
+            Ez .= -ϕ_z
+        else
+            Ez .= 0
+        end
+
+        nothing
+    end
+end
+
+function apply_ik!(ϕ̂)
+    N1, N2 = size(ϕ̂)
+    for i in axes(ϕ̂, 1), k in axes(ϕ̂, 2), j in axes(ϕ̂, 3)
+        ϕ̂[i, k, j] *= im * (k-1)
     end
 end
 

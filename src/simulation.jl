@@ -98,16 +98,19 @@ struct Species{G<:Grid}
     m::Float64
 end
 
-struct SimulationMetadata{SP}
+struct SimulationMetadata{BA, PHI_L, PHI_R, SP}
     x_dims::Vector{Symbol}
     x_grid::XGrid
+
+    Bz::BA
+    ϕ_left::PHI_L
+    ϕ_right::PHI_R
 
     species::SP
 end
 
-struct Simulation{BA, U, SP}
-    metadata::SimulationMetadata{SP}
-    Bz::BA
+struct Simulation{SM<:SimulationMetadata, U}
+    metadata::SM
     u::U
 end
 
@@ -120,23 +123,25 @@ getproperty(sim::Simulation, sym::Symbol) = begin
 end
 
 function vlasov_fokker_planck_step!(du, u, p, t)
-    (; sim, Bz, λmax, buffer) = p
-    vlasov_fokker_planck!(du, u, sim, Bz, λmax, buffer)
+    (; sim, λmax, buffer) = p
+    vlasov_fokker_planck!(du, u, sim, λmax, buffer)
 end
 
-function vlasov_fokker_planck!(du, u, sim, Bz, λmax, buffer)
+function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
     λmax[] = 0.0
 
-    Ex, Ey = poisson(u, sim, buffer)
+    @no_escape buffer begin
+        @timeit "poisson" Ex, Ey, _ = poisson(sim, f, buffer)
 
-    for i in eachindex(sim.species)
-        α = sim.species[i]
+        for i in eachindex(sim.species)
+            α = sim.species[i]
 
-        df = du.x[i]
-        df .= 0
+            df = du.x[i]
+            df .= 0
 
-        @timeit "free streaming" free_streaming!(df, u.x[i], α, buffer)
-        @timeit "electrostatic" electrostatic!(df, u.x[i], Ex, Ey, Bz, α, buffer)
+            @timeit "free streaming" free_streaming!(df, f.x[i], α, buffer)
+            @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, sim.Bz, α, buffer)
+        end
     end
 end
 
@@ -150,7 +155,7 @@ function runsim_lightweight!(sim, T, Δt)
     u = sim.u
     while t < T
         stepdt = min(Δt, T-t)
-        p = (; sim=sim.metadata, λmax, buffer, Bz=sim.Bz)
+        p = (; sim=sim.metadata, λmax, buffer)
         success, sf = ssp_rk43(vlasov_fokker_planck_step!, u, p, t, stepdt, 1.0, buffer)
 
         if success

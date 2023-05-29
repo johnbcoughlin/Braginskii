@@ -46,6 +46,10 @@ function convolve_over_last!(dest::AbstractArray{T, 2}, u::AbstractArray{T, 2}, 
     convolve_over!(dest, u, args..., pad -> (0, pad), (1, Colon()))
 end
 
+function reshape_stencil(stencil::AbstractVector, stencil_shape)
+    reshape(stencil, (stencil_shape..., 1, 1))
+end
+
 function convolve_over!(
     dest::AbstractArray{T, N}, u::AbstractArray{T, N}, 
     stencil::AbstractVector{T}, has_boundary, buffer,

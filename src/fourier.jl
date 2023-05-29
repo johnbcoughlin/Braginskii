@@ -20,8 +20,6 @@ function in_kz_domain!(g!, arr, buffer)
 
     modes = alloc(ComplexF64, buffer, Nx*Ny, Nz÷2+1, size(arr, 3))
     plan = plan_rfft(arr, (2,))
-    @show size(arr)
-    @show size(modes)
     mul!(modes, plan, arr)
 
     g!(modes)

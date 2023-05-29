@@ -24,6 +24,7 @@
             push!(errors, error)
         end
 
+        display(errors)
         γ = estimate_log_slope(Ns, errors)
         @test -4 >= γ >= -5
     end
