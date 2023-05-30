@@ -165,3 +165,14 @@ function runsim_lightweight!(sim, T, Δt)
         end
     end
 end
+
+function runsim!(sim, d, t_end; kwargs...)
+    buffer = default_buffer()
+    rk_step!(sim, t, dt) = begin
+        λmax = Ref(0.0)
+        p = (; sim=sim.metadata, λmax, buffer)
+        ssp_rk43(vlasov_fokker_planck_step!, sim.u, p, t, dt, 1.0, buffer)
+    end
+
+    integrate_stably(rk_step!, sim, t_end, d; run_diagnostics=core_diagnostics, kwargs...)
+end

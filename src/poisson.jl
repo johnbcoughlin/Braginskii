@@ -10,7 +10,7 @@ function poisson(sim, f, buffer)
     for i in eachindex(sim.species)
         α = sim.species[i]
         fi = f.x[i]
-        ρ_c .+= density(fi, α.grid, buffer) .* α.q
+        ρ_c .+= density(fi, α.grid, α.v_dims, buffer) .* α.q
     end
 
     if length(sim.species) == 1
@@ -101,7 +101,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer)
             ϕ_yy = alloc(Float64, buffer, Nx, Ny, Nz)
             ϕ_yy .= ϕ
             in_ky_domain!(ϕ_yy, buffer) do ϕ̂
-                apply_k²!(ϕ̂)
+                apply_k²!(ϕ̂, (2π / grid.y.L)^2)
             end
             dest .+= ϕ_yy
         end
@@ -110,7 +110,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer)
             ϕ_zz = alloc(Float64, buffer, Nx, Ny, Nz)
             ϕ_zz .= ϕ
             in_kz_domain!(ϕ_zz, buffer) do ϕ̂
-                apply_k²!(ϕ̂)
+                apply_k²!(ϕ̂, (2π / grid.z.L)^2)
             end
             dest .+= ϕ_zz
         end
@@ -139,7 +139,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
             ϕ_y = alloc(Float64, buffer, Nx, Ny, Nz)
             ϕ_y .= ϕ
             in_ky_domain!(ϕ_y, buffer) do ϕ̂
-                apply_ik!(ϕ̂)
+                apply_ik!(ϕ̂, 2π / grid.y.L)
             end
             Ey .= -ϕ_y
         else
@@ -150,7 +150,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
             ϕ_z = alloc(Float64, buffer, Nx, Ny, Nz)
             ϕ_z .= ϕ
             in_kz_domain!(ϕ_z, buffer) do ϕ̂
-                apply_ik!(ϕ̂)
+                apply_ik!(ϕ̂, 2π / grid.z.L)
             end
             Ez .= -ϕ_z
         else
@@ -161,18 +161,18 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
     end
 end
 
-function apply_ik!(ϕ̂)
+function apply_ik!(ϕ̂, factor=1.0)
     N1, N2 = size(ϕ̂)
     for i in axes(ϕ̂, 1), k in axes(ϕ̂, 2), j in axes(ϕ̂, 3)
-        ϕ̂[i, k, j] *= im * (k-1)
+        ϕ̂[i, k, j] *= im * (k-1) * factor
     end
 end
 
-function apply_k²!(ϕ̂)
+function apply_k²!(ϕ̂, factor=1.0)
     N1, N2 = size(ϕ̂)
     ϕ̂ = reshape(reinterpret(reshape, Float64, ϕ̂), (2N1, N2, :))
     for i in axes(ϕ̂, 1), k in axes(ϕ̂, 2), j in axes(ϕ̂, 3)
-        ϕ̂[i, k, j] *= -(k-1)^2
+        ϕ̂[i, k, j] *= -(k-1)^2 * factor
     end
 end
 

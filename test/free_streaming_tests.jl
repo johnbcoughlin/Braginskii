@@ -42,11 +42,11 @@
     end
 
     @testset "y free streaming" begin
-        Ny = 16
+        Ny = 32
         dt = 0.001
         T = 1.0
         n(y) = 1 + 0.2*exp((sin(y) + 0cos(2y)))
-        sim = single_species_1d1v_y(Ny, 20; q=0.0) do y, vy
+        sim = single_species_1d1v_y(Ny, 20, 4pi; q=0.0) do y, vy
             n(y) * exp(-vy^2/2)
         end
         actual0 = sim.u.x[1]

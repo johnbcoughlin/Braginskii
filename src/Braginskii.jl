@@ -13,6 +13,7 @@ using TimerOutputs
 using NNlib
 using StaticArrays
 using IterativeSolvers
+using PDEHarness
 
 StrideArraysCore.boundscheck() = true
 
@@ -27,6 +28,7 @@ include("electrostatic.jl")
 include("poisson.jl")
 include("fourier.jl")
 include("moments.jl")
+include("diagnostics.jl")
 
 include("helpers.jl")
 

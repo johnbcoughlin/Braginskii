@@ -9,7 +9,7 @@ function moments(f)
     M1z = alloc(Float64, buffer, Nx, Ny, Nz)
     M2 = alloc(Float64, buffer, Nx, Ny, Nz)
 
-    dv = grid.v.x.dx * grid.v.y.dx * grid.v.z.dx
+    #dv = grid.v.x.dx * grid.v.y.dx * grid.v.z.dx
 
     for λxyz in CartesianIndices((Nx, Ny, Nz))
         for λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
@@ -26,12 +26,23 @@ function moments(f)
     end
 end
 
-function density(f, grid, buffer)
+function density(f, grid, v_dims, buffer)
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
 
     M0 = alloc(Float64, buffer, Nx, Ny, Nz)
+    M0 .= 0
 
-    dv = grid.v.x.dx * grid.v.y.dx * grid.v.z.dx
+    dv = 1.0
+
+    if :vx ∈ v_dims
+        dv *= grid.v.x.dx
+    end
+    if :vy ∈ v_dims
+        dv *= grid.v.y.dx
+    end
+    if :vz ∈ v_dims
+        dv *= grid.v.z.dx
+    end
 
     for λxyz in CartesianIndices((Nx, Ny, Nz))
         for λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz

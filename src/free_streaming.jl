@@ -89,7 +89,7 @@ function free_streaming_y!(df, f, species, buffer)
         mul!(y_modes, F, f)
         for λx in 1:Nx, ky in 1:Ky, λzvx in 1:(Nz*Nvx), λvy in 1:Nvy, λvz in 1:Nvz
             vy = grid.VY[λvy]
-            y_modes[λx, ky, λzvx, λvy, λvz] *= -im * (ky-1) * vy
+            y_modes[λx, ky, λzvx, λvy, λvz] *= -im * (ky-1) * vy * 2π / grid.x.y.L
         end
         mul!(df, inv(F), y_modes)
         nothing
@@ -110,7 +110,7 @@ function free_streaming_z!(df, f, species, buffer)
         mul!(z_modes, F, f)
         for λxy in 1:(Nx*Ny), kz in 1:Kz, λvxvy in 1:(Nvx*Nvy), λvz in 1:Nvz
             vz = grid.VZ[λvz]
-            z_modes[λxy, kz, λvxvy, λvz] *= im * kz * vz
+            z_modes[λxy, kz, λvxvy, λvz] *= -im * (kz-1) * vz * 2π / grid.x.z.L
         end
         mul!(df, inv(F), f)
     end
