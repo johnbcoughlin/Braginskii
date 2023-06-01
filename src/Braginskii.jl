@@ -13,7 +13,9 @@ using TimerOutputs
 using NNlib
 using StaticArrays
 using IterativeSolvers
+using DataFrames
 using PDEHarness
+using ProgressMeter
 
 StrideArraysCore.boundscheck() = true
 
@@ -33,5 +35,6 @@ include("diagnostics.jl")
 include("helpers.jl")
 
 include("grid.jl")
+include("dispersion_analysis.jl")
 
 end

@@ -170,7 +170,7 @@ function quadratic_dealias(u, buffer)
     @timeit "plan fft" F⁻¹ = plan_irfft(u_modes, 2Ny-1, (2, 3))
     mul!(U, F⁻¹, u_modes)
 
-    return reshape(U, (Nx, 2Ny-1, 2Nz-1, Nvs...))
+    return reshape(U, (Nx, 2Ny-1, 2Nz-1, Nvs...)) * (2Ny-1)/Ny * (2Nz-1)/Nz
 end
 
 function copy_to_first_half!(u_modes, u_modes_tmp)
@@ -202,7 +202,7 @@ function reverse_quadratic_dealias(u, buffer)
     @timeit "plan fft" F⁻¹ = plan_irfft(u_modes, Ny, (2, 3))
     mul!(U, F⁻¹, u_modes)
 
-    return reshape(U, (Nx, Ny, Nz, Nvs...))
+    return reshape(U, (Nx, Ny, Nz, Nvs...)) / ( (2Ny-1)/Ny * (2Nz-1)/Nz )
 end
 function copy_from_first_half!(u_modes, u_modes_tmp)
     _, Ny, Nz, _ = size(u_modes_tmp)

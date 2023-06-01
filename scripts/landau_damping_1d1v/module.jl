@@ -12,8 +12,8 @@ function make_sim()
     Ny = 24
     Nvy = 100
     δ = 0.001
-    q = 1.5
-    k = 1.0
+    q = 1.0
+    k = 0.5
     merge!(d, @strdict problem Ny Nvy δ q k)
 
     sim = single_species_1d1v_y(Ny, Nvy, 2π/k; q) do y, vy

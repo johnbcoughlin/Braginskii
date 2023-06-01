@@ -3,8 +3,8 @@
     @testset "x free streaming" begin
         @testset "reflection" begin
             dt = 0.001
-            T = 0.4
-            f0(x, vx) = (0.1 + 0.8exp(-x^2/0.1)) * (exp(-(vx-1.5)^2/2) + exp(-(vx+1.5)^2/2))
+            T = 0.2
+            f0(x, vx) = (0.1 + 0.8exp(-x^2/0.01)) * (exp(-(vx-1.5)^2/2) + exp(-(vx+1.5)^2/2))
 
             characteristic(x, vx) = begin
                 if -1 <= (x - vx*T) <= 1
@@ -34,10 +34,8 @@
                 push!(errors, error)
             end
 
-            @show errors
-             
             γ = estimate_log_slope(Ns, errors)
-            #@test -4 >= γ >= -5
+            @test -4 >= γ >= -5
         end
     end
 

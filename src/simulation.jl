@@ -145,14 +145,18 @@ function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
     end
 end
 
-function runsim_lightweight!(sim, T, Δt)
+function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
     set_default_buffer_size!(100_000_000)
 
     buffer = default_buffer()
 
+    prog = Progress(Int(ceil(T / Δt)))
     t = 0.0
     λmax = Ref(0.0)
     u = sim.u
+    if !isnothing(diagnostic)
+        diagnostics = diagnostic.init()
+    end
     while t < T
         stepdt = min(Δt, T-t)
         p = (; sim=sim.metadata, λmax, buffer)
@@ -160,9 +164,18 @@ function runsim_lightweight!(sim, T, Δt)
 
         if success
             t += stepdt
+            next!(prog)
         else
-            Δt *= sf
+            error("Failed timestep")
         end
+
+        if !isnothing(diagnostic)
+            push!(diagnostics, diagnostic.run(sim, t))
+        end
+    end
+
+    if !isnothing(diagnostic)
+        return diagnostics
     end
 end
 
@@ -176,3 +189,14 @@ function runsim!(sim, d, t_end; kwargs...)
 
     integrate_stably(rk_step!, sim, t_end, d; run_diagnostics=core_diagnostics, kwargs...)
 end
+
+function lightweight_diagnostics()
+    init() = DataFrame(t=Float64[], electric_energy=Float64[])
+    run(sim, t) = begin
+        tup = core_diagnostics(sim, t)
+        values(tup)
+    end
+
+    (; init, run=core_diagnostics)
+end
+
