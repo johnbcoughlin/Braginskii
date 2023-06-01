@@ -88,7 +88,7 @@ end
 
 size(grid::Grid) = (size(grid.x)..., size(grid.v)...)
 
-struct Species{G<:Grid}
+struct Species{G<:Grid, FFTPLANS}
     name::String
     grid::G
     v_grid::VGrid
@@ -96,17 +96,22 @@ struct Species{G<:Grid}
     v_dims::Vector{Symbol}
     q::Float64
     m::Float64
+
+    fft_plans::FFTPLANS
 end
 
-struct SimulationMetadata{BA, PHI_L, PHI_R, SP}
+struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS}
     x_dims::Vector{Symbol}
     x_grid::XGrid
 
     Bz::BA
     ϕ_left::PHI_L
     ϕ_right::PHI_R
+    ϕ::PHI
 
     species::SP
+
+    fft_plans::FFTPLANS
 end
 
 struct Simulation{SM<:SimulationMetadata, U}

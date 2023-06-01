@@ -19,43 +19,36 @@ function poisson(sim, f, buffer)
     end
     @assert sum(ρ_c) < sqrt(eps())
 
-    poisson(ρ_c, sim.ϕ_left, sim.ϕ_right, grid, sim.x_dims, buffer)
+    poisson(ρ_c, sim.ϕ_left, sim.ϕ_right, grid, sim.x_dims, buffer, sim.ϕ, sim.fft_plans)
 end
 
-function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer)
+function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans)
     Nx, Ny, Nz = size(grid)
 
     Ex = alloc(Float64, buffer, Nx, Ny, Nz)
     Ey = alloc(Float64, buffer, Nx, Ny, Nz)
     Ez = alloc(Float64, buffer, Nx, Ny, Nz)
 
-    poisson!((Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer)
+    poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans)
 
     return (Ex, Ey, Ez)
 end
 
-function poisson!((Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims, buffer)
-    Δ = LaplacianOperator(grid, x_dims, buffer, ϕ_left, ϕ_right)
-    ϕ = minres(Δ, -ρ_c, reltol=1e-12)
-    residual = Δ * ϕ + vec(ρ_c)
-    if norm(residual) > sqrt(eps())
-        @show norm(residual)
-        #display(ρ_c)
-        minres(Δ, -ρ_c, verbose=true, log=true, reltol=1e-12)
-        error("Poisson solve did not converge")
-    end
+function poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims, buffer, fft_plans)
+    Δ = LaplacianOperator(grid, x_dims, buffer, ϕ_left, ϕ_right, fft_plans)
 
-    ϕ = reshape(minres(Δ, -ρ_c), size(grid))
+    minres!(vec(ϕ), Δ, -ρ_c, abstol=1e-12)
 
-    potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer) 
+    potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans) 
 end
 
-struct LaplacianOperator{BUF, LEFT, RIGHT}
+struct LaplacianOperator{BUF, LEFT, RIGHT, FFTPLANS}
     grid::XGrid
     x_dims::Vector{Symbol}
     buffer::BUF
     ϕ_left::LEFT
     ϕ_right::RIGHT
+    fft_plans::FFTPLANS
 end
 
 size(Δ::LaplacianOperator, d) = begin
@@ -71,14 +64,14 @@ end
 
 function mul!(y, Δ::LaplacianOperator, ϕ)
     @no_escape Δ.buffer begin
-        apply_laplacian!(y, ϕ, Δ.ϕ_left, Δ.ϕ_right, Δ.grid, Δ.x_dims, Δ.buffer)
+        apply_laplacian!(y, ϕ, Δ.ϕ_left, Δ.ϕ_right, Δ.grid, Δ.x_dims, Δ.buffer, Δ.fft_plans)
     end
     return y
 end
 
 eltype(Δ::LaplacianOperator) = Float64
 
-function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer)
+function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans)
     Nx, Ny, Nz = size(grid)
     ϕ = reshape(ϕ, (Nx, Ny, Nz))
     dest = reshape(dest, (Nx, Ny, Nz))
@@ -100,7 +93,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer)
         if :y ∈ x_dims
             ϕ_yy = alloc(Float64, buffer, Nx, Ny, Nz)
             ϕ_yy .= ϕ
-            in_ky_domain!(ϕ_yy, buffer) do ϕ̂
+            in_ky_domain!(ϕ_yy, buffer, fft_plans) do ϕ̂
                 apply_k²!(ϕ̂, (2π / grid.y.L)^2)
             end
             dest .+= ϕ_yy
@@ -119,7 +112,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer)
     end
 end
 
-function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer)
+function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans)
     Nx, Ny, Nz = size(grid)
     dx = grid.x.dx
 
@@ -138,7 +131,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
         if :y ∈ x_dims
             ϕ_y = alloc(Float64, buffer, Nx, Ny, Nz)
             ϕ_y .= ϕ
-            in_ky_domain!(ϕ_y, buffer) do ϕ̂
+            in_ky_domain!(ϕ_y, buffer, fft_plans) do ϕ̂
                 apply_ik!(ϕ̂, 2π / grid.y.L)
             end
             Ey .= -ϕ_y

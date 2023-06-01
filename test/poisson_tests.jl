@@ -5,6 +5,7 @@
         errors = Float64[]
         for Nx in Ns
             grid = x_grid_3d(Nx, 20, 20)
+            fft_plans = Braginskii.plan_ffts(grid)
 
             ϕ = sin.(π * grid.X) .* cos.(3grid.Y) .* cos.(5grid.Z)
 
@@ -15,7 +16,7 @@
             ϕr = ϕ_right.(grid.Y, grid.Z)
 
             actual = similar(ϕ)
-            Braginskii.apply_laplacian!(actual, ϕ, ϕl, ϕr, grid, [:x, :y, :z], default_buffer())
+            Braginskii.apply_laplacian!(actual, ϕ, ϕl, ϕr, grid, [:x, :y, :z], default_buffer(), fft_plans)
 
             ϕ_xx = -π^2 * sin.(π * grid.X) .* cos.(3grid.Y) .* cos.(5grid.Z)
             ϕ_yy = sin.(π * grid.X) .* -9cos.(3grid.Y) .* cos.(5grid.Z)
@@ -35,6 +36,7 @@
         errors = Float64[]
         for Nx in Ns
             grid = x_grid_3d(Nx, 20, 20)
+            fft_plans = Braginskii.plan_ffts(grid)
 
             ϕ_xx = -π^2 * sin.(π * grid.X) .* cos.(3grid.Y) .* cos.(5grid.Z)
             ϕ_yy = sin.(π * grid.X) .* -9cos.(3grid.Y) .* cos.(5grid.Z)
@@ -47,7 +49,8 @@
             ϕl = ϕ_left.(grid.Y, grid.Z)
             ϕr = ϕ_right.(grid.Y, grid.Z)
 
-            Ex, Ey, Ez = Braginskii.poisson(ρ, ϕl, ϕr, grid, [:x, :y, :z], default_buffer())
+            Ex, Ey, Ez = Braginskii.poisson(ρ, ϕl, ϕr, grid, [:x, :y, :z], 
+                default_buffer(), zeros(size(grid)), fft_plans)
 
             Ex_expected = π * cos.(π * grid.X) .* cos.(3grid.Y) .* cos.(5grid.Z)
 

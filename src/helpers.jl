@@ -1,6 +1,7 @@
 module Helpers
 
 import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Grid, ..Species, ..Simulation, ..SimulationMetadata
+import ..plan_ffts
 using StrideArrays
 using RecursiveArrayTools
 
@@ -56,9 +57,10 @@ function single_species_1d1v_x(f, Nx, Nvx, xmin=-1., xmax=1., vxmax=8.0, q=1.0, 
     ϕl .= ϕ_left
     ϕr = (@StrideArray zeros(1, 1))
     ϕr .= ϕ_right
+    ϕ = @StrideArray zeros(size(x_grid))
 
-    electrons = Species("electrons", grid, v_grid, [:x], [:vx], q, 1.0)
-    sim = SimulationMetadata([:x], x_grid, Bz, ϕl, ϕr, (electrons,))
+    electrons = Species("electrons", grid, v_grid, [:x], [:vx], q, 1.0, plan_ffts(grid))
+    sim = SimulationMetadata([:x], x_grid, Bz, ϕl, ϕr, ϕ, (electrons,), plan_ffts(x_grid))
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -73,9 +75,10 @@ function single_species_1d1v_y(f, Ny, Nvy, Ly=2π, vymax=8.0; q=1.0)
     Bz = @StrideArray zeros(size(x_grid))
     ϕl = @StrideArray zeros(Ny, 1)
     ϕr = @StrideArray zeros(Ny, 1)
+    ϕ = @StrideArray zeros(size(x_grid))
 
-    electrons = Species("electrons", grid, v_grid, [:y], [:vy], q, 1.0)
-    sim = SimulationMetadata([:y], x_grid, Bz, ϕl, ϕr, (electrons,))
+    electrons = Species("electrons", grid, v_grid, [:y], [:vy], q, 1.0, plan_ffts(grid))
+    sim = SimulationMetadata([:y], x_grid, Bz, ϕl, ϕr, ϕ, (electrons,), plan_ffts(x_grid))
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -108,9 +111,10 @@ function single_species_0d2v((; f, Bz), Nvx, Nvy, vxmax=8.0, vymax=8.0)
     Bz0 .= (Bz::Number)
     ϕl = @StrideArray zeros(1, 1)
     ϕr = @StrideArray zeros(1, 1)
+    ϕ = @StrideArray zeros(size(x_grid))
 
-    electrons = Species("electrons", grid, v_grid, Symbol[], [:vx, :vy], 1.0, 1.0)
-    sim = SimulationMetadata(Symbol[], x_grid, Bz0, ϕl, ϕr, (electrons,))
+    electrons = Species("electrons", grid, v_grid, Symbol[], [:vx, :vy], 1.0, 1.0, plan_ffts(grid))
+    sim = SimulationMetadata(Symbol[], x_grid, Bz0, ϕl, ϕr, ϕ, (electrons,), plan_ffts(x_grid))
     Simulation(sim, ArrayPartition(fe))
 end
 
