@@ -14,12 +14,13 @@ function electrostatic!(df, f, Ex, Ey, Bz, species, buffer)
     end
 end
 
-function electrostatic_x!(df, f, Ex, Bz, species, buffer)
-    (; grid, q, m) = species
+function electrostatic_x!(df, f, Ex, Bz, species::Species{WENO5}, buffer)
+    (; discretization, q, m) = species
 
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
-    dvx = grid.v.x.dx
+    vgrid = discretization.vdisc.grid
+    dvx = vgrid.x.dx
 
     @no_escape buffer begin
         C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvy)
@@ -27,7 +28,7 @@ function electrostatic_x!(df, f, Ex, Bz, species, buffer)
         F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvy)
         for λxyz in CartesianIndices((Nx, Ny, Nz))
             for λvy in 1:Nvy
-                vy = grid.VY[λvy]
+                vy = vgrid.VY[λvy]
                 C[λxyz, λvy] = q / m * (Ex[λxyz] + vy * Bz[λxyz])
             end
         end
@@ -73,17 +74,19 @@ function electrostatic_x!(df, f, Ex, Bz, species, buffer)
             end
         end
 
-        electrostatic_x_boundary!(df, F⁺, F⁻, grid)
+        electrostatic_x_boundary!(df, F⁺, F⁻, discretization)
 
     end
 end
 
-function electrostatic_y!(df, f, Ey, Bz, species, buffer)
-    (; grid, q, m) = species
+function electrostatic_y!(df, f, Ey, Bz, species::Species{WENO5}, buffer)
+    (; discretization, q, m) = species
 
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
-    dvy = grid.v.y.dx
+    vgrid = discretization.vdisc.grid
+
+    dvy = vgrid.y.dx
 
     @no_escape buffer begin
         C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx)
@@ -91,7 +94,7 @@ function electrostatic_y!(df, f, Ey, Bz, species, buffer)
         F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
         for λxyz in CartesianIndices((Nx, Ny, Nz))
             for λvx in 1:Nvx
-                vx = grid.VX[λvx]
+                vx = vgrid.VX[λvx]
                 C[λxyz, λvx] = q / m * (Ey[λxyz] - vx * Bz[λxyz])
             end
         end
@@ -141,7 +144,7 @@ function electrostatic_y!(df, f, Ey, Bz, species, buffer)
             end
         end
 
-        electrostatic_y_boundary!(df, F⁺, F⁻, grid)
+        electrostatic_y_boundary!(df, F⁺, F⁻, discretization)
     end
 end
 
@@ -205,10 +208,11 @@ function copy_from_first_half!(u_modes, u_modes_tmp)
 end
 
 
-function electrostatic_x_boundary!(df, F⁺, F⁻, grid)
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
+function electrostatic_x_boundary!(df, F⁺, F⁻, discretization::XVDiscretization{WENO5})
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
-    dvx = grid.v.x.dx
+    vgrid = discretization.vdisc.grid
+    dvx = vgrid.x.dx
 
     for λxyz in CartesianIndices((Nx, Ny, Nz))
         for λvyvz in CartesianIndices((Nvy, Nvz))
@@ -279,10 +283,11 @@ function electrostatic_x_boundary!(df, F⁺, F⁻, grid)
     end
 end
 
-function electrostatic_y_boundary!(df, F⁺, F⁻, grid)
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
+function electrostatic_y_boundary!(df, F⁺, F⁻, discretization::XVDiscretization{WENO5})
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
-    dvy = grid.v.y.dx
+    vgrid = discretization.vdisc.grid
+    dvy = vgrid.y.dx
 
     for λxyz in CartesianIndices((Nx, Ny, Nz, Nvx))
         for λvz in 1:Nvz

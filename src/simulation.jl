@@ -1,121 +1,13 @@
-import Base.size, Base.getproperty
 
-struct Grid1D
-    N::Int
-    dx::Float64
-    min::Float64
-    max::Float64
-    nodes::Vector{Float64}
-end
-
-# A periodic grid from [0, L), with nodes at 0, Δx, 2Δx, ...
-struct PeriodicGrid1D
-    N::Int
-    dx::Float64
-    L::Float64
-    nodes::Vector{Float64}
-end
-
-# Create a non-periodic uniform grid, with points at cell centers.
-grid1d(N, min, max) = begin
-    dx = (max - min) / N
-    cell_centers = collect(LinRange(min+dx/2, max-dx/2, N))
-    Grid1D(N, dx, min, max, cell_centers)
-end
-
-periodic_grid1d(N, L) = begin
-    dx = L / N
-    nodes = collect((0:N-1) * dx)
-    PeriodicGrid1D(N, dx, L, nodes)
-end
-
-struct XGrid{XA, YA, ZA}
-    x::Grid1D
-    y::PeriodicGrid1D
-    z::PeriodicGrid1D
-
-    X::XA
-    Y::YA
-    Z::ZA
-
-    XGrid(xgrid, ygrid, zgrid) = begin
-        X = zeros(length(xgrid.nodes), 1, 1)
-        X .= reshape(xgrid.nodes, (:, 1, 1))
-
-        Y = zeros(1, length(ygrid.nodes), 1)
-        Y .= reshape(ygrid.nodes, (1, :, 1))
-
-        Z = zeros(1, 1, length(zgrid.nodes))
-        Z .= reshape(zgrid.nodes, (1, 1, :))
-
-        new{typeof(X), typeof(Y), typeof(Z)}(xgrid, ygrid, zgrid, X, Y, Z)
-    end
-end
-
-size(grid::XGrid) = (grid.x.N, grid.y.N, grid.z.N)
-
-struct VGrid
-    x::Grid1D
-    y::Grid1D
-    z::Grid1D
-
-    VGrid(dims, x, y, z) = begin
-        # Check that it's suitable for reflecting wall BCs
-        if :x ∈ dims
-            @assert iseven(x.N) && x.max == -x.min
-        end
-        new(x, y, z)
-    end
-end
-
-size(grid::VGrid) = (grid.x.N, grid.y.N, grid.z.N)
-
-struct Grid{XA, YA, ZA, VXA, VYA, VZA}
-    x::XGrid
-    v::VGrid
-
-    X::XA
-    Y::YA
-    Z::ZA
-    VX::VXA
-    VY::VYA
-    VZ::VZA
-
-    Grid(xgrid, vgrid) = begin
-        X = zeros(length(xgrid.x.nodes), 1, 1, 1, 1, 1)
-        X .= reshape(xgrid.x.nodes, (:, 1, 1, 1, 1, 1))
-
-        Y = zeros(1, length(xgrid.y.nodes), 1, 1, 1, 1)
-        Y .= reshape(xgrid.y.nodes, (1, :, 1, 1, 1, 1))
-
-        Z = zeros(1, 1, length(xgrid.z.nodes), 1, 1, 1)
-        Z .= reshape(xgrid.z.nodes, (1, 1, :, 1, 1, 1))
-
-        VX = zeros(1, 1, 1, length(vgrid.x.nodes), 1, 1)
-        VX .= reshape(vgrid.x.nodes, (1, 1, 1, :, 1, 1))
-
-        VY = zeros(1, 1, 1, 1, length(vgrid.y.nodes), 1)
-        VY .= reshape(vgrid.y.nodes, (1, 1, 1, 1, :, 1))
-
-        VZ = zeros(1, 1, 1, 1, 1, length(vgrid.z.nodes))
-        VZ .= reshape(vgrid.z.nodes, (1, 1, 1, 1, 1, :))
-
-        new{typeof(X), typeof(Y), typeof(Z), typeof(VX), typeof(VY), typeof(VZ)}(xgrid, vgrid, X, Y, Z, VX, VY, VZ)
-    end
-end
-
-size(grid::Grid) = (size(grid.x)..., size(grid.v)...)
-
-struct Species{G<:Grid, FFTPLANS}
+struct Species{DISC, FFTPLANS}
     name::String
-    grid::G
-    v_grid::VGrid
     x_dims::Vector{Symbol}
     v_dims::Vector{Symbol}
     q::Float64
     m::Float64
 
     fft_plans::FFTPLANS
+    discretization::XVDiscretization{DISC}
 end
 
 struct CollisionalMoments{uA, TA, νA}

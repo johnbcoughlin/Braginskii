@@ -9,7 +9,7 @@ end
 function plan_ffts(grid)
     Nx, Ny, Nz = size(grid)
 
-    arr = @StrideArray rand(size(grid))
+    arr = rand(size(grid)...)
 
     arr = reshape(arr, (Nx, Ny, :))
     ky_rfft = plan_rfft(arr, (2,))

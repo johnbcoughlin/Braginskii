@@ -1,8 +1,9 @@
-export as_xvx, as_yvy, as_vxvy
+export as_xvx, as_yvy, as_vxvy, as_xyvxvy
 
 as_xvx(f) = f[:, 1, 1, :, 1, 1] |> Array |> copy
 as_yvy(f) = f[1, :, 1, 1, :, 1] |> Array |> copy
 as_vxvy(f) = f[1, 1, 1, :, :, 1] |> Array |> copy
+as_xyvxvy(f) = f[:, :, 1, :, :, 1] |> Array |> copy
 
 # Scheme may be :WENO or :fourier.
 # points gives the number of points to interpolate to per cell.
@@ -11,7 +12,7 @@ function interpolate(f, (scheme1, scheme2), (points1, points2))
     k1 = length(points1)
     k2 = length(points2)
 
-    g1 = @StrideArray zeros(Nx*k1, Ny*k2)
+    g1 = zeros(Nx*k1, Ny*k2)
     for λy in 1:Ny
         if scheme1 == :weno
             weno_interpolate!(reshape(g1[:, λy], k1, Nx), f[:, λy], points1)
@@ -20,7 +21,7 @@ function interpolate(f, (scheme1, scheme2), (points1, points2))
 
     return g1
 
-    g2 = @StrideArray zeros(Nx*k1, Ny*k2)
+    g2 = zeros(Nx*k1, Ny*k2)
     for λx in 1:Nx
         if scheme2 == :weno
             weno_interpolate!(reshape(g2[λx, :], k2, Ny), g1[λx, :], points2)

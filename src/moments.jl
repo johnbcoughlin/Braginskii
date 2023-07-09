@@ -1,6 +1,6 @@
 # Moments are computed using a "periodic" Trapezoid rule
 
-function moments(f, grid, v_dims, buffer)
+function moments(f, disc::XVDiscretization{WENO5}, v_dims, buffer)
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
 
     M0 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
@@ -9,15 +9,17 @@ function moments(f, grid, v_dims, buffer)
     M1z = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
     M2 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
 
+    grid = disc.vdisc.grid
+
     dv = 1.0
     if :vx ∈ v_dims
-        dv *= grid.v.x.dx
+        dv *= grid.x.dx
     end
     if :vy ∈ v_dims
-        dv *= grid.v.y.dx
+        dv *= grid.y.dx
     end
     if :vz ∈ v_dims
-        dv *= grid.v.z.dx
+        dv *= grid.z.dx
     end
 
     for λxyz in CartesianIndices((Nx, Ny, Nz))
@@ -37,20 +39,21 @@ function moments(f, grid, v_dims, buffer)
     M0, (M1x, M1y, M1z), M2
 end
 
-function density(f, grid, v_dims, buffer)
+function density(f, disc::XVDiscretization{WENO5}, v_dims, buffer)
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
 
     M0 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    grid = disc.vdisc.grid
 
     dv = 1.0
     if :vx ∈ v_dims
-        dv *= grid.v.x.dx
+        dv *= grid.x.dx
     end
     if :vy ∈ v_dims
-        dv *= grid.v.y.dx
+        dv *= grid.y.dx
     end
     if :vz ∈ v_dims
-        dv *= grid.v.z.dx
+        dv *= grid.z.dx
     end
 
     for λxyz in CartesianIndices((Nx, Ny, Nz))
@@ -82,7 +85,7 @@ function collisional_moments!(sim, f, buffer)
 end
 
 function collisional_moments_single_species(α, f, x_grid, ν_p, buffer)
-    M0, M1, M2 = moments(f, α.grid, α.v_dims, buffer)
+    M0, M1, M2 = moments(f, α.discretization, α.v_dims, buffer)
     M1x, M1y, M1z = M1
 
     ux = M1x ./ M0

@@ -9,7 +9,7 @@ function poisson(sim, f, buffer)
     for i in eachindex(sim.species)
         α = sim.species[i]
         fi = f.x[i]
-        ρ_c .+= density(fi, α.grid, α.v_dims, buffer) .* α.q
+        ρ_c .+= density(fi, α.discretization, α.v_dims, buffer) .* α.q
     end
 
     if length(sim.species) == 1

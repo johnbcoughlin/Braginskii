@@ -2,17 +2,17 @@ function free_streaming!(df, f, species, buffer)
     @no_escape buffer begin
         df_fs = alloc_zeros(Float64, buffer, size(df)...)
         if :x ∈ species.x_dims
-            df_x = alloc_zeros(Float64, buffer, size(species.grid)...)
+            df_x = alloc_zeros(Float64, buffer, size(species.discretization)...)
             @timeit "x" free_streaming_x!(df_x, f, species, buffer)
             df_fs .+= df_x
         end
         if :y ∈ species.x_dims
-            df_y = alloc_zeros(Float64, buffer, size(species.grid)...)
+            df_y = alloc_zeros(Float64, buffer, size(species.discretization)...)
             free_streaming_y!(df_y, f, species, buffer)
             df_fs .+= df_y
         end
         if :z ∈ species.x_dims
-            df_z = alloc_zeros(Float64, buffer, size(species.grid)...)
+            df_z = alloc_zeros(Float64, buffer, size(species.discretization)...)
             free_streaming_z!(df_z, f, species, buffer)
             df_fs .+= df_z
         end
@@ -22,26 +22,28 @@ function free_streaming!(df, f, species, buffer)
     end
 end
 
-function free_streaming_x!(df, f, species, buffer)
-    (; grid) = species
+function free_streaming_x!(df, f, species::Species{WENO5}, buffer)
+    (; discretization) = species
 
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
-    _, rest... = size(grid)
-    dx = grid.x.x.dx
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+    _, rest... = size(discretization)
+    xgrid = discretization.x_grid
+    dx = xgrid.x.dx
+    vgrid = discretization.vdisc.grid
 
     @no_escape buffer begin
         f_with_boundaries = alloc_array(Float64, buffer, Nx+6, rest...) |> Origin(-2, 1, 1, 1, 1, 1)
         f_with_boundaries[1:Nx, :, :, :, :, :] .= f
-        reflecting_wall_bcs!(f_with_boundaries, f, grid)
+        reflecting_wall_bcs!(f_with_boundaries, f, discretization)
 
         F⁻ = alloc_array(Float64, buffer, Nx+6, Ny, Nz, Nvx÷2, Nvy, Nvz)
         F⁻ .= @view parent(f_with_boundaries)[:, :, :, 1:Nvx÷2, :, :]
-        vx = Array(reshape(grid.VX[1:Nvx÷2], (1, 1, 1, :, 1, 1)))
+        vx = Array(reshape(vgrid.VX[1:Nvx÷2], (1, 1, 1, :, 1, 1)))
         broadcast_mul_over_vx(F⁻, vx)
 
         F⁺ = alloc_array(Float64, buffer, Nx+6, Ny, Nz, Nvx÷2, Nvy, Nvz)
         F⁺ .= @view parent(f_with_boundaries)[:, :, :, Nvx÷2+1:Nvx, :, :]
-        vx = reshape(grid.VX[Nvx÷2+1:Nvx], (1, 1, 1, :))
+        vx = reshape(vgrid.VX[Nvx÷2+1:Nvx], (1, 1, 1, :))
         broadcast_mul_over_vx(F⁺, vx)
 
         right_biased_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1 / dx)
@@ -71,8 +73,11 @@ function broadcast_mul_over_vx(F, vx)
 end
 
 function free_streaming_y!(df, f, species, buffer)
-    (; grid) = species
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
+    (; discretization) = species
+
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+    xgrid = discretization.x_grid
+    vgrid = discretization.vdisc.grid
 
     f = reshape(f, (Nx, Ny, Nz*Nvx, Nvy, Nvz))
     df = reshape(df, (Nx, Ny, Nz*Nvx, Nvy, Nvz))
@@ -83,8 +88,8 @@ function free_streaming_y!(df, f, species, buffer)
         y_modes = alloc_zeros(Complex{Float64}, buffer, Nx, (Ny÷2+1), Nz*Nvx, Nvy, Nvz)
         mul!(y_modes, F, f)
         for λx in 1:Nx, ky in 1:Ky, λzvx in 1:(Nz*Nvx), λvy in 1:Nvy, λvz in 1:Nvz
-            vy = grid.VY[λvy]
-            y_modes[λx, ky, λzvx, λvy, λvz] *= -im * (ky-1) * vy * 2π / grid.x.y.L
+            vy = vgrid.VY[λvy]
+            y_modes[λx, ky, λzvx, λvy, λvz] *= -im * (ky-1) * vy * 2π / xgrid.y.L
         end
         mul!(df, inv(F), y_modes)
         nothing

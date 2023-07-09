@@ -16,7 +16,7 @@
     @testset "Holds Maxwellian equilibrium" begin
         Nx = 40
         Nvx = 60
-        sim = single_species_1d1v_x(Nx, Nvx; vxmax=10.0, free_streaming=false, ν_p=1.0) do x, vx
+        sim = single_species_1d1v_x(; Nx, Nvx, vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc=:weno) do x, vx
             1.0 / sqrt(2π * (1.2 + 0.1sin(π*x))) * exp(-(vx-0.3cos(x))^2/(2*(1.2+0.1sin(π*x))))
         end
 
@@ -31,11 +31,11 @@
     @testset "Conserves energy" begin
         Nx = 40
         Nvx = 200
-        sim = single_species_1d1v_x(Nx, Nvx; xmin=-π, xmax=π, vxmax=10.0, free_streaming=false, ν_p=1.0) do x, vx
+        sim = single_species_1d1v_x(; Nx, Nvx, xmin=-π, xmax=π, vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc=:weno) do x, vx
             0.5 / sqrt(2π) * (exp(-(vx-1-sin(x))^2/2) + exp(-((vx+1)^2/2)))
         end
 
-        v = sim.species[1].v_grid.x.nodes
+        v = sim.species[1].discretization.vdisc.grid.VX |> vec
 
         T = 1.0
         dt = 0.002

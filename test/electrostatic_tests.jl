@@ -11,8 +11,8 @@
         Ns = [20, 40, 80]
         @no_escape begin
             for N in Ns
-                sim = single_species_0d2v((; f=f0, Bz), N, N, 6.5, 6.5)
-                (; VX, VY) = sim.species[1].grid
+                sim = single_species_0d2v((; f=f0, Bz), N, N; vxmax=6.5, vymax=6.5, vdisc=:weno)
+                (; VX, VY) = sim.species[1].discretization.vdisc.grid
 
                 runsim_lightweight!(sim, T, dt)
                 actual = as_vxvy(sim.u.x[1])

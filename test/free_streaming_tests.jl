@@ -22,13 +22,14 @@
             Ns = [20, 40, 80] .* 4
             @no_escape begin
                 for Nx in Ns
-                    sim = single_species_1d1v_x(f0, Nx, 20; q=0.0)
+                    sim = single_species_1d1v_x(f0; Nx, Nvx=20, q=0.0, vdisc=:weno)
 
                     actual0 = as_xvx(sim.u.x[1])
                     runsim_lightweight!(sim, T, dt)
                     actual = as_xvx(sim.u.x[1])
 
-                    (; X, VX) = sim.species[1].grid
+                    (; X) = sim.species[1].discretization.x_grid
+                    (; VX) = sim.species[1].discretization.vdisc.grid
                     expected = ((x, vx) -> f0(characteristic(x, vx)...)).(X, VX)
                     expected = as_xvx(expected)
                     
@@ -47,21 +48,19 @@
         dt = 0.001
         T = 1.0
         n(y) = 1 + 0.2*exp((sin(y) + 0cos(2y)))
-        sim = single_species_1d1v_y(Ny, 20, 4pi; q=0.0) do y, vy
+        sim = single_species_1d1v_y(; Ny, Nvy=20, Ly=4pi, vdisc=:weno, q=0.0) do y, vy
             n(y) * exp(-vy^2/2)
         end
         actual0 = sim.u.x[1]
         runsim_lightweight!(sim, T, dt)
         actual = sim.u.x[1]
-        (; Y, VY) = sim.species[1].grid
+        (; Y) = sim.species[1].discretization.x_grid
+        (; VY) = sim.species[1].discretization.vdisc.grid
 
-        @no_escape begin
-            expected = alloc_array(Float64, (size(Y) .* size(VY))...)
-            expected .= (n.(Y .- VY*T) .* exp.(-(VY).^2 ./ 2))
+        expected = (n.(Y .- VY*T) .* exp.(-(VY).^2 ./ 2))
 
-            error = norm(actual - expected) / norm(expected)
-            @test abs(error) < 1e-7
-        end
+        error = norm(actual - expected) / norm(expected)
+        @test abs(error) < 1e-7
     end
 
 end
