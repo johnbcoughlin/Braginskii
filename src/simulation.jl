@@ -39,9 +39,15 @@ struct XGrid{XA, YA, ZA}
     Z::ZA
 
     XGrid(xgrid, ygrid, zgrid) = begin
-        X = xgrid.nodes
-        Y = reshape(ygrid.nodes, (1, :))
-        Z = reshape(zgrid.nodes, (1, 1, :))
+        X = zeros(length(xgrid.nodes), 1, 1)
+        X .= reshape(xgrid.nodes, (:, 1, 1))
+
+        Y = zeros(1, length(ygrid.nodes), 1)
+        Y .= reshape(ygrid.nodes, (1, :, 1))
+
+        Z = zeros(1, 1, length(zgrid.nodes))
+        Z .= reshape(zgrid.nodes, (1, 1, :))
+
         new{typeof(X), typeof(Y), typeof(Z)}(xgrid, ygrid, zgrid, X, Y, Z)
     end
 end
@@ -76,12 +82,24 @@ struct Grid{XA, YA, ZA, VXA, VYA, VZA}
     VZ::VZA
 
     Grid(xgrid, vgrid) = begin
-        X = xgrid.x.nodes
-        Y = reshape(xgrid.y.nodes, (1, :))
-        Z = reshape(xgrid.z.nodes, (1, 1, :))
-        VX = reshape(vgrid.x.nodes, (1, 1, 1, :))
-        VY = reshape(vgrid.y.nodes, (1, 1, 1, 1, :))
-        VZ = reshape(vgrid.z.nodes, (1, 1, 1, 1, 1, :))
+        X = zeros(length(xgrid.x.nodes), 1, 1, 1, 1, 1)
+        X .= reshape(xgrid.x.nodes, (:, 1, 1, 1, 1, 1))
+
+        Y = zeros(1, length(xgrid.y.nodes), 1, 1, 1, 1)
+        Y .= reshape(xgrid.y.nodes, (1, :, 1, 1, 1, 1))
+
+        Z = zeros(1, 1, length(xgrid.z.nodes), 1, 1, 1)
+        Z .= reshape(xgrid.z.nodes, (1, 1, :, 1, 1, 1))
+
+        VX = zeros(1, 1, 1, length(vgrid.x.nodes), 1, 1)
+        VX .= reshape(vgrid.x.nodes, (1, 1, 1, :, 1, 1))
+
+        VY = zeros(1, 1, 1, 1, length(vgrid.y.nodes), 1)
+        VY .= reshape(vgrid.y.nodes, (1, 1, 1, 1, :, 1))
+
+        VZ = zeros(1, 1, 1, 1, 1, length(vgrid.z.nodes))
+        VZ .= reshape(vgrid.z.nodes, (1, 1, 1, 1, 1, :))
+
         new{typeof(X), typeof(Y), typeof(Z), typeof(VX), typeof(VY), typeof(VZ)}(xgrid, vgrid, X, Y, Z, VX, VY, VZ)
     end
 end
@@ -100,7 +118,15 @@ struct Species{G<:Grid, FFTPLANS}
     fft_plans::FFTPLANS
 end
 
-struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS}
+struct CollisionalMoments{uA, TA, νA}
+    ux::uA
+    uy::uA
+    uz::uA
+    T::TA
+    ν::νA
+end
+
+struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CM_DICT}
     x_dims::Vector{Symbol}
     x_grid::XGrid
 
@@ -108,6 +134,11 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS}
     ϕ_left::PHI_L
     ϕ_right::PHI_R
     ϕ::PHI
+
+    free_streaming::Bool
+
+    ν_p::Float64
+    collisional_moments::CM_DICT
 
     species::SP
 
@@ -138,14 +169,19 @@ function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
     @no_escape buffer begin
         @timeit "poisson" Ex, Ey, _ = poisson(sim, f, buffer)
 
+        @timeit "collisional moments" collisional_moments!(sim, f, buffer)
+
         for i in eachindex(sim.species)
             α = sim.species[i]
 
             df = du.x[i]
             df .= 0
 
-            @timeit "free streaming" free_streaming!(df, f.x[i], α, buffer)
+            if sim.free_streaming
+                @timeit "free streaming" free_streaming!(df, f.x[i], α, buffer)
+            end
             @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, sim.Bz, α, buffer)
+            @timeit "dfp" dfp!(df, f.x[i], α, sim, buffer)
         end
     end
 end

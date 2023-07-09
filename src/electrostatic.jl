@@ -1,7 +1,6 @@
 function electrostatic!(df, f, Ex, Ey, Bz, species, buffer)
     @no_escape buffer begin
-        df_es = alloc(Float64, buffer, size(df)...)
-        df_es .= 0
+        df_es = alloc_zeros(Float64, buffer, size(df)...)
 
         if :vx ∈ species.v_dims
             electrostatic_x!(df_es, f, Ex, Bz, species, buffer)
@@ -23,11 +22,9 @@ function electrostatic_x!(df, f, Ex, Bz, species, buffer)
     dvx = grid.v.x.dx
 
     @no_escape buffer begin
-        C = alloc(Float64, buffer, Nx, Ny, Nz, Nvy)
-        F⁺ = alloc(Float64, buffer, Nx, Ny, Nz, Nvy)
-        F⁺ .= 0
-        F⁻ = alloc(Float64, buffer, Nx, Ny, Nz, Nvy)
-        F⁻ .= 0
+        C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvy)
+        F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvy)
+        F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvy)
         for λxyz in CartesianIndices((Nx, Ny, Nz))
             for λvy in 1:Nvy
                 vy = grid.VY[λvy]
@@ -37,8 +34,8 @@ function electrostatic_x!(df, f, Ex, Bz, species, buffer)
 
         C = quadratic_dealias(C, buffer)
         f̂ = quadratic_dealias(f, buffer)
-        F⁺ = alloc(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
-        F⁻ = alloc(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
+        F⁺ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
+        F⁻ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
         for λxyz in CartesianIndices((Nx, 2Ny-1, 2Nz-1))
             for λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
                 F⁺[λxyz, λvx, λvy, λvz] = max(C[λxyz, λvy], 0) * f̂[λxyz, λvx, λvy, λvz]
@@ -89,11 +86,9 @@ function electrostatic_y!(df, f, Ey, Bz, species, buffer)
     dvy = grid.v.y.dx
 
     @no_escape buffer begin
-        C = alloc(Float64, buffer, Nx, Ny, Nz, Nvx)
-        F⁺ = alloc(Float64, buffer, Nx, Ny, Nz, Nvx)
-        F⁺ .= 0
-        F⁻ = alloc(Float64, buffer, Nx, Ny, Nz, Nvx)
-        F⁻ .= 0
+        C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx)
+        F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
+        F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
         for λxyz in CartesianIndices((Nx, Ny, Nz))
             for λvx in 1:Nvx
                 vx = grid.VX[λvx]
@@ -105,8 +100,8 @@ function electrostatic_y!(df, f, Ey, Bz, species, buffer)
         C = quadratic_dealias(C, buffer)
         f̂ = quadratic_dealias(f, buffer)
         end
-        F⁺ = alloc(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
-        F⁻ = alloc(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
+        F⁺ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
+        F⁻ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
         for λxyz in CartesianIndices((Nx, 2Ny-1, 2Nz-1))
             for λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
                 F⁺[λxyz, λvx, λvy, λvz] = max(C[λxyz, λvx], 0) * f̂[λxyz, λvx, λvy, λvz]
@@ -156,17 +151,15 @@ function quadratic_dealias(u, buffer)
     Nx, Ny, Nz, Nvs... = size(u)
     u = reshape(u, (Nx, Ny, Nz, :))
 
-    u_modes = alloc(Complex{Float64}, buffer, Nx, Ny, Nz, prod(Nvs))
-    u_modes .= 0
+    u_modes = alloc_zeros(Complex{Float64}, buffer, Nx, Ny, Nz, prod(Nvs))
     @timeit "plan fft" F = plan_rfft(u, (2, 3))
-    u_modes_tmp = alloc(Complex{Float64}, buffer, Nx, Ny÷2+1, Nz÷2+1, prod(Nvs))
+    u_modes_tmp = alloc_array(Complex{Float64}, buffer, Nx, Ny÷2+1, Nz÷2+1, prod(Nvs))
     mul!(u_modes_tmp, F, u)
 
     #u_modes[:, 1:(Ny÷2+1), 1:(Nz÷2+1), :] .= u_modes_tmp
     copy_to_first_half!(u_modes, u_modes_tmp)
 
-    U = alloc(Float64, buffer, Nx, 2Ny-1, 2Nz-1, prod(Nvs))
-    U .= 0
+    U = alloc_zeros(Float64, buffer, Nx, 2Ny-1, 2Nz-1, prod(Nvs))
     @timeit "plan fft" F⁻¹ = plan_irfft(u_modes, 2Ny-1, (2, 3))
     mul!(U, F⁻¹, u_modes)
 
@@ -189,16 +182,14 @@ function reverse_quadratic_dealias(u, buffer)
 
     u = reshape(u, (Nx, Nŷ, Nẑ, :))
 
-    u_modes_tmp = alloc(Complex{Float64}, buffer, Nx, Ny, Nz, prod(Nvs))
-    u_modes_tmp .= 0
+    u_modes_tmp = alloc_zeros(Complex{Float64}, buffer, Nx, Ny, Nz, prod(Nvs))
     @timeit "plan fft" F = plan_rfft(u, (2, 3))
     mul!(u_modes_tmp, F, u)
 
-    u_modes = alloc(Complex{Float64}, buffer, Nx, Ny÷2+1, Nz÷2+1, prod(Nvs))
+    u_modes = alloc_array(Complex{Float64}, buffer, Nx, Ny÷2+1, Nz÷2+1, prod(Nvs))
     copy_from_first_half!(u_modes, u_modes_tmp)
 
-    U = alloc(Float64, buffer, Nx, Ny, Nz, prod(Nvs))
-    U .= 0
+    U = alloc_zeros(Float64, buffer, Nx, Ny, Nz, prod(Nvs))
     @timeit "plan fft" F⁻¹ = plan_irfft(u_modes, Ny, (2, 3))
     mul!(U, F⁻¹, u_modes)
 

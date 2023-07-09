@@ -1,8 +1,7 @@
 module Helpers
 
-import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Grid, ..Species, ..Simulation, ..SimulationMetadata
+import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Grid, ..Species, ..Simulation, ..SimulationMetadata, ..CollisionalMoments
 import ..plan_ffts
-using StrideArrays
 using RecursiveArrayTools
 
 export y_grid_1d, vy_grid_1v, single_species_1d1v_y, single_species_1d1v_x, single_species_0d2v,
@@ -44,41 +43,59 @@ vy_grid_1v(Nvy, vymax, vymin=-vymax) = begin
     VGrid([:y], vx_grid, vy_grid, vz_grid)
 end
 
-function single_species_1d1v_x(f, Nx, Nvx, xmin=-1., xmax=1., vxmax=8.0, q=1.0, ϕ_left=0., ϕ_right=0.)
+function collisional_moments(xgrid, species)
+    result = Dict{Tuple{String, String}, CollisionalMoments}()
+    for α in species
+        for β in species
+            ux = zeros(size(xgrid))
+            uy = zeros(size(xgrid))
+            uz = zeros(size(xgrid))
+            T = zeros(size(xgrid))
+            ν = zeros(size(xgrid))
+            cm = CollisionalMoments(ux, uy, uz, T, ν)
+            push!(result, (α, β) => cm)
+        end
+    end
+    result
+end
+
+function single_species_1d1v_x(f, Nx, Nvx; xmin=-1., xmax=1., vxmax=8.0, free_streaming=true, q=1.0, ϕ_left=0., ϕ_right=0., ν_p=0.0)
     x_grid = x_grid_1d(Nx, xmin, xmax)
     v_grid = vx_grid_1v(Nvx, vxmax, -vxmax)
     grid = Grid(x_grid, v_grid)
 
-    fe = @StrideArray zeros(size(grid))
-    fe .= reshape(f.(grid.X, grid.VX), size(grid))
+    fe = zeros(size(grid))
+    fe .= f.(grid.X, grid.VX)
 
-    Bz = @StrideArray zeros(size(x_grid))
-    ϕl = (@StrideArray zeros(1, 1))
+    Bz = zeros(size(x_grid))
+    ϕl = zeros(1, 1)
     ϕl .= ϕ_left
-    ϕr = (@StrideArray zeros(1, 1))
+    ϕr = zeros(1, 1)
     ϕr .= ϕ_right
-    ϕ = @StrideArray zeros(size(x_grid))
+    ϕ = zeros(size(x_grid))
 
     electrons = Species("electrons", grid, v_grid, [:x], [:vx], q, 1.0, plan_ffts(grid))
-    sim = SimulationMetadata([:x], x_grid, Bz, ϕl, ϕr, ϕ, (electrons,), plan_ffts(x_grid))
+    cms = collisional_moments(x_grid, ["electrons"])
+    sim = SimulationMetadata([:x], x_grid, Bz, ϕl, ϕr, ϕ, free_streaming, ν_p, cms, (electrons,), plan_ffts(x_grid))
     Simulation(sim, ArrayPartition(fe))
 end
 
-function single_species_1d1v_y(f, Ny, Nvy, Ly=2π, vymax=8.0; q=1.0)
+function single_species_1d1v_y(f, Ny, Nvy, Ly=2π, vymax=8.0; q=1.0, ν_p=0.0, free_streaming=true)
     x_grid = y_grid_1d(Ny, Ly)
     v_grid = vy_grid_1v(Nvy, vymax, -vymax)
     grid = Grid(x_grid, v_grid)
 
-    fe = @StrideArray zeros(size(grid))
-    fe .= reshape(f.(grid.Y, grid.VY), size(grid))
+    fe = zeros(size(grid))
+    fe .= f.(grid.Y, grid.VY)
 
-    Bz = @StrideArray zeros(size(x_grid))
-    ϕl = @StrideArray zeros(Ny, 1)
-    ϕr = @StrideArray zeros(Ny, 1)
-    ϕ = @StrideArray zeros(size(x_grid))
+    Bz = zeros(size(x_grid))
+    ϕl = zeros(Ny, 1)
+    ϕr = zeros(Ny, 1)
+    ϕ = zeros(size(x_grid))
 
     electrons = Species("electrons", grid, v_grid, [:y], [:vy], q, 1.0, plan_ffts(grid))
-    sim = SimulationMetadata([:y], x_grid, Bz, ϕl, ϕr, ϕ, (electrons,), plan_ffts(x_grid))
+    cms = collisional_moments(x_grid, ["electrons"])
+    sim = SimulationMetadata([:y], x_grid, Bz, ϕl, ϕr, ϕ, free_streaming, ν_p, cms, (electrons,), plan_ffts(x_grid))
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -99,22 +116,23 @@ vxvy_grid_2v(Nvx, Nvy, vxmax, vymax, vxmin=-vxmax, vymin=-vymax) = begin
     VGrid([:x, :y], vx_grid, vy_grid, vz_grid)
 end
 
-function single_species_0d2v((; f, Bz), Nvx, Nvy, vxmax=8.0, vymax=8.0)
+function single_species_0d2v((; f, Bz), Nvx, Nvy, vxmax=8.0, vymax=8.0, q=1.0, ν_p=0.0, free_streaming=true)
     x_grid = x_grid_0d()
     v_grid = vxvy_grid_2v(Nvx, Nvy, vxmax, vymax)
     grid = Grid(x_grid, v_grid)
 
-    fe = @StrideArray zeros(size(grid))
-    fe .= reshape(f.(grid.VX, grid.VY), size(grid))
+    fe = zeros(size(grid))
+    fe .= f.(grid.VX, grid.VY)
 
-    Bz0 = @StrideArray zeros(size(x_grid))
+    Bz0 = zeros(size(x_grid))
     Bz0 .= (Bz::Number)
-    ϕl = @StrideArray zeros(1, 1)
-    ϕr = @StrideArray zeros(1, 1)
-    ϕ = @StrideArray zeros(size(x_grid))
+    ϕl = zeros(1, 1)
+    ϕr = zeros(1, 1)
+    ϕ = zeros(size(x_grid))
 
-    electrons = Species("electrons", grid, v_grid, Symbol[], [:vx, :vy], 1.0, 1.0, plan_ffts(grid))
-    sim = SimulationMetadata(Symbol[], x_grid, Bz0, ϕl, ϕr, ϕ, (electrons,), plan_ffts(x_grid))
+    electrons = Species("electrons", grid, v_grid, Symbol[], [:vx, :vy], q, 1.0, plan_ffts(grid))
+    cms = collisional_moments(x_grid, ["electrons"])
+    sim = SimulationMetadata(Symbol[], x_grid, Bz0, ϕl, ϕr, ϕ, free_streaming, ν_p, cms, (electrons,), plan_ffts(x_grid))
     Simulation(sim, ArrayPartition(fe))
 end
 

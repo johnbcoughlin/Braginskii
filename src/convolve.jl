@@ -64,6 +64,6 @@ function convolve_over!(
 
     cdims = DenseConvDims(size(u), size(stencil), padding=pad_wrapper(pad), flipkernel=true)
 
-    col = alloc(Float64, buffer, prod(size(dest)), length(stencil), 1)
+    col = alloc_array(Float64, buffer, prod(size(dest)), length(stencil), 1)
     conv!(dest, u, stencil, cdims; col)
 end

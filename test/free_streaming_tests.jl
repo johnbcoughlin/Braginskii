@@ -20,18 +20,21 @@
 
             errors = Float64[]
             Ns = [20, 40, 80] .* 4
-            for Nx in Ns
-                sim = single_species_1d1v_x(f0, Nx, 20, -1., 1., 8.0, 0.0)
+            @no_escape begin
+                for Nx in Ns
+                    sim = single_species_1d1v_x(f0, Nx, 20; q=0.0)
 
-                actual0 = as_xvx(sim.u.x[1])
-                runsim_lightweight!(sim, T, dt)
-                actual = as_xvx(sim.u.x[1])
+                    actual0 = as_xvx(sim.u.x[1])
+                    runsim_lightweight!(sim, T, dt)
+                    actual = as_xvx(sim.u.x[1])
 
-                (; X, VX) = sim.species[1].grid
-                expected = ((x, vx) -> f0(characteristic(x, vx)...)).(X, VX) |> as_xvx
-                
-                error = norm(expected - actual) / norm(expected)
-                push!(errors, error)
+                    (; X, VX) = sim.species[1].grid
+                    expected = ((x, vx) -> f0(characteristic(x, vx)...)).(X, VX)
+                    expected = as_xvx(expected)
+                    
+                    error = norm(expected - actual) / norm(expected)
+                    push!(errors, error)
+                end
             end
 
             γ = estimate_log_slope(Ns, errors)
@@ -51,10 +54,14 @@
         runsim_lightweight!(sim, T, dt)
         actual = sim.u.x[1]
         (; Y, VY) = sim.species[1].grid
-        expected = (n.(Y .- VY*T) .* exp.(-(VY).^2 ./ 2))
 
-        error = norm(actual - expected) / norm(expected)
-        @test abs(error) < 1e-7
+        @no_escape begin
+            expected = alloc_array(Float64, (size(Y) .* size(VY))...)
+            expected .= (n.(Y .- VY*T) .* exp.(-(VY).^2 ./ 2))
+
+            error = norm(actual - expected) / norm(expected)
+            @test abs(error) < 1e-7
+        end
     end
 
 end

@@ -29,7 +29,7 @@ function in_ky_domain!(g!, arr, buffer, plans)
 
     arr = reshape(arr, (Nx, Ny, :))
 
-    modes = alloc(ComplexF64, buffer, Nx, Ny÷2+1, size(arr, 3))
+    modes = alloc_array(ComplexF64, buffer, Nx, Ny÷2+1, size(arr, 3))
     mul!(modes, plans.ky_rfft, arr)
 
     g!(modes)
@@ -42,7 +42,7 @@ function in_kz_domain!(g!, arr, buffer)
 
     arr = reshape(arr, (Nx*Ny, Nz, :))
 
-    modes = alloc(ComplexF64, buffer, Nx*Ny, Nz÷2+1, size(arr, 3))
+    modes = alloc_array(ComplexF64, buffer, Nx*Ny, Nz÷2+1, size(arr, 3))
     plan = plan_rfft(arr, (2,))
     mul!(modes, plan, arr)
 

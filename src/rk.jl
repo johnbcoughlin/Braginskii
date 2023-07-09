@@ -16,7 +16,7 @@ end
 
 function alloc_vec(buffer, template)
     return ArrayPartition((map(template.x) do tmp
-        alloc(Float64, buffer, size(tmp)...) .= 0
+        alloc_zeros(Float64, buffer, size(tmp)...)
     end)...)
 end
 

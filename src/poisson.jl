@@ -5,8 +5,7 @@ function poisson(sim, f, buffer)
     grid = sim.x_grid
     Nx, Ny, Nz = size(grid)
 
-    ρ_c = alloc(Float64, buffer, Nx, Ny, Nz)
-    ρ_c .= 0
+    ρ_c = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
     for i in eachindex(sim.species)
         α = sim.species[i]
         fi = f.x[i]
@@ -25,9 +24,9 @@ end
 function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans)
     Nx, Ny, Nz = size(grid)
 
-    Ex = alloc(Float64, buffer, Nx, Ny, Nz)
-    Ey = alloc(Float64, buffer, Nx, Ny, Nz)
-    Ez = alloc(Float64, buffer, Nx, Ny, Nz)
+    Ex = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    Ey = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    Ez = alloc_array(Float64, buffer, Nx, Ny, Nz)
 
     poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans)
 
@@ -80,7 +79,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
 
     @no_escape buffer begin
         if :x ∈ x_dims
-            ϕ_with_x_bdy = alloc(Float64, buffer, Nx+6, Ny, Nz) |> Origin(-2, 1, 1)
+            ϕ_with_x_bdy = alloc_array(Float64, buffer, Nx+6, Ny, Nz) |> Origin(-2, 1, 1)
             ϕ_with_x_bdy[1:Nx, :, :] .= ϕ
             apply_poisson_bcs!(ϕ_with_x_bdy, ϕ_left, ϕ_right)
 
@@ -91,7 +90,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
         end
 
         if :y ∈ x_dims
-            ϕ_yy = alloc(Float64, buffer, Nx, Ny, Nz)
+            ϕ_yy = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_yy .= ϕ
             in_ky_domain!(ϕ_yy, buffer, fft_plans) do ϕ̂
                 apply_k²!(ϕ̂, (2π / grid.y.L)^2)
@@ -100,7 +99,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
         end
 
         if :z ∈ x_dims
-            ϕ_zz = alloc(Float64, buffer, Nx, Ny, Nz)
+            ϕ_zz = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_zz .= ϕ
             in_kz_domain!(ϕ_zz, buffer) do ϕ̂
                 apply_k²!(ϕ̂, (2π / grid.z.L)^2)
@@ -118,7 +117,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
 
     @no_escape buffer begin
         if :x ∈ x_dims
-            ϕ_with_x_bdy = alloc(Float64, buffer, Nx+6, Ny, Nz) |> Origin(-2, 1, 1)
+            ϕ_with_x_bdy = alloc_array(Float64, buffer, Nx+6, Ny, Nz) |> Origin(-2, 1, 1)
             ϕ_with_x_bdy[1:Nx, :, :] .= ϕ
             apply_poisson_bcs!(ϕ_with_x_bdy, ϕ_left, ϕ_right)
 
@@ -129,7 +128,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
         end
 
         if :y ∈ x_dims
-            ϕ_y = alloc(Float64, buffer, Nx, Ny, Nz)
+            ϕ_y = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_y .= ϕ
             in_ky_domain!(ϕ_y, buffer, fft_plans) do ϕ̂
                 apply_ik!(ϕ̂, 2π / grid.y.L)
@@ -140,7 +139,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
         end
 
         if :z ∈ x_dims
-            ϕ_z = alloc(Float64, buffer, Nx, Ny, Nz)
+            ϕ_z = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_z .= ϕ
             in_kz_domain!(ϕ_z, buffer) do ϕ̂
                 apply_ik!(ϕ̂, 2π / grid.z.L)
