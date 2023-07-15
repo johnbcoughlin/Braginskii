@@ -17,6 +17,11 @@
                 runsim_lightweight!(sim, T, dt)
                 actual = as_vxvy(sim.u.x[1])
 
+                regression_test_value = actual[N÷2, N÷2]
+                if N == 40
+                    @test regression_test_value ≈ 0.28479738517275455
+                end
+
                 expected_f(vx, vy) = exp(-((vx-√(2))^2 + vy^2) / 2)
                 expected = alloc_array(Float64, length(VX), length(VY))
                 expected .= expected_f.(vec(VX), vec(VY)')

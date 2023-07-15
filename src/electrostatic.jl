@@ -47,35 +47,17 @@ function electrostatic_x!(df, f, Ex, Bz, species::Species{WENO5}, buffer)
         F⁺ = reverse_quadratic_dealias(F⁺, buffer)
         F⁻ = reverse_quadratic_dealias(F⁻, buffer)
 
-        # Negative
-        for λxyz in CartesianIndices((Nx, Ny, Nz))
-            for λvx in 3:Nvx-3, λvyvz in CartesianIndices((Nvy, Nvz))
-                fm = (
-                    + F⁻[λxyz, λvx-2, λvyvz] / 20
-                    - F⁻[λxyz, λvx-1, λvyvz] / 2
-                    - F⁻[λxyz, λvx, λvyvz] / 3
-                    + F⁻[λxyz, λvx+1, λvyvz]
-                    - F⁻[λxyz, λvx+2, λvyvz] / 4
-                    + F⁻[λxyz, λvx+3, λvyvz] / 30)
-                df[λxyz, λvx, λvyvz] -= 1 / dvx * fm
-            end
-        end
-        # Positive
-        for λxyz in CartesianIndices((Nx, Ny, Nz))
-            for λvx in 4:Nvx-2, λvyvz in CartesianIndices((Nvy, Nvz))
-                fm = (
-                    - F⁺[λxyz, λvx-3, λvyvz] / 30
-                    + F⁺[λxyz, λvx-2, λvyvz] / 4
-                    - F⁺[λxyz, λvx-1, λvyvz]
-                    + F⁺[λxyz, λvx, λvyvz] / 3
-                    + F⁺[λxyz, λvx+1, λvyvz] / 2
-                    - F⁺[λxyz, λvx+2, λvyvz] / 20)
-                df[λxyz, λvx, λvyvz] -= 1 / dvx * fm
-            end
-        end
+        right_biased_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1 / dvx)
+        left_biased_stencil = [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1 / dvx)
 
-        electrostatic_x_boundary!(df, F⁺, F⁻, discretization)
+        convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
+        convolve_vx!(convolved, F⁻, right_biased_stencil, false, buffer)
+        df .+= convolved
+        convolve_vx!(convolved, F⁺, left_biased_stencil, false, buffer)
+        df .+= convolved
+
+        return df
     end
 end
 
@@ -99,10 +81,8 @@ function electrostatic_y!(df, f, Ey, Bz, species::Species{WENO5}, buffer)
             end
         end
 
-        begin
         C = quadratic_dealias(C, buffer)
         f̂ = quadratic_dealias(f, buffer)
-        end
         F⁺ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
         F⁻ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
         for λxyz in CartesianIndices((Nx, 2Ny-1, 2Nz-1))
@@ -112,39 +92,20 @@ function electrostatic_y!(df, f, Ey, Bz, species::Species{WENO5}, buffer)
             end
         end
 
-        begin
         F⁺ = reverse_quadratic_dealias(F⁺, buffer)
         F⁻ = reverse_quadratic_dealias(F⁻, buffer)
-        end
 
-        # Negative
-        for λxyz in CartesianIndices((Nx, Ny, Nz, Nvx))
-            for λvy in 3:Nvy-3, λvz in 1:Nvz
-                fm = (
-                    + F⁻[λxyz, λvy-2, λvz] / 20
-                    - F⁻[λxyz, λvy-1, λvz] / 2
-                    - F⁻[λxyz, λvy, λvz] / 3
-                    + F⁻[λxyz, λvy+1, λvz]
-                    - F⁻[λxyz, λvy+2, λvz] / 4
-                    + F⁻[λxyz, λvy+3, λvz] / 30)
-                df[λxyz, λvy, λvz] -= 1 / dvy * fm
-            end
-        end
-        # Positive
-        for λxyz in CartesianIndices((Nx, Ny, Nz, Nvx))
-            for λvy in 4:Nvy-2, λvz in 1:Nvz
-                fm = (
-                    - F⁺[λxyz, λvy-3, λvz] / 30
-                    + F⁺[λxyz, λvy-2, λvz] / 4
-                    - F⁺[λxyz, λvy-1, λvz]
-                    + F⁺[λxyz, λvy, λvz] / 3
-                    + F⁺[λxyz, λvy+1, λvz] / 2
-                    - F⁺[λxyz, λvy+2, λvz] / 20)
-                df[λxyz, λvy, λvz] -= 1 / dvy * fm
-            end
-        end
+        right_biased_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1 / dvy)
+        left_biased_stencil = [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1 / dvy)
 
-        electrostatic_y_boundary!(df, F⁺, F⁻, discretization)
+        convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
+
+        convolve_vy!(convolved, F⁻, right_biased_stencil, false, buffer)
+        df .+= convolved
+        convolve_vy!(convolved, F⁺, left_biased_stencil, false, buffer)
+        df .+= convolved
+
+        return df
     end
 end
 
@@ -207,153 +168,3 @@ function copy_from_first_half!(u_modes, u_modes_tmp)
     end
 end
 
-
-function electrostatic_x_boundary!(df, F⁺, F⁻, discretization::XVDiscretization{WENO5})
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
-
-    vgrid = discretization.vdisc.grid
-    dvx = vgrid.x.dx
-
-    for λxyz in CartesianIndices((Nx, Ny, Nz))
-        for λvyvz in CartesianIndices((Nvy, Nvz))
-            λvx = 1
-            df[λxyz, λvx, λvyvz] -= 1 / dvx * (
-                - F⁻[λxyz, λvx, λvyvz] / 3
-                + F⁻[λxyz, λvx+1, λvyvz]
-                - F⁻[λxyz, λvx+2, λvyvz] / 4
-                + F⁻[λxyz, λvx+3, λvyvz] / 30)
-            df[λxyz, λvx, λvyvz] -= 1 / dvx * (
-                + F⁺[λxyz, λvx, λvyvz] / 3
-                + F⁺[λxyz, λvx+1, λvyvz] / 2
-                - F⁺[λxyz, λvx+2, λvyvz] / 20)
-
-            λvx = 2
-            df[λxyz, λvx, λvyvz] -= 1 / dvx * (
-                - F⁻[λxyz, λvx-1, λvyvz] / 2
-                - F⁻[λxyz, λvx, λvyvz] / 3
-                + F⁻[λxyz, λvx+1, λvyvz]
-                - F⁻[λxyz, λvx+2, λvyvz] / 4
-                + F⁻[λxyz, λvx+3, λvyvz] / 30)
-            df[λxyz, λvx, λvyvz] -= 1 / dvx * (
-                - F⁺[λxyz, λvx-1, λvyvz]
-                + F⁺[λxyz, λvx, λvyvz] / 3
-                + F⁺[λxyz, λvx+1, λvyvz] / 2
-                - F⁺[λxyz, λvx+2, λvyvz] / 20)
-
-            λvx = 3
-            df[λxyz, λvx, λvyvz] -= 1 / dvx * (
-                + F⁺[λxyz, λvx-2, λvyvz] / 4
-                - F⁺[λxyz, λvx-1, λvyvz]
-                + F⁺[λxyz, λvx, λvyvz] / 3
-                + F⁺[λxyz, λvx+1, λvyvz] / 2
-                - F⁺[λxyz, λvx+2, λvyvz] / 20)
-
-            λvx = Nvx
-            df[λxyz, λvx, λvyvz] -= 1 / dvx * (
-                + F⁻[λxyz, λvx-2, λvyvz] / 20
-                - F⁻[λxyz, λvx-1, λvyvz] / 2
-                - F⁻[λxyz, λvx, λvyvz] / 3)
-            df[λxyz, λvx, λvyvz] -= 1 / dvx * (
-                - F⁺[λxyz, λvx-3, λvyvz] / 30
-                + F⁺[λxyz, λvx-2, λvyvz] / 4
-                - F⁺[λxyz, λvx-1, λvyvz]
-                + F⁺[λxyz, λvx, λvyvz] / 3)
-
-            λvx = Nvx-1
-            df[λxyz, λvx, λvyvz] -= 1 / dvx * (
-                + F⁻[λxyz, λvx-2, λvyvz] / 20
-                - F⁻[λxyz, λvx-1, λvyvz] / 2
-                - F⁻[λxyz, λvx, λvyvz] / 3
-                + F⁻[λxyz, λvx+1, λvyvz])
-            df[λxyz, λvx, λvyvz] -= 1 / dvx * (
-                - F⁺[λxyz, λvx-3, λvyvz] / 30
-                + F⁺[λxyz, λvx-2, λvyvz] / 4
-                - F⁺[λxyz, λvx-1, λvyvz]
-                + F⁺[λxyz, λvx, λvyvz] / 3
-                + F⁺[λxyz, λvx+1, λvyvz] / 2)
-
-            λvx = Nvx-2
-            df[λxyz, λvx, λvyvz] -= 1 / dvx * (
-                + F⁻[λxyz, λvx-2, λvyvz] / 20
-                - F⁻[λxyz, λvx-1, λvyvz] / 2
-                - F⁻[λxyz, λvx, λvyvz] / 3
-                + F⁻[λxyz, λvx+1, λvyvz]
-                - F⁻[λxyz, λvx+2, λvyvz] / 4)
-        end
-    end
-end
-
-function electrostatic_y_boundary!(df, F⁺, F⁻, discretization::XVDiscretization{WENO5})
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
-
-    vgrid = discretization.vdisc.grid
-    dvy = vgrid.y.dx
-
-    for λxyz in CartesianIndices((Nx, Ny, Nz, Nvx))
-        for λvz in 1:Nvz
-            λvy = 1
-            df[λxyz, λvy, λvz] -= 1 / dvy * (
-                - F⁻[λxyz, λvy, λvz] / 3
-                + F⁻[λxyz, λvy+1, λvz]
-                - F⁻[λxyz, λvy+2, λvz] / 4
-                + F⁻[λxyz, λvy+3, λvz] / 30)
-            df[λxyz, λvy, λvz] -= 1 / dvy * (
-                + F⁺[λxyz, λvy, λvz] / 3
-                + F⁺[λxyz, λvy+1, λvz] / 2
-                - F⁺[λxyz, λvy+2, λvz] / 20)
-
-            λvy = 2
-            df[λxyz, λvy, λvz] -= 1 / dvy * (
-                - F⁻[λxyz, λvy-1, λvz] / 2
-                - F⁻[λxyz, λvy, λvz] / 3
-                + F⁻[λxyz, λvy+1, λvz]
-                - F⁻[λxyz, λvy+2, λvz] / 4
-                + F⁻[λxyz, λvy+3, λvz] / 30)
-            df[λxyz, λvy, λvz] -= 1 / dvy * (
-                - F⁺[λxyz, λvy-1, λvz]
-                + F⁺[λxyz, λvy, λvz] / 3
-                + F⁺[λxyz, λvy+1, λvz] / 2
-                - F⁺[λxyz, λvy+2, λvz] / 20)
-
-            λvy = 3
-            df[λxyz, λvy, λvz] -= 1 / dvy * (
-                + F⁺[λxyz, λvy-2, λvz] / 4
-                - F⁺[λxyz, λvy-1, λvz]
-                + F⁺[λxyz, λvy, λvz] / 3
-                + F⁺[λxyz, λvy+1, λvz] / 2
-                - F⁺[λxyz, λvy+2, λvz] / 20)
-
-            λvy = Nvy
-            df[λxyz, λvy, λvz] -= 1 / dvy * (
-                + F⁻[λxyz, λvy-2, λvz] / 20
-                - F⁻[λxyz, λvy-1, λvz] / 2
-                - F⁻[λxyz, λvy, λvz] / 3)
-            df[λxyz, λvy, λvz] -= 1 / dvy * (
-                - F⁺[λxyz, λvy-3, λvz] / 30
-                + F⁺[λxyz, λvy-2, λvz] / 4
-                - F⁺[λxyz, λvy-1, λvz]
-                + F⁺[λxyz, λvy, λvz] / 3)
-
-            λvy = Nvy-1
-            df[λxyz, λvy, λvz] -= 1 / dvy * (
-                + F⁻[λxyz, λvy-2, λvz] / 20
-                - F⁻[λxyz, λvy-1, λvz] / 2
-                - F⁻[λxyz, λvy, λvz] / 3
-                + F⁻[λxyz, λvy+1, λvz])
-            df[λxyz, λvy, λvz] -= 1 / dvy * (
-                - F⁺[λxyz, λvy-3, λvz] / 30
-                + F⁺[λxyz, λvy-2, λvz] / 4
-                - F⁺[λxyz, λvy-1, λvz]
-                + F⁺[λxyz, λvy, λvz] / 3
-                + F⁺[λxyz, λvy+1, λvz] / 2)
-
-            λvy = Nvy-2
-            df[λxyz, λvy, λvz] -= 1 / dvy * (
-                + F⁻[λxyz, λvy-2, λvz] / 20
-                - F⁻[λxyz, λvy-1, λvz] / 2
-                - F⁻[λxyz, λvy, λvz] / 3
-                + F⁻[λxyz, λvy+1, λvz]
-                - F⁻[λxyz, λvy+2, λvz] / 4)
-        end
-    end
-end
