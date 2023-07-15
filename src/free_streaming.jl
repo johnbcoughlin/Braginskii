@@ -72,7 +72,7 @@ function broadcast_mul_over_vx(F, vx)
     F
 end
 
-function free_streaming_y!(df, f, species, buffer)
+function free_streaming_y!(df, f, species::Species{WENO5}, buffer)
     (; discretization) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
@@ -96,7 +96,7 @@ function free_streaming_y!(df, f, species, buffer)
     end
 end
 
-function free_streaming_z!(df, f, species, buffer)
+function free_streaming_z!(df, f, species::Species{WENO5}, buffer)
     (; grid) = species
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
 
@@ -113,98 +113,6 @@ function free_streaming_z!(df, f, species, buffer)
             z_modes[λxy, kz, λvxvy, λvz] *= -im * (kz-1) * vz * 2π / grid.x.z.L
         end
         mul!(df, inv(F), f)
-    end
-end
-
-function free_streaming_x_boundaries!(df, f, species, buffer)
-    (; grid) = species
-
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
-    dx = grid.x.x.dx
-
-    @no_escape buffer begin
-        left_boundary = alloc_zeros(Float64, 3, Ny, Nz, Nvx, Nvy, Nvz) |> Origin(-2, 1, 1, 1, 1, 1)
-        right_boundary = alloc_zeros(Float64, 3, Ny, Nz, Nvx, Nvy, Nvz) |> Origin(Nx+1, 1, 1, 1, 1, 1)
-        reflecting_wall_bcs!(left_boundary, right_boundary, f, grid)
-
-        # Negative vx
-        for λ in CartesianIndices((Ny, Nz, 1:(Nvx÷2), Nvy, Nvz))
-            df[1, λ] -= 1/dx * (
-                + left_boundary[1-2, λ] / 20
-                - left_boundary[1-1, λ] / 2
-                - f[1, λ] / 3
-                + f[1+1, λ]
-                - f[1+2, λ] / 4 
-                + f[1+3, λ] / 30)
-            df[2, λ] -= 1/dx * (
-                + left_boundary[2-2, λ] / 20
-                - f[2-1, λ] / 2
-                - f[2, λ] / 3
-                + f[2+1, λ]
-                - f[2+2, λ] / 4 
-                + f[2+3, λ] / 30)
-
-
-            df[Nx-2, λ] -= 1/dx * (
-                + f[Nx-4, λ] / 20
-                - f[Nx-3, λ] / 2
-                - f[Nx-2, λ] / 3
-                + f[Nx-1, λ]
-                - f[Nx, λ] / 4 
-                + right_boundary[Nx+1, λ] / 30)
-            df[Nx-1, λ] -= 1/dx * (
-                + f[Nx-3, λ] / 20
-                - f[Nx-2, λ] / 2
-                - f[Nx-1, λ] / 3
-                + f[Nx, λ]
-                - right_boundary[Nx+1, λ] / 4 
-                + right_boundary[Nx+2, λ] / 30)
-            df[Nx, λ] -= 1/dx * (
-                + f[Nx-2, λ] / 20
-                - f[Nx-1, λ] / 2
-                - f[Nx, λ] / 3
-                + right_boundary[Nx+1, λ]
-                - right_boundary[Nx+2, λ] / 4 
-                + right_boundary[Nx+3, λ] / 30)
-        end
-        # Positive vx
-        for λ in CartesianIndices((Ny, Nz, (Nvx÷2+1):Nvx, Nvy, Nvz))
-            df[1, λ] -= 1/dx * (
-                - left_boundary[1-3, λ] / 30
-                + left_boundary[1-2, λ] / 4
-                - left_boundary[1-1, λ]
-                + f[1, λ] / 3
-                + f[1+1, λ] / 2 
-                - f[1+2, λ] / 20)
-            df[2, λ] -= 1/dx * (
-                - left_boundary[2-3, λ] / 30
-                + left_boundary[2-2, λ] / 4
-                - f[2-1, λ]
-                + f[2, λ] / 3
-                + f[2+1, λ] / 2 
-                - f[2+2, λ] / 20)
-            df[3, λ] -= 1/dx * (
-                - left_boundary[3-3, λ] / 30
-                + f[3-2, λ] / 4
-                - f[3-1, λ]
-                + f[3, λ] / 3
-                + f[3+1, λ] / 2 
-                - f[3+2, λ] / 20)
-            df[Nx-1, λ] -= 1/dx * (
-                - f[Nx-4, λ] / 30
-                + f[Nx-3, λ] / 4
-                - f[Nx-2, λ]
-                + f[Nx-1, λ] / 3
-                + f[Nx, λ] / 2 
-                - right_boundary[Nx+1, λ] / 20)
-            df[Nx, λ] -= 1/dx * (
-                - f[Nx-3, λ] / 30
-                + f[Nx-2, λ] / 4
-                - f[Nx-1, λ]
-                + f[Nx, λ] / 3
-                + right_boundary[Nx+1, λ] / 2 
-                - right_boundary[Nx+2, λ] / 20)
-        end
     end
 end
 
