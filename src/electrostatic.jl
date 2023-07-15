@@ -23,13 +23,15 @@ function electrostatic_x!(df, f, Ex, Bz, species::Species{WENO5}, buffer)
     dvx = vgrid.x.dx
 
     @no_escape buffer begin
-        C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvy)
+        C = alloc_array(Float64, buffer, Nx, Ny, Nz, 1, Nvy)
         F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvy)
         F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvy)
+
+        @. C = q / m * (Ex + vgrid.VY * Bz)
         for λxyz in CartesianIndices((Nx, Ny, Nz))
             for λvy in 1:Nvy
                 vy = vgrid.VY[λvy]
-                C[λxyz, λvy] = q / m * (Ex[λxyz] + vy * Bz[λxyz])
+                #C[λxyz, λvy] = q / m * (Ex[λxyz] + vy * Bz[λxyz])
             end
         end
 
@@ -37,12 +39,9 @@ function electrostatic_x!(df, f, Ex, Bz, species::Species{WENO5}, buffer)
         f̂ = quadratic_dealias(f, buffer)
         F⁺ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
         F⁻ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
-        for λxyz in CartesianIndices((Nx, 2Ny-1, 2Nz-1))
-            for λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
-                F⁺[λxyz, λvx, λvy, λvz] = max(C[λxyz, λvy], 0) * f̂[λxyz, λvx, λvy, λvz]
-                F⁻[λxyz, λvx, λvy, λvz] = min(C[λxyz, λvy], 0) * f̂[λxyz, λvx, λvy, λvz]
-            end
-        end
+
+        @. F⁺ = max(C, 0) * f̂
+        @. F⁻ = min(C, 0) * f̂
 
         F⁺ = reverse_quadratic_dealias(F⁺, buffer)
         F⁻ = reverse_quadratic_dealias(F⁻, buffer)
@@ -74,23 +73,16 @@ function electrostatic_y!(df, f, Ey, Bz, species::Species{WENO5}, buffer)
         C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx)
         F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
         F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
-        for λxyz in CartesianIndices((Nx, Ny, Nz))
-            for λvx in 1:Nvx
-                vx = vgrid.VX[λvx]
-                C[λxyz, λvx] = q / m * (Ey[λxyz] - vx * Bz[λxyz])
-            end
-        end
+
+        @. C = q / m * (Ey - vgrid.VX * Bz)
 
         C = quadratic_dealias(C, buffer)
         f̂ = quadratic_dealias(f, buffer)
         F⁺ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
         F⁻ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
-        for λxyz in CartesianIndices((Nx, 2Ny-1, 2Nz-1))
-            for λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
-                F⁺[λxyz, λvx, λvy, λvz] = max(C[λxyz, λvx], 0) * f̂[λxyz, λvx, λvy, λvz]
-                F⁻[λxyz, λvx, λvy, λvz] = min(C[λxyz, λvx], 0) * f̂[λxyz, λvx, λvy, λvz]
-            end
-        end
+
+        @. F⁺ = max(C, 0) * f̂
+        @. F⁻ = min(C, 0) * f̂
 
         F⁺ = reverse_quadratic_dealias(F⁺, buffer)
         F⁻ = reverse_quadratic_dealias(F⁻, buffer)
@@ -120,7 +112,6 @@ function quadratic_dealias(u, buffer)
     u_modes_tmp = alloc_array(Complex{Float64}, buffer, Nx, Ny÷2+1, Nz÷2+1, prod(Nvs))
     mul!(u_modes_tmp, F, u)
 
-    #u_modes[:, 1:(Ny÷2+1), 1:(Nz÷2+1), :] .= u_modes_tmp
     copy_to_first_half!(u_modes, u_modes_tmp)
 
     U = alloc_zeros(Float64, buffer, Nx, 2Ny-1, 2Nz-1, prod(Nvs))
