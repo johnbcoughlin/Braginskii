@@ -23,8 +23,7 @@
                 end
 
                 expected_f(vx, vy) = exp(-((vx-√(2))^2 + vy^2) / 2)
-                expected = alloc_array(Float64, length(VX), length(VY))
-                expected .= expected_f.(vec(VX), vec(VY)')
+                expected = expected_f.(vec(VX), vec(VY)')
 
                 error = norm(actual - expected) / norm(expected)
 

@@ -4,7 +4,7 @@ end
 
 function electric_energy(sim)
     f = sim.u
-    Ex, Ey, Ez = poisson(sim, f, default_buffer())
+    Ex, Ey, Ez = poisson(sim, f, allocator(sim.device))
 
     E2 = 0.0
 

@@ -35,6 +35,8 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CM_DICT}
     species::SP
 
     fft_plans::FFTPLANS
+
+    device::Symbol
 end
 
 struct Simulation{SM<:SimulationMetadata, U}
@@ -80,8 +82,7 @@ end
 
 function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
     set_default_buffer_size!(100_000_000)
-
-    buffer = default_buffer()
+    buffer = allocator(sim.device)
 
     prog = Progress(Int(ceil(T / Δt)))
     t = 0.0
@@ -113,7 +114,9 @@ function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
 end
 
 function runsim!(sim, d, t_end; kwargs...)
-    buffer = default_buffer()
+    set_default_buffer_size!(100_000_000)
+
+    buffer = allocator(sim.device)
     rk_step!(sim, t, dt) = begin
         λmax = Ref(0.0)
         p = (; sim=sim.metadata, λmax, buffer)

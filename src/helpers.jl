@@ -84,7 +84,8 @@ end
 
 function single_species_1d1v_x(f; Nx, Nvx,
     xmin=-1., xmax=1., vdisc, vxmax=8.0,
-    free_streaming=true, q=1.0, ϕ_left=0., ϕ_right=0., ν_p=0.0)
+    free_streaming=true, q=1.0, ϕ_left=0., ϕ_right=0., ν_p=0.0,
+    device=:cpu)
     x_grid = x_grid_1d(Nx, xmin, xmax)
 
     v_disc = v_discretization(vdisc, [:x]; Nvx, vxmax)
@@ -102,11 +103,13 @@ function single_species_1d1v_x(f; Nx, Nvx,
 
     electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc), disc)
     cms = collisional_moments(x_grid, ["electrons"])
-    sim = SimulationMetadata([:x], x_grid, Bz, ϕl, ϕr, ϕ, free_streaming, ν_p, cms, (electrons,), plan_ffts(x_grid))
+    sim = SimulationMetadata([:x], x_grid, Bz, ϕl, ϕr, ϕ, free_streaming, 
+        ν_p, cms, (electrons,), plan_ffts(x_grid), device)
     Simulation(sim, ArrayPartition(fe))
 end
 
-function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true)
+function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true,
+    device=:cpu)
     x_grid = y_grid_1d(Ny, Ly)
 
     v_disc = v_discretization(vdisc, [:y]; Nvy, vymax)
@@ -121,7 +124,8 @@ function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, v
 
     electrons = Species("electrons", [:y], [:vy], q, 1.0, plan_ffts(disc), disc)
     cms = collisional_moments(x_grid, ["electrons"])
-    sim = SimulationMetadata([:y], x_grid, Bz, ϕl, ϕr, ϕ, free_streaming, ν_p, cms, (electrons,), plan_ffts(x_grid))
+    sim = SimulationMetadata([:y], x_grid, Bz, ϕl, ϕr, ϕ, free_streaming, 
+        ν_p, cms, (electrons,), plan_ffts(x_grid), device)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -142,7 +146,8 @@ vxvy_grid_2v(Nvx, Nvy, vxmax, vymax, vxmin=-vxmax, vymin=-vymax) = begin
     VGrid([:x, :y], vx_grid, vy_grid, vz_grid)
 end
 
-function single_species_0d2v((; f, Bz), Nvx, Nvy; vxmax=8.0, vymax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true)
+function single_species_0d2v((; f, Bz), Nvx, Nvy; vxmax=8.0, vymax=8.0, 
+    q=1.0, ν_p=0.0, vdisc, free_streaming=true, device=:cpu)
     x_grid = x_grid_0d()
 
     v_disc = v_discretization(vdisc, [:x, :y]; Nvx, Nvy, vxmax, vymax)
@@ -158,7 +163,8 @@ function single_species_0d2v((; f, Bz), Nvx, Nvy; vxmax=8.0, vymax=8.0, q=1.0, �
 
     electrons = Species("electrons", Symbol[], [:vx, :vy], q, 1.0, plan_ffts(disc), disc)
     cms = collisional_moments(x_grid, ["electrons"])
-    sim = SimulationMetadata(Symbol[], x_grid, Bz0, ϕl, ϕr, ϕ, free_streaming, ν_p, cms, (electrons,), plan_ffts(x_grid))
+    sim = SimulationMetadata(Symbol[], x_grid, Bz0, ϕl, ϕr, ϕ, 
+        free_streaming, ν_p, cms, (electrons,), plan_ffts(x_grid), device)
     Simulation(sim, ArrayPartition(fe))
 end
 

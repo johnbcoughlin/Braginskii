@@ -15,6 +15,7 @@ using DataFrames
 using PDEHarness
 using ProgressMeter
 using FastGaussQuadrature
+using CUDA
 
 import Base.size, Base.getproperty
 
