@@ -42,13 +42,13 @@ struct XGrid{XA, YA, ZA}
 
     XGrid(xgrid, ygrid, zgrid, buffer) = begin
         X = alloc_zeros(Float64, buffer, length(xgrid.nodes), 1, 1)
-        X .= reshape(xgrid.nodes, (:, 1, 1))
+        copyto!(X, reshape(xgrid.nodes, (:, 1, 1)))
 
         Y = alloc_zeros(Float64, buffer, 1, length(ygrid.nodes), 1)
-        Y .= reshape(ygrid.nodes, (1, :, 1))
+        copyto!(Y, reshape(ygrid.nodes, (1, :, 1)))
 
         Z = alloc_zeros(Float64, buffer, 1, 1, length(zgrid.nodes))
-        Z .= reshape(zgrid.nodes, (1, 1, :))
+        copyto!(Z, reshape(zgrid.nodes, (1, 1, :)))
 
         new{typeof(X), typeof(Y), typeof(Z)}(xgrid, ygrid, zgrid, X, Y, Z)
     end
@@ -78,13 +78,13 @@ struct VGrid{XA, YA, ZA}
         end
 
         X = alloc_zeros(Float64, buffer, 1, 1, 1, length(x.nodes), 1, 1)
-        X .= reshape(x.nodes, (1, 1, 1, :, 1, 1))
+        copyto!(X, reshape(x.nodes, (1, 1, 1, :, 1, 1)))
 
         Y = alloc_zeros(Float64, buffer, 1, 1, 1, 1, length(y.nodes), 1)
-        Y .= reshape(y.nodes, (1, 1, 1, 1, :, 1))
+        copyto!(Y, reshape(y.nodes, (1, 1, 1, 1, :, 1)))
 
         Z = alloc_zeros(Float64, buffer, 1, 1, 1, 1, 1, length(z.nodes))
-        Z .= reshape(z.nodes, (1, 1, 1, 1, 1, :))
+        copyto!(Z, reshape(z.nodes, (1, 1, 1, 1, 1, :)))
 
         new{typeof(X), typeof(Y), typeof(Z)}(x, y, z, X, Y, Z)
     end
