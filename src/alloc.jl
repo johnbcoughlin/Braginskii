@@ -1,8 +1,10 @@
 import Bumper.no_escape
 
+export allocator
+
 function allocator(device)
     if device == :cpu
-        return default_buffer()
+        return Bumper.default_buffer()
     elseif device == :gpu
         return GPUAllocator()
     end

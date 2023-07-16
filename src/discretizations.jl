@@ -40,14 +40,14 @@ struct XGrid{XA, YA, ZA}
     Y::YA
     Z::ZA
 
-    XGrid(xgrid, ygrid, zgrid) = begin
-        X = zeros(length(xgrid.nodes), 1, 1)
+    XGrid(xgrid, ygrid, zgrid, buffer) = begin
+        X = alloc_zeros(Float64, buffer, length(xgrid.nodes), 1, 1)
         X .= reshape(xgrid.nodes, (:, 1, 1))
 
-        Y = zeros(1, length(ygrid.nodes), 1)
+        Y = alloc_zeros(Float64, buffer, 1, length(ygrid.nodes), 1)
         Y .= reshape(ygrid.nodes, (1, :, 1))
 
-        Z = zeros(1, 1, length(zgrid.nodes))
+        Z = alloc_zeros(Float64, buffer, 1, 1, length(zgrid.nodes))
         Z .= reshape(zgrid.nodes, (1, 1, :))
 
         new{typeof(X), typeof(Y), typeof(Z)}(xgrid, ygrid, zgrid, X, Y, Z)
@@ -71,19 +71,19 @@ struct VGrid{XA, YA, ZA}
     VY::YA
     VZ::ZA
 
-    VGrid(dims, x, y, z) = begin
+    VGrid(dims, x, y, z, buffer) = begin
         # Check that it's suitable for reflecting wall BCs
         if :x ∈ dims
             @assert iseven(x.N) && x.max == -x.min
         end
 
-        X = zeros(1, 1, 1, length(x.nodes), 1, 1)
+        X = alloc_zeros(Float64, buffer, 1, 1, 1, length(x.nodes), 1, 1)
         X .= reshape(x.nodes, (1, 1, 1, :, 1, 1))
 
-        Y = zeros(1, 1, 1, 1, length(y.nodes), 1)
+        Y = alloc_zeros(Float64, buffer, 1, 1, 1, 1, length(y.nodes), 1)
         Y .= reshape(y.nodes, (1, 1, 1, 1, :, 1))
 
-        Z = zeros(1, 1, 1, 1, 1, length(z.nodes))
+        Z = alloc_zeros(Float64, buffer, 1, 1, 1, 1, 1, length(z.nodes))
         Z .= reshape(z.nodes, (1, 1, 1, 1, 1, :))
 
         new{typeof(X), typeof(Y), typeof(Z)}(x, y, z, X, Y, Z)
@@ -115,8 +115,8 @@ end
 
 size(disc::XVDiscretization) = tuple(size(disc.x_grid)..., size(disc.vdisc)...)
 
-approximate_f(f, disc::XVDiscretization, dims) = begin
-    result = zeros(size(disc))
+approximate_f(f, disc::XVDiscretization, dims, buffer) = begin
+    result = alloc_zeros(Float64, buffer, size(disc)...)
     approximate_f!(result, f, disc, dims)
     result
 end

@@ -1,6 +1,7 @@
 @testset "Free streaming" begin
     @testset "x free streaming" begin
         @testset "reflection" begin
+            @no_escape begin
             for device in supported_devices()
             dt = 0.001
             T = 0.2
@@ -39,10 +40,12 @@
             γ = estimate_log_slope(Ns, errors)
             @test -4 >= γ >= -5
             end
+            end
         end
     end
 
     @testset "y free streaming" begin
+        @no_escape begin
         for device in supported_devices()
         Ny = 32
         dt = 0.001
@@ -61,6 +64,7 @@
 
         error = norm(actual - expected) / norm(expected)
         @test abs(error) < 1e-7
+        end
         end
     end
 

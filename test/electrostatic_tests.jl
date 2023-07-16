@@ -1,5 +1,6 @@
 @testset "Electrostatic" begin
     @testset "Cyclotron rotation" begin
+        @no_escape begin
         for device in supported_devices()
         dt = 0.01
 
@@ -32,6 +33,7 @@
 
         γ = estimate_log_slope(Ns, errors)
         @test -4 >= γ >= -5
-    end
+        end
+        end
     end
 end

@@ -7,7 +7,7 @@
 
         # Trivial Maxwellian example
         f(x, vx) = 1 / sqrt(2π) * exp(-vx^2/2)
-        actual = approximate_f(f, disc, (1, 4)) |> as_xvx
+        actual = approximate_f(f, disc, (1, 4), allocator(:cpu)) |> as_xvx
         expected = zeros(10, 20)
         expected[:, 1] .= 1.0
         @test actual ≈ expected
@@ -21,7 +21,7 @@
 
         # Trivial Maxwellian example
         f(y, vy) = 1 / sqrt(2π) * exp(-vy^2/2)
-        actual = approximate_f(f, disc, (2, 5)) |> as_yvy
+        actual = approximate_f(f, disc, (2, 5), allocator(:cpu)) |> as_yvy
         expected = zeros(10, 20)
         expected[:, 1] .= 1.0
         @test actual ≈ expected
@@ -35,7 +35,7 @@
 
         # Trivial Maxwellian example
         f(x, y, vx, vy) = 1 / 2π * exp(-(vx^2 + vy^2)/2)
-        actual = approximate_f(f, disc, (1, 2, 4, 5)) |> as_xyvxvy
+        actual = approximate_f(f, disc, (1, 2, 4, 5), allocator(:cpu)) |> as_xyvxvy
         expected = zeros(10, 10, 20, 20)
         expected[:, :, 1, 1] .= 1.0
         @test actual ≈ expected
