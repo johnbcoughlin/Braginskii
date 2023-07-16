@@ -1,6 +1,8 @@
 @testset "Poisson tests" begin
     @testset "Evaluate Laplacian" begin
-        set_default_buffer_size!(200_000_000)
+        for device in supported_devices()
+        buffer = Braginskii.allocator(device)
+        device == :cpu && set_default_buffer_size!(200_000_000)
         Ns = [20, 40, 80, 160]
         errors = Float64[]
         for Nx in Ns
@@ -18,7 +20,7 @@
                 ϕr = ϕ_right.(grid.Y, grid.Z)
 
                 actual = similar(ϕ)
-                Braginskii.apply_laplacian!(actual, ϕ, ϕl, ϕr, grid, [:x, :y, :z], default_buffer(), fft_plans)
+                Braginskii.apply_laplacian!(actual, ϕ, ϕl, ϕr, grid, [:x, :y, :z], buffer, fft_plans)
 
                 ϕ_xx = @. -π^2 * sin(π * X) * cos(3 * Y) * cos(5 * Z)
                 ϕ_yy = @. sin(π * X) * -9 * cos(3 * Y) * cos(5* Z)
@@ -31,10 +33,13 @@
         end
         γ = estimate_log_slope(Ns, errors)
         @test -3 >= γ
+        end
     end
 
     @testset "Poisson solve" begin
-        set_default_buffer_size!(100_000_000)
+        for device in supported_devices()
+        buffer = Braginskii.allocator(device)
+        device == :cpu && set_default_buffer_size!(200_000_000)
         Ns = [20, 40, 80, 160]
         errors = Float64[]
         for Nx in Ns
@@ -54,7 +59,7 @@
                 ϕr = ϕ_right.(grid.Y, grid.Z)
 
                 Ex, Ey, Ez = Braginskii.poisson(ρ, ϕl, ϕr, grid, [:x, :y, :z], 
-                    default_buffer(), zeros(size(grid)), fft_plans)
+                    buffer, zeros(size(grid)), fft_plans)
 
                 Ex_expected = π * cos.(π * grid.X) .* cos.(3grid.Y) .* cos.(5grid.Z)
 
@@ -64,5 +69,6 @@
         end
         γ = estimate_log_slope(Ns, errors)
         @test -4 >= γ
+    end
     end
 end

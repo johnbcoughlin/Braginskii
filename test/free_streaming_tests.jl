@@ -1,7 +1,7 @@
 @testset "Free streaming" begin
-
     @testset "x free streaming" begin
         @testset "reflection" begin
+            for device in supported_devices()
             dt = 0.001
             T = 0.2
             f0(x, vx) = (0.1 + 0.8exp(-x^2/0.01)) * (exp(-(vx-1.5)^2/2) + exp(-(vx+1.5)^2/2))
@@ -20,35 +20,35 @@
 
             errors = Float64[]
             Ns = [20, 40, 80] .* 4
-            @no_escape begin
-                for Nx in Ns
-                    sim = single_species_1d1v_x(f0; Nx, Nvx=20, q=0.0, vdisc=:weno)
+            for Nx in Ns
+                sim = single_species_1d1v_x(f0; Nx, Nvx=20, q=0.0, vdisc=:weno, device)
 
-                    actual0 = as_xvx(sim.u.x[1])
-                    runsim_lightweight!(sim, T, dt)
-                    actual = as_xvx(sim.u.x[1])
+                actual0 = as_xvx(sim.u.x[1])
+                runsim_lightweight!(sim, T, dt)
+                actual = as_xvx(sim.u.x[1])
 
-                    (; X) = sim.species[1].discretization.x_grid
-                    (; VX) = sim.species[1].discretization.vdisc.grid
-                    expected = ((x, vx) -> f0(characteristic(x, vx)...)).(X, VX)
-                    expected = as_xvx(expected)
-                    
-                    error = norm(expected - actual) / norm(expected)
-                    push!(errors, error)
-                end
+                (; X) = sim.species[1].discretization.x_grid
+                (; VX) = sim.species[1].discretization.vdisc.grid
+                expected = ((x, vx) -> f0(characteristic(x, vx)...)).(X, VX)
+                expected = as_xvx(expected)
+                
+                error = norm(expected - actual) / norm(expected)
+                push!(errors, error)
             end
 
             γ = estimate_log_slope(Ns, errors)
             @test -4 >= γ >= -5
+            end
         end
     end
 
     @testset "y free streaming" begin
+        for device in supported_devices()
         Ny = 32
         dt = 0.001
         T = 1.0
         n(y) = 1 + 0.2*exp((sin(y) + 0cos(2y)))
-        sim = single_species_1d1v_y(; Ny, Nvy=20, Ly=4pi, vdisc=:weno, q=0.0) do y, vy
+        sim = single_species_1d1v_y(; Ny, Nvy=20, Ly=4pi, vdisc=:weno, q=0.0, device) do y, vy
             n(y) * exp(-vy^2/2)
         end
         actual0 = sim.u.x[1]
@@ -61,6 +61,7 @@
 
         error = norm(actual - expected) / norm(expected)
         @test abs(error) < 1e-7
+        end
     end
 
 end

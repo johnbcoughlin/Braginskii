@@ -14,6 +14,7 @@
     end
 
     @testset "Holds Maxwellian equilibrium" begin
+        for device in supported_devices()
         Nx = 40
         Nvx = 60
         sim = single_species_1d1v_x(; Nx, Nvx, vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc=:weno) do x, vx
@@ -26,9 +27,11 @@
         df = runsim_lightweight!(sim, T, dt)
         actual = as_xvx(sim.u.x[1])
         @test actual0 ≈ actual
+        end
     end
 
     @testset "Conserves energy" begin
+        for device in supported_devices()
         Nx = 40
         Nvx = 200
         sim = single_species_1d1v_x(; Nx, Nvx, xmin=-π, xmax=π, vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc=:weno) do x, vx
@@ -46,5 +49,6 @@
         M2 = sum(actual .* (v').^2, dims=2)
 
         @show error = norm(M2_0 - M2) / norm(M2_0)
+    end
     end
 end

@@ -6,7 +6,11 @@ using Braginskii
 using Braginskii.Helpers
 using Bumper
 using FFTW
+using CUDA
 
+supported_devices() = begin
+    CUDA.functional() ? (:cpu, :gpu) : (:cpu,)
+end
 
 set_default_buffer_size!(100_000_000)
 
