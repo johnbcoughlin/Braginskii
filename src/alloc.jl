@@ -15,6 +15,8 @@ end
 
 GPUAllocator() = GPUAllocator(CuArray[], 0)
 
+next_greatest_multiple(x, b) = (((x-1) ÷ b)+1) * b
+
 alloc_zeros(::Type{T}, args...) where {T} = begin
     res = alloc_array(T, args...)
     res .= zero(T)
@@ -23,6 +25,7 @@ end
 
 alloc_array(::Type{T}, buffer::Bumper.AllocBuffer, s...) where {T} = begin
     ptr = Bumper.alloc_ptr(buffer, prod(s) * sizeof(T))
+    buffer.offset = next_greatest_multiple(buffer.offset, 16)
     unsafe_wrap(Array, convert(Ptr{T}, ptr), s)
 end
 
