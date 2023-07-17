@@ -15,7 +15,7 @@ function He_up_to_n(n::Int, x::AbstractVector{Float64}; normalized=true)
     N = 0:n
     inv_sq_facs = 1 ./ sqrt.(factorial.(big.(N)))
     result = zeros(BigFloat, n+1, length(x))
-    He = Origin(0)(zeros(BigFloat, n+1))
+    He = zeros(BigFloat, n+1)
     for i in 1:length(x)
         if normalized
             result[:, i] .= unnormalized_He_n_up_to!(He, n, big(x[i])) .* inv_sq_facs
@@ -29,13 +29,13 @@ end
 function unnormalized_He_n_up_to!(He, n::Int, x::BigFloat)
     @assert n >= 0
     @assert length(He) == n+1
-    He[0] = 1.0 
-    n == 0 && return OffsetArrays.no_offset_view(He)
-    He[1] = x
-    for i in 1:n-1
-        He[i+1] = x * He[i] - i * He[i-1]
+    He[1] = 1.0 
+    n == 0 && return He
+    He[2] = x
+    for i in 2:n
+        He[i+1] = x * He[i] - (i-1) * He[i-1]
     end
-    OffsetArrays.no_offset_view(He)
+    He
 end
 
 """
