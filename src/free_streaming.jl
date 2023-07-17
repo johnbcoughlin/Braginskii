@@ -32,8 +32,8 @@ function free_streaming_x!(df, f, species::Species{WENO5}, buffer)
     vgrid = discretization.vdisc.grid
 
     @no_escape buffer begin
-        f_with_boundaries = alloc_array(Float64, buffer, Nx+6, rest...) |> Origin(-2, 1, 1, 1, 1, 1)
-        f_with_boundaries[1:Nx, :, :, :, :, :] .= f
+        f_with_boundaries = alloc_array(Float64, buffer, Nx+6, rest...)
+        f_with_boundaries[4:Nx+3, :, :, :, :, :] .= f
         reflecting_wall_bcs!(f_with_boundaries, f, discretization)
 
         F⁻ = alloc_array(Float64, buffer, Nx+6, Ny, Nz, Nvx÷2, Nvy, Nvz)
@@ -120,13 +120,13 @@ function reflecting_wall_bcs!(f_with_boundaries, f, grid)
     Nx, _, _, Nvx, _, _ = size(grid)
 
     # Left boundary
-    f_with_boundaries[-2, :, :, 1:Nvx, :, :] .= f[3, :, :, Nvx:-1:1, :, :]
-    f_with_boundaries[-1, :, :, 1:Nvx, :, :] .= f[2, :, :, Nvx:-1:1, :, :]
-    f_with_boundaries[0 , :, :, 1:Nvx, :, :] .= f[1, :, :, Nvx:-1:1, :, :]
+    f_with_boundaries[1, :, :, 1:Nvx, :, :] .= f[3, :, :, Nvx:-1:1, :, :]
+    f_with_boundaries[2, :, :, 1:Nvx, :, :] .= f[2, :, :, Nvx:-1:1, :, :]
+    f_with_boundaries[3 , :, :, 1:Nvx, :, :] .= f[1, :, :, Nvx:-1:1, :, :]
 
     # Right boundary
-    f_with_boundaries[Nx+3, :, :, 1:Nvx, :, :] .= f[Nx-2, :, :, Nvx:-1:1, :, :]
-    f_with_boundaries[Nx+2, :, :, 1:Nvx, :, :] .= f[Nx-1, :, :, Nvx:-1:1, :, :]
-    f_with_boundaries[Nx+1, :, :, 1:Nvx, :, :] .= f[Nx  , :, :, Nvx:-1:1, :, :]
+    f_with_boundaries[end, :, :, 1:Nvx, :, :] .= f[Nx-2, :, :, Nvx:-1:1, :, :]
+    f_with_boundaries[end-1, :, :, 1:Nvx, :, :] .= f[Nx-1, :, :, Nvx:-1:1, :, :]
+    f_with_boundaries[end-2, :, :, 1:Nvx, :, :] .= f[Nx  , :, :, Nvx:-1:1, :, :]
 end
 
