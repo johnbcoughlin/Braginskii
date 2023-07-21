@@ -4,7 +4,7 @@ import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Species, ..Simulation, .
 import ..plan_ffts
 using RecursiveArrayTools
 
-export y_grid_1d, vy_grid_1v, single_species_1d1v_y, single_species_1d1v_x, single_species_0d2v,
+export y_grid_1d, vy_grid_1v, single_species_1d1v_y, single_species_1d1v_z, single_species_0d2v,
     x_grid_3d, hermite_disc
 
 #=
@@ -13,10 +13,10 @@ export y_grid_1d, vy_grid_1v, single_species_1d1v_y, single_species_1d1v_x, sing
 
 =#
 
-x_grid_1d(Nx, xmin, xmax, buffer) = begin
-    x_grid = grid1d(Nx, xmin, xmax)
+z_grid_1d(Nz, zmin, zmax, buffer) = begin
+    x_grid = periodic_grid1d(1, 0.0)
     y_grid = periodic_grid1d(1, 0.0)
-    z_grid = periodic_grid1d(1, 0.0)
+    z_grid = grid1d(Nz, zmin, zmax)
 
     XGrid(x_grid, y_grid, z_grid, buffer)
 end
@@ -29,11 +29,11 @@ y_grid_1d(Ny, L, buffer) = begin
     XGrid(x_grid, y_grid, z_grid, buffer)
 end
 
-vx_grid_1v(Nvx, vxmax, buffer) = begin
-    vx_grid = grid1d(Nvx, vxmin, vxmax)
+vz_grid_1v(Nvz, vzmax, buffer) = begin
     vy_grid = grid1d(1, 0.0, 0.0)
-    vz_grid = grid1d(1, 0.0, 0.0)
-    VGrid([:x], vx_grid, vy_grid, vz_grid, buffer)
+    vx_grid = grid1d(1, 0.0, 0.0)
+    vz_grid = grid1d(Nvz, vzmin, vzmax)
+    VGrid([:z], vx_grid, vy_grid, vz_grid, buffer)
 end
 
 vy_grid_1v(Nvy, vymax, buffer) = begin
@@ -82,18 +82,18 @@ v_discretization(method, dims; kwargs...) = begin
     end
 end
 
-function single_species_1d1v_x(f; Nx, Nvx,
-    xmin=-1., xmax=1., vdisc, vxmax=8.0,
+function single_species_1d1v_z(f; Nz, Nvz,
+    zmin=-1., zmax=1., vdisc, vzmax=8.0,
     free_streaming=true, q=1.0, ϕ_left=0., ϕ_right=0., ν_p=0.0,
     device=:cpu)
     buffer = allocator(device)
 
-    x_grid = x_grid_1d(Nx, xmin, xmax, buffer)
+    x_grid = z_grid_1d(Nz, zmin, zmax, buffer)
 
-    v_disc = v_discretization(vdisc, [:x]; Nvx, vxmax, buffer)
+    v_disc = v_discretization(vdisc, [:z]; Nvz, vzmax, buffer)
     disc = XVDiscretization(x_grid, v_disc)
 
-    fe = approximate_f(f, disc, (1, 4), buffer)
+    fe = approximate_f(f, disc, (3, 6), buffer)
 
     Bz = alloc_zeros(Float64, buffer, size(x_grid)...)
     ϕl = alloc_zeros(Float64, buffer, 1, 1)
@@ -102,9 +102,9 @@ function single_species_1d1v_x(f; Nx, Nvx,
     ϕr .= ϕ_right
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
-    electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc), disc)
+    electrons = Species("electrons", [:z], [:vz], q, 1.0, plan_ffts(disc), disc)
     cms = collisional_moments(x_grid, ["electrons"], buffer)
-    sim = SimulationMetadata([:x], x_grid, Bz, ϕl, ϕr, ϕ, free_streaming, 
+    sim = SimulationMetadata([:z], x_grid, Bz, ϕl, ϕr, ϕ, free_streaming, 
         ν_p, cms, (electrons,), plan_ffts(x_grid), device)
     Simulation(sim, ArrayPartition(fe))
 end

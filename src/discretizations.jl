@@ -32,9 +32,9 @@ periodic_grid1d(N, L) = begin
 end
 
 struct XGrid{XA, YA, ZA}
-    x::Grid1D
+    x::PeriodicGrid1D
     y::PeriodicGrid1D
-    z::PeriodicGrid1D
+    z::Grid1D
 
     X::XA
     Y::YA

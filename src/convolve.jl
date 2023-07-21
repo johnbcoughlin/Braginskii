@@ -1,10 +1,19 @@
 function convolve_x!(dest::AbstractArray{T, N}, u::AbstractArray{T, N}, args...) where {T, N}
-    Nx, = size(u)
+    Nx, Ny, Nz, = size(u)
     u = reshape(u, (Nx, :))
 
     Nx, = size(dest)
     dest = reshape(dest, (Nx, :))
     convolve_over_first!(dest, u, args...)
+end
+
+function convolve_z!(dest::AbstractArray{T, N}, u::AbstractArray{T, N}, args...) where {T, N}
+    Nx, Ny, Nz, = size(u)
+    u = reshape(u, (Nx*Ny, Nz, :))
+
+    Nx, Ny, Nz = size(dest)
+    dest = reshape(dest, (Nx*Ny, Nz, :))
+    convolve_over_middle!(dest, u, args...)
 end
 
 function convolve_vx!(dest::AbstractArray{T, 6}, u::AbstractArray{T, 6}, args...) where {T}

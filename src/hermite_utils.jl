@@ -85,7 +85,7 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     vy_nodes = reshape(vy_nodes, (1, 1, 1, 1, :, 1))
     vz_nodes = reshape(vz_nodes, (1, 1, 1, 1, 1, :))
 
-    fxv = @. f(X, Y, Z, sqrt(2) * vx_nodes, sqrt(2) * vy_nodes, sqrt(2) * vz_nodes)
+    fxv = @. f(Y, Z, X, sqrt(2) * vx_nodes, sqrt(2) * vy_nodes, sqrt(2) * vz_nodes)
     fxv_exp = @. fxv * exp(big(vx_nodes^2 + vy_nodes^2 + vz_nodes^2))
     fxv_exp = Float64.(fxv_exp)
 
@@ -95,12 +95,12 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     w_vand_vy = Float64.(normalized_He_n_vy_vand .* vy_w')
     w_vand_vz = Float64.(normalized_He_n_vz_vand .* vz_w')
 
-    @turbo for λxyz in CartesianIndices((length(X), length(Y), length(Z)))
+    @turbo for λyxz in CartesianIndices((length(Y), length(X), length(Z)))
         for αvx in 1:Mvx+1, βvx in 1:Mvx+1
             for αvy in 1:Mvy+1, βvy in 1:Mvy+1
                 for αvz in 1:Mvz+1, βvz in 1:Mvz+1
                     w_vand = w_vand_vx[βvx, αvx] * w_vand_vy[βvy, αvy] * w_vand_vz[βvz, αvz]
-                    result[λxyz, βvx, βvy, βvz] += fxv_exp[λxyz, αvx, αvy, αvz] * w_vand
+                    result[λyxz, βvx, βvy, βvz] += fxv_exp[λyxz, αvx, αvy, αvz] * w_vand
                 end
             end
         end
