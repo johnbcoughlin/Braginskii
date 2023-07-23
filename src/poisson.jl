@@ -92,7 +92,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
         if :x ∈ x_dims
             ϕ_xx = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_xx .= ϕ
-            in_kx_domain!(ϕ_xx, buffer) do ϕ̂
+            in_kx_domain!(ϕ_xx, buffer, fft_plans) do ϕ̂
                 apply_k²!(ϕ̂, (2π / grid.x.L)^2, 1)
             end
             dest .+= ϕ_xx
@@ -130,7 +130,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
         if :x ∈ x_dims
             ϕ_x = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_x .= ϕ
-            in_kx_domain!(ϕ_x, buffer) do ϕ̂
+            in_kx_domain!(ϕ_x, buffer, fft_plans) do ϕ̂
                 apply_ik!(ϕ̂, 2π / grid.x.L, 1)
             end
             Ex .= -ϕ_x

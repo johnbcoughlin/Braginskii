@@ -4,7 +4,7 @@ import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Species, ..Simulation, .
 import ..plan_ffts
 using RecursiveArrayTools
 
-export y_grid_1d, vy_grid_1v, single_species_1d1v_y, single_species_1d1v_z, single_species_0d2v,
+export y_grid_1d, vy_grid_1v, single_species_1d1v_x, single_species_1d1v_y, single_species_1d1v_z, single_species_0d2v,
     x_grid_3d, hermite_disc
 
 #=
@@ -21,10 +21,18 @@ z_grid_1d(Nz, zmin, zmax, buffer) = begin
     XGrid(x_grid, y_grid, z_grid, buffer)
 end
 
+x_grid_1d(Nx, L, buffer) = begin
+    x_grid = periodic_grid1d(Nx, L)
+    y_grid = periodic_grid1d(1, 0.0)
+    z_grid = grid1d(1, 0.0, 0.0)
+
+    XGrid(x_grid, y_grid, z_grid, buffer)
+end
+
 y_grid_1d(Ny, L, buffer) = begin
-    x_grid = grid1d(1, 0.0, 0.0)
+    x_grid = periodic_grid1d(1, 0.0)
     y_grid = periodic_grid1d(Ny, L)
-    z_grid = periodic_grid1d(1, 0.0)
+    z_grid = grid1d(1, 0.0, 0.0)
 
     XGrid(x_grid, y_grid, z_grid, buffer)
 end
@@ -109,6 +117,29 @@ function single_species_1d1v_z(f; Nz, Nvz,
     Simulation(sim, ArrayPartition(fe))
 end
 
+function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true,
+    device=:cpu)
+    buffer = allocator(device)
+    x_grid = x_grid_1d(Nx, Lx, buffer)
+
+    v_disc = v_discretization(vdisc, [:x]; Nvx, vxmax, buffer)
+    disc = XVDiscretization(x_grid, v_disc)
+
+
+    fe = approximate_f(f, disc, (1, 4), buffer)
+
+    Bz = alloc_zeros(Float64, buffer, size(x_grid)...)
+    ϕl = alloc_zeros(Float64, buffer, Nx, 1)
+    ϕr = alloc_zeros(Float64, buffer, Nx, 1)
+    ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
+
+    electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc), disc)
+    cms = collisional_moments(x_grid, ["electrons"], buffer)
+    sim = SimulationMetadata([:x], x_grid, Bz, ϕl, ϕr, ϕ, free_streaming, 
+        ν_p, cms, (electrons,), plan_ffts(x_grid), device)
+    Simulation(sim, ArrayPartition(fe))
+end
+
 function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true,
     device=:cpu)
     buffer = allocator(device)
@@ -121,8 +152,8 @@ function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, v
     fe = approximate_f(f, disc, (2, 5), buffer)
 
     Bz = alloc_zeros(Float64, buffer, size(x_grid)...)
-    ϕl = alloc_zeros(Float64, buffer, Ny, 1)
-    ϕr = alloc_zeros(Float64, buffer, Ny, 1)
+    ϕl = alloc_zeros(Float64, buffer, 1, Ny)
+    ϕr = alloc_zeros(Float64, buffer, 1, Ny)
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
     electrons = Species("electrons", [:y], [:vy], q, 1.0, plan_ffts(disc), disc)

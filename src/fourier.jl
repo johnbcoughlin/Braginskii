@@ -15,7 +15,7 @@ function plan_ffts(grid)
     arr = rand(size(grid)...)
 
     arr = reshape(arr, (Nx, :))
-    kx_rfft = plan_rfft(arr, (2,))
+    kx_rfft = plan_rfft(arr, (1,))
     modes = kx_rfft * arr
     kx_irfft = plan_irfft(modes, Nx, (1,))
 
