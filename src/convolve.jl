@@ -38,7 +38,7 @@ function convolve_vz!(dest::AbstractArray{T, 6}, u::AbstractArray{T, 6}, args...
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(u)
     u = reshape(u, (Nx*Ny*Nz*Nvx*Nvy, Nvz))
 
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(du)
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(dest)
     dest = reshape(dest, (Nx*Ny*Nz*Nvx*Nvy, Nvz))
     convolve_over_last!(dest, u, args...)
 end

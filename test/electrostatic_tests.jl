@@ -5,26 +5,26 @@
         dt = 0.01
 
         T = π/4
-        f0(vx, vy) = exp(-((vx - 1)^2 + (vy - 1)^2) / 2)
-        Bz = 1.0
+        f0(vx, vz) = exp(-((vx - 1)^2 + (vz - 1)^2) / 2)
+        By = 1.0
 
         errors = Float64[]
         Ns = [20, 40, 80]
 
         for N in Ns
-            sim = single_species_0d2v((; f=f0, Bz), N, N; vxmax=6.5, vymax=6.5, vdisc=:weno)
-            (; VX, VY) = sim.species[1].discretization.vdisc.grid
+            sim = single_species_0d2v((; f=f0, By), N, N; vxmax=6.5, vzmax=6.5, vdisc=:weno)
+            (; VX, VZ) = sim.species[1].discretization.vdisc.grid
 
             runsim_lightweight!(sim, T, dt)
-            actual = as_vxvy(sim.u.x[1])
+            actual = as_vxvz(sim.u.x[1])
 
             regression_test_value = actual[N÷2, N÷2]
             if N == 40
                 @test regression_test_value ≈ 0.28479738517275455
             end
 
-            expected_f(vx, vy) = exp(-((vx-√(2))^2 + vy^2) / 2)
-            expected = expected_f.(vec(VX), vec(VY)')
+            expected_f(vx, vz) = exp(-((vz-√(2))^2 + vx^2) / 2)
+            expected = expected_f.(vec(VX), vec(VZ)')
 
             error = norm(actual - expected) / norm(expected)
 
