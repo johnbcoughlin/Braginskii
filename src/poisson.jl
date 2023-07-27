@@ -36,7 +36,7 @@ end
 function poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims, buffer, fft_plans)
     Δ = LaplacianOperator(grid, x_dims, buffer, ϕ_left, ϕ_right, fft_plans)
 
-    minres!(vec(ϕ), Δ, -ρ_c, abstol=1e-12)
+    minres!(vec(ϕ), Δ, -ρ_c, abstol=1e-12, maxiter=10)
 
     potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans) 
 end
@@ -92,8 +92,9 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
         if :x ∈ x_dims
             ϕ_xx = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_xx .= ϕ
-            in_kx_domain!(ϕ_xx, buffer, fft_plans) do ϕ̂
-                apply_k²!(ϕ̂, (2π / grid.x.L)^2, 1)
+            in_kxy_domain!(ϕ_xx, buffer, fft_plans) do ϕ̂
+                kxs = (0:Nx÷2)
+                ϕ̂ .*= -kxs.^2 * (2π / grid.x.L)^2
             end
             dest .+= ϕ_xx
         end
@@ -101,8 +102,9 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
         if :y ∈ x_dims
             ϕ_yy = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_yy .= ϕ
-            in_ky_domain!(ϕ_yy, buffer, fft_plans) do ϕ̂
-                apply_k²!(ϕ̂, (2π / grid.y.L)^2, 2)
+            in_kxy_domain!(ϕ_yy, buffer, fft_plans) do ϕ̂
+                kys = mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
+                ϕ̂ .*= -(kys').^2 * (2π / grid.y.L)^2
             end
             dest .+= ϕ_yy
         end
@@ -130,8 +132,9 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
         if :x ∈ x_dims
             ϕ_x = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_x .= ϕ
-            in_kx_domain!(ϕ_x, buffer, fft_plans) do ϕ̂
-                apply_ik!(ϕ̂, 2π / grid.x.L, 1)
+            in_kxy_domain!(ϕ_x, buffer, fft_plans) do ϕ̂
+                kxs = (0:Nx÷2)
+                ϕ̂ .*= im * kxs * (2π / grid.x.L)
             end
             Ex .= -ϕ_x
         else
@@ -141,8 +144,9 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
         if :y ∈ x_dims
             ϕ_y = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_y .= ϕ
-            in_ky_domain!(ϕ_y, buffer, fft_plans) do ϕ̂
-                apply_ik!(ϕ̂, 2π / grid.y.L, 2)
+            in_kxy_domain!(ϕ_y, buffer, fft_plans) do ϕ̂
+                kys = mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
+                ϕ̂ .*= im * kys' * (2π / grid.y.L)
             end
             Ey .= -ϕ_y
         else
@@ -156,8 +160,8 @@ end
 function apply_ik!(ϕ̂, factor=1.0, dim=1)
     N1, N2 = size(ϕ̂)
     for i in axes(ϕ̂, 1), k in axes(ϕ̂, 2), j in axes(ϕ̂, 3)
-        c = dim == 1 ? i : 2
-        ϕ̂[i, k, j] *= im * (k-1) * factor
+        c = dim == 1 ? i : k
+        ϕ̂[i, k, j] *= im * (c-1) * factor
     end
 end
 
@@ -165,8 +169,8 @@ function apply_k²!(ϕ̂, factor=1.0, dim=1)
     N1, N2 = size(ϕ̂)
     ϕ̂ = reshape(reinterpret(reshape, Float64, ϕ̂), (2N1, N2, :))
     for i in axes(ϕ̂, 1), k in axes(ϕ̂, 2), j in axes(ϕ̂, 3)
-        c = dim == 1 ? i : 2
-        ϕ̂[i, k, j] *= -(k-1)^2 * factor
+        c = dim == 1 ? i : k
+        ϕ̂[i, k, j] *= -(c-1)^2 * factor
     end
 end
 
@@ -182,7 +186,7 @@ function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right)
                   90  -20  3  0;
                   140 -70 28 -5];
     rhs = -reshape(ϕ[:, :, 4:7], (:, 4)) * Q' 
-    rhs .+= 128 * [1, 1, 1]' .* vec(ϕ_left)'
+    rhs .+= 128 * [1, 1, 1]' .* vec(ϕ_left)
 
     ϕ_ghosts = reshape(rhs / M', (Nx, Ny, 3))
     ϕ[:, :, 1:3] .= ϕ_ghosts
@@ -195,7 +199,7 @@ function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right)
                    0  3 -20  90;
                   -5 28 -70 140];
     rhs = -reshape(ϕ[:, :, end-6:end-3], (:, 4)) * Q'
-    rhs .+= 128 * [1, 1, 1]' .* vec(ϕ_right)'
+    rhs .+= 128 * [1, 1, 1]' .* vec(ϕ_right)
 
     ϕ_ghosts = reshape(rhs / M', (Nx, Ny, 3))
     ϕ[:, :, end-2:end] .= ϕ_ghosts

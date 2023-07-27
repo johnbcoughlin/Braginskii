@@ -206,9 +206,9 @@ end
 # 3D
 
 function x_grid_3d(Nx, Ny, Nz, buffer=allocator(:cpu))
-    x_grid = grid1d(Nx, -1., 1.)
+    x_grid = periodic_grid1d(Nx, 2π)
     y_grid = periodic_grid1d(Ny, 2π)
-    z_grid = periodic_grid1d(Nz, 2π)
+    z_grid = grid1d(Nz, -1., 1.)
 
     XGrid(x_grid, y_grid, z_grid, buffer)
 end
