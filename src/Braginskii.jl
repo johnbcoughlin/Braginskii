@@ -4,11 +4,10 @@ using LoopVectorization
 using OffsetArrays: OffsetArrays, Origin, OffsetArray
 using LinearAlgebra
 using Bumper
-using FFTW
+using FFTW: FFTW
 using FastBroadcast
 using RecursiveArrayTools
 using TimerOutputs
-using NNlib
 using StaticArrays
 using IterativeSolvers
 using DataFrames
@@ -16,6 +15,9 @@ using PDEHarness
 using ProgressMeter
 using FastGaussQuadrature
 using CUDA
+using cuDNN
+using NNlib
+using NNlibCUDA
 
 import Base.size, Base.getproperty
 

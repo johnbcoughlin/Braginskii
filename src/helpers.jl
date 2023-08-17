@@ -110,10 +110,10 @@ function single_species_1d1v_z(f; Nz, Nvz,
     ϕr .= ϕ_right
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
-    electrons = Species("electrons", [:z], [:vz], q, 1.0, plan_ffts(disc), disc)
+    electrons = Species("electrons", [:z], [:vz], q, 1.0, plan_ffts(disc, buffer), disc)
     cms = collisional_moments(x_grid, ["electrons"], buffer)
     sim = SimulationMetadata([:z], x_grid, By, ϕl, ϕr, ϕ, free_streaming, 
-        ν_p, cms, (electrons,), plan_ffts(x_grid), device)
+        ν_p, cms, (electrons,), plan_ffts(x_grid, buffer), device)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -133,10 +133,10 @@ function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, v
     ϕr = alloc_zeros(Float64, buffer, Nx, 1)
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
-    electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc), disc)
+    electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc, buffer), disc)
     cms = collisional_moments(x_grid, ["electrons"], buffer)
     sim = SimulationMetadata([:x], x_grid, By, ϕl, ϕr, ϕ, free_streaming, 
-        ν_p, cms, (electrons,), plan_ffts(x_grid), device)
+        ν_p, cms, (electrons,), plan_ffts(x_grid, buffer), device)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -156,10 +156,10 @@ function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, v
     ϕr = alloc_zeros(Float64, buffer, 1, Ny)
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
-    electrons = Species("electrons", [:y], [:vy], q, 1.0, plan_ffts(disc), disc)
+    electrons = Species("electrons", [:y], [:vy], q, 1.0, plan_ffts(disc, buffer), disc)
     cms = collisional_moments(x_grid, ["electrons"], buffer)
     sim = SimulationMetadata([:y], x_grid, By, ϕl, ϕr, ϕ, free_streaming, 
-        ν_p, cms, (electrons,), plan_ffts(x_grid), device)
+        ν_p, cms, (electrons,), plan_ffts(x_grid, buffer), device)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -196,10 +196,10 @@ function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=8.0, vzmax=8.0,
     ϕr = alloc_zeros(Float64, buffer, 1, 1)
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
-    electrons = Species("electrons", Symbol[], [:vx, :vz], q, 1.0, plan_ffts(disc), disc)
+    electrons = Species("electrons", Symbol[], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc)
     cms = collisional_moments(x_grid, ["electrons"], buffer)
     sim = SimulationMetadata(Symbol[], x_grid, By0, ϕl, ϕr, ϕ, 
-        free_streaming, ν_p, cms, (electrons,), plan_ffts(x_grid), device)
+        free_streaming, ν_p, cms, (electrons,), plan_ffts(x_grid, buffer), device)
     Simulation(sim, ArrayPartition(fe))
 end
 
