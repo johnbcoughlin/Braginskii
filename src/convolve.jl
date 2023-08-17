@@ -69,10 +69,17 @@ function convolve_over!(
 
     u = reshape(u, (size(u)..., 1, 1))
     dest = reshape(dest, (size(dest)..., 1, 1))
-    stencil = reshape(stencil, (stencil_shape..., 1, 1))
+    stencil = reshape(convert_stencil(stencil, typeof(u)), (stencil_shape..., 1, 1))
 
     cdims = DenseConvDims(size(u), size(stencil), padding=pad_wrapper(pad), flipkernel=true)
 
     col = alloc_array(Float64, buffer, prod(size(dest)), length(stencil), 1)
-    conv!(dest, u, stencil, cdims; col)
+    if (isa(u, Array))
+        conv!(dest, u, stencil, cdims; col)
+    else
+        conv!(dest, u, stencil, cdims)
+    end
 end
+
+convert_stencil(stencil, ::Type{<:CuArray}) = CuArray(stencil)
+convert_stencil(stencil, _) = stencil

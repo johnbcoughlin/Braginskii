@@ -22,19 +22,21 @@ function moments(f, disc::XVDiscretization{WENO5}, v_dims, buffer)
         dv *= grid.z.dx
     end
 
-    for λxyz in CartesianIndices((Nx, Ny, Nz))
-        for λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
-            vx = grid.VX[λvx]
-            vy = grid.VY[λvy]
-            vz = grid.VZ[λvz]
-            v² = vx^2 + vy^2 + vz^2
-            M0[λxyz] += f[λxyz, λvx, λvy, λvz] * dv
-            M1x[λxyz] += f[λxyz, λvx, λvy, λvz] * dv * vx
-            M1y[λxyz] += f[λxyz, λvx, λvy, λvz] * dv * vy
-            M1z[λxyz] += f[λxyz, λvx, λvy, λvz] * dv * vz
-            M2[λxyz] += f[λxyz, λvx, λvy, λvz] * dv * v²
-        end
-    end
+    fvx = f .* grid.VX
+    fvy = f .* grid.VY
+    fvz = f .* grid.VZ
+    fv2 = @. f * (grid.VX^2 + grid.VY^2 + grid.VZ^2)
+    sum!(M0, f)
+    sum!(M1x, fvx)
+    sum!(M1y, fvy)
+    sum!(M1z, fvz)
+    sum!(M2, fv2)
+
+    M0 .*= dv
+    M1x .*= dv
+    M1y .*= dv
+    M1z .*= dv
+    M2 .*= dv
 
     M0, (M1x, M1y, M1z), M2
 end
@@ -56,11 +58,8 @@ function density(f, disc::XVDiscretization{WENO5}, v_dims, buffer)
         dv *= grid.z.dx
     end
 
-    for λxyz in CartesianIndices((Nx, Ny, Nz))
-        for λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
-            M0[λxyz] += f[λxyz, λvx, λvy, λvz] * dv
-        end
-    end
+    sum!(M0, f)
+    M0 .*= dv
 
     return M0
 end
@@ -94,7 +93,7 @@ function collisional_moments_single_species(α, f, x_grid, ν_p, buffer)
     d = length(α.v_dims)
 
     T = (M2 .- (ux.^2 + uy.^2 + uz.^2)) ./ (d .* M0)
-    ν = zeros(size(x_grid))
+    ν = alloc_zeros(Float64, buffer, size(x_grid)...)
     ν .= ν_p
 
     #@show sum(M1x) * x_grid.x.dx

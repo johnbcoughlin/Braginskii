@@ -83,7 +83,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
             ϕ_with_z_bdy[:, :, 4:Nz+3] .= ϕ
             apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right)
 
-            stencil = SVector[1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2;
+            stencil = [1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2;
             convolve_z!(dest, ϕ_with_z_bdy, stencil, true, buffer)
         else
             dest .= 0
@@ -103,7 +103,8 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
             ϕ_yy = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_yy .= ϕ
             in_kxy_domain!(ϕ_yy, buffer, fft_plans) do ϕ̂
-                kys = mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
+                kys = alloc_array(Float64, buffer, Ny)
+                kys .= mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
                 ϕ̂ .*= -(kys').^2 * (2π / grid.y.L)^2
             end
             dest .+= ϕ_yy
@@ -123,7 +124,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
             ϕ_with_z_bdy[:, :, 4:Nz+3] .= ϕ
             apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right)
 
-            stencil = -1 * SVector[-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz
+            stencil = -1 * [-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz
             convolve_z!(Ez, ϕ_with_z_bdy, stencil, true, buffer)
         else
             Ez .= 0
@@ -145,8 +146,9 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
             ϕ_y = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_y .= ϕ
             in_kxy_domain!(ϕ_y, buffer, fft_plans) do ϕ̂
-                kys = mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
-                ϕ̂ .*= im * kys' * (2π / grid.y.L)
+                kys = alloc_array(Float64, buffer, Ny)
+                kys .= mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
+                ϕ̂ .*= im  * (2π / grid.y.L) .* kys'
             end
             Ey .= -ϕ_y
         else

@@ -40,7 +40,7 @@ end
 function Bumper.no_escape(f, b::GPUAllocator)
     offset = b.offset
     res = f()
-    while length(b.arrays > offset)
+    while length(b.arrays) > offset
         a = pop!(b.arrays)
         CUDA.unsafe_free!(a)
     end
