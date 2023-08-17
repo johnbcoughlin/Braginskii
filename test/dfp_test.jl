@@ -32,20 +32,20 @@
 
     @testset "Conserves energy" begin
         for device in supported_devices()
-        Nx = 40
-        Nvx = 200
-        sim = single_species_1d1v_x(; Nx, Nvx, xmin=-π, xmax=π, vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc=:weno) do x, vx
-            0.5 / sqrt(2π) * (exp(-(vx-1-sin(x))^2/2) + exp(-((vx+1)^2/2)))
+        Nz = 40
+        Nvz = 200
+        sim = single_species_1d1v_z(; Nz, Nvz, zmin=-π, zmax=π, vzmax=10.0, free_streaming=false, ν_p=1.0, vdisc=:weno) do z, vz
+            0.5 / sqrt(2π) * (exp(-(vz-1-sin(z))^2/2) + exp(-((vz+1)^2/2)))
         end
 
-        v = sim.species[1].discretization.vdisc.grid.VX |> vec
+        v = sim.species[1].discretization.vdisc.grid.VZ |> vec
 
         T = 1.0
         dt = 0.002
-        actual0 = as_xvx(sim.u.x[1])
+        actual0 = as_zvz(sim.u.x[1])
         M2_0 = sum(actual0 .* (v').^2, dims=2)
         df = runsim_lightweight!(sim, T, dt)
-        actual = as_xvx(sim.u.x[1])
+        actual = as_zvz(sim.u.x[1])
         M2 = sum(actual .* (v').^2, dims=2)
 
         @show error = norm(M2_0 - M2) / norm(M2_0)

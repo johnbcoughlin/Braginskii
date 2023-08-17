@@ -1,11 +1,11 @@
 @testset "Landau damping" begin
-    Ny = 16
-    Nvy = 50
+    Nx = 16
+    Nvx = 50
     δ = 0.001
     q = 1.0
     k = 0.5
-    sim = single_species_1d1v_y(; Ny, Nvy, Ly=2π/k, q, vdisc=:weno) do y, vy
-        1 / sqrt(2π) * (1.0 + δ * cos(k*y)) * exp(-vy^2/2)
+    sim = single_species_1d1v_x(; Nx, Nvx, Lx=2π/k, q, vdisc=:weno) do x, vx
+        1 / sqrt(2π) * (1.0 + δ * cos(k*x)) * exp(-vx^2/2)
     end
 
     df = runsim_lightweight!(sim, 20.0, 0.01, 
@@ -16,13 +16,13 @@
 end
 
 @testset "Inverse Landau damping" begin
-    Ny = 16
-    Nvy = 50
+    Nx = 16
+    Nvx = 50
     δ = 0.01
     q = 3.0
     k = 1.0
-    sim = single_species_1d1v_y(; Ny, Nvy, Ly=2π/k, q, vdisc=:weno) do y, vy
-        0.5 / sqrt(2π) * (1.0 + δ * cos(k*y)) * (exp(-(vy-1.5)^2/1) + exp(-(vy+1.5)^2/1))
+    sim = single_species_1d1v_x(; Nx, Nvx, Lx=2π/k, q, vdisc=:weno) do x, vx
+        0.5 / sqrt(2π) * (1.0 + δ * cos(k*x)) * (exp(-(vx-1.5)^2/1) + exp(-(vx+1.5)^2/1))
     end
 
     df = runsim_lightweight!(sim, 20.0, 0.01, 

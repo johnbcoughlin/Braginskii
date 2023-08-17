@@ -1,12 +1,15 @@
-function electrostatic!(df, f, Ex, Ey, Bz, species, buffer)
+function electrostatic!(df, f, Ex, Ey, Ez, By, species, buffer)
     @no_escape buffer begin
         df_es = alloc_zeros(Float64, buffer, size(df)...)
 
         if :vx ∈ species.v_dims
-            electrostatic_x!(df_es, f, Ex, Bz, species, buffer)
+            electrostatic_x!(df_es, f, Ex, By, species, buffer)
         end
         if :vy ∈ species.v_dims
-            electrostatic_y!(df_es, f, Ey, Bz, species, buffer)
+            electrostatic_y!(df_es, f, Ey, By, species, buffer)
+        end
+        if :vz ∈ species.v_dims
+            electrostatic_z!(df_es, f, Ez, By, species, buffer)
         end
 
         df .+= df_es
@@ -14,31 +17,26 @@ function electrostatic!(df, f, Ex, Ey, Bz, species, buffer)
     end
 end
 
-function electrostatic_x!(df, f, Ex, Bz, species::Species{WENO5}, buffer)
+function electrostatic_x!(df, f, Ex, By, species::Species{WENO5}, buffer)
     (; discretization, q, m) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
     vgrid = discretization.vdisc.grid
+
     dvx = vgrid.x.dx
 
     @no_escape buffer begin
-        C = alloc_array(Float64, buffer, Nx, Ny, Nz, 1, Nvy)
-        F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvy)
-        F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvy)
+        C = alloc_array(Float64, buffer, Nx, Ny, Nz, 1, 1, Nvz)
+        F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvz)
+        F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvz)
 
-        @. C = q / m * (Ex + vgrid.VY * Bz)
-        for λxyz in CartesianIndices((Nx, Ny, Nz))
-            for λvy in 1:Nvy
-                vy = vgrid.VY[λvy]
-                #C[λxyz, λvy] = q / m * (Ex[λxyz] + vy * Bz[λxyz])
-            end
-        end
+        @. C = q / m * (Ex - vgrid.VZ * By)
 
         C = quadratic_dealias(C, buffer)
         f̂ = quadratic_dealias(f, buffer)
-        F⁺ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
-        F⁻ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
+        F⁺ = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
+        F⁻ = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
 
         @. F⁺ = max(C, 0) * f̂
         @. F⁻ = min(C, 0) * f̂
@@ -60,7 +58,7 @@ function electrostatic_x!(df, f, Ex, Bz, species::Species{WENO5}, buffer)
     end
 end
 
-function electrostatic_y!(df, f, Ey, Bz, species::Species{WENO5}, buffer)
+function electrostatic_y!(df, f, Ey, By, species::Species{WENO5}, buffer)
     (; discretization, q, m) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
@@ -70,16 +68,16 @@ function electrostatic_y!(df, f, Ey, Bz, species::Species{WENO5}, buffer)
     dvy = vgrid.y.dx
 
     @no_escape buffer begin
-        C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx)
-        F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
-        F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
+        C = alloc_array(Float64, buffer, Nx, Ny, Nz)
+        F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+        F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
 
-        @. C = q / m * (Ey - vgrid.VX * Bz)
+        @. C = q / m * Ey
 
         C = quadratic_dealias(C, buffer)
         f̂ = quadratic_dealias(f, buffer)
-        F⁺ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
-        F⁻ = alloc_array(Float64, buffer, Nx, 2Ny-1, 2Nz-1, Nvx, Nvy, Nvz)
+        F⁺ = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
+        F⁻ = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
 
         @. F⁺ = max(C, 0) * f̂
         @. F⁻ = min(C, 0) * f̂
@@ -101,61 +99,98 @@ function electrostatic_y!(df, f, Ey, Bz, species::Species{WENO5}, buffer)
     end
 end
 
+function electrostatic_z!(df, f, Ez, By, species::Species{WENO5}, buffer)
+    (; discretization, q, m) = species
+
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+
+    vgrid = discretization.vdisc.grid
+    dvz = vgrid.z.dx
+
+    @no_escape buffer begin
+        C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx)
+        F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
+        F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
+
+        @. C = q / m * (Ez + vgrid.VX * By)
+
+        C = quadratic_dealias(C, buffer)
+        f̂ = quadratic_dealias(f, buffer)
+        F⁺ = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
+        F⁻ = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
+
+        @. F⁺ = max(C, 0) * f̂
+        @. F⁻ = min(C, 0) * f̂
+
+        F⁺ = reverse_quadratic_dealias(F⁺, buffer)
+        F⁻ = reverse_quadratic_dealias(F⁻, buffer)
+
+        right_biased_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1 / dvz)
+        left_biased_stencil = [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1 / dvz)
+
+        convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
+
+        convolve_vz!(convolved, F⁻, right_biased_stencil, false, buffer)
+        df .+= convolved
+        convolve_vz!(convolved, F⁺, left_biased_stencil, false, buffer)
+        df .+= convolved
+
+        return df
+    end
+end
+
 # Do the round trip from physical space to Fourier space back to physical space on twice
 # as many grid points
 function quadratic_dealias(u, buffer)
     Nx, Ny, Nz, Nvs... = size(u)
-    u = reshape(u, (Nx, Ny, Nz, :))
+    u = reshape(u, (Nx, Ny, :))
 
-    u_modes = alloc_zeros(Complex{Float64}, buffer, Nx, Ny, Nz, prod(Nvs))
-    @timeit "plan fft" F = plan_rfft(u, (2, 3))
-    u_modes_tmp = alloc_array(Complex{Float64}, buffer, Nx, Ny÷2+1, Nz÷2+1, prod(Nvs))
+    u_modes = alloc_zeros(Complex{Float64}, buffer, Nx, 2Ny, Nz*prod(Nvs))
+    @timeit "plan fft" F = plan_rfft(u, [1, 2])
+    u_modes_tmp = alloc_array(Complex{Float64}, buffer, Nx÷2+1, Ny, Nz*prod(Nvs))
     mul!(u_modes_tmp, F, u)
 
     copy_to_first_half!(u_modes, u_modes_tmp)
 
-    U = alloc_zeros(Float64, buffer, Nx, 2Ny-1, 2Nz-1, prod(Nvs))
-    @timeit "plan fft" F⁻¹ = plan_irfft(u_modes, 2Ny-1, (2, 3))
+    U = alloc_zeros(Float64, buffer, 2Nx-1, 2Ny, Nz*prod(Nvs))
+    @timeit "plan fft" F⁻¹ = plan_irfft(u_modes, 2Nx-1, [1, 2])
     mul!(U, F⁻¹, u_modes)
 
-    return reshape(U, (Nx, 2Ny-1, 2Nz-1, Nvs...)) * (2Ny-1)/Ny * (2Nz-1)/Nz
+    return reshape(U, (2Nx-1, 2Ny, Nz, Nvs...)) * (2Nx-1)/Nx * (2Ny)/Ny
 end
 
 function copy_to_first_half!(u_modes, u_modes_tmp)
-    _, Ny, Nz, _ = size(u_modes)
-    for λx in axes(u_modes, 1)
-        for λy in 1:(Ny÷2+1), λz in 1:(Nz÷2+1), λ in axes(u_modes, 4)
-            u_modes[λx, λy, λz, λ] = u_modes_tmp[λx, λy, λz, λ]
-        end
+    Nx, Ny, _ = size(u_modes_tmp)
+    for λx in 1:Nx, λy in 1:Ny, λ in axes(u_modes_tmp, 3)
+        u_modes[λx, λy, λ] = u_modes_tmp[λx, λy, λ]
     end
 end
 
 function reverse_quadratic_dealias(u, buffer)
-    Nx, Nŷ, Nẑ, Nvs... = size(u)
-    Ny = Nŷ÷2+1
-    Nz = Nẑ÷2+1
+    Nx̂, Nŷ, Nz, Nvs... = size(u)
+    Nx = Nx̂÷2+1
+    Ny = Nŷ÷2
 
-    u = reshape(u, (Nx, Nŷ, Nẑ, :))
+    u = reshape(u, (Nx̂, Nŷ, :))
 
-    u_modes_tmp = alloc_zeros(Complex{Float64}, buffer, Nx, Ny, Nz, prod(Nvs))
-    @timeit "plan fft" F = plan_rfft(u, (2, 3))
+    u_modes_tmp = alloc_zeros(Complex{Float64}, buffer, Nx̂÷2+1, Nŷ, Nz*prod(Nvs))
+    @timeit "plan fft" F = plan_rfft(u, [1, 2])
     mul!(u_modes_tmp, F, u)
 
-    u_modes = alloc_array(Complex{Float64}, buffer, Nx, Ny÷2+1, Nz÷2+1, prod(Nvs))
+    u_modes = alloc_array(Complex{Float64}, buffer, Nx÷2+1, Ny, Nz*prod(Nvs))
     copy_from_first_half!(u_modes, u_modes_tmp)
 
-    U = alloc_zeros(Float64, buffer, Nx, Ny, Nz, prod(Nvs))
-    @timeit "plan fft" F⁻¹ = plan_irfft(u_modes, Ny, (2, 3))
+    U = alloc_zeros(Float64, buffer, Nx, Ny, Nz*prod(Nvs))
+    @timeit "plan fft" F⁻¹ = plan_irfft(u_modes, Nx, [1, 2])
     mul!(U, F⁻¹, u_modes)
 
-    return reshape(U, (Nx, Ny, Nz, Nvs...)) / ( (2Ny-1)/Ny * (2Nz-1)/Nz )
+    return reshape(U, (Nx, Ny, Nz, Nvs...)) / ( (2Nx-1)/Nx * (2Ny)/Ny )
 end
+
 function copy_from_first_half!(u_modes, u_modes_tmp)
-    _, Ny, Nz, _ = size(u_modes_tmp)
-    for λx in axes(u_modes, 1)
-        for λy in 1:(Ny÷2+1), λz in 1:(Nz÷2+1), λ in axes(u_modes, 4)
-            u_modes[λx, λy, λz, λ] = u_modes_tmp[λx, λy, λz, λ]
-        end
+    Nx, Ny, _ = size(u_modes)
+    for λx in 1:Nx, λy in 1:Ny, λ in axes(u_modes, 3)
+        u_modes[λx, λy, λ] = u_modes_tmp[λx, λy, λ]
     end
 end
 

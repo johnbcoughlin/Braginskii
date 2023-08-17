@@ -1,8 +1,10 @@
-export as_xvx, as_yvy, as_vxvy, as_xyvxvy
+export as_xvx, as_yvy, as_zvz, as_vxvy, as_xyvxvy, as_vxvz
 
 as_xvx(f) = f[:, 1, 1, :, 1, 1] |> Array |> copy
 as_yvy(f) = f[1, :, 1, 1, :, 1] |> Array |> copy
+as_zvz(f) = f[1, 1, :, 1, 1, :] |> Array |> copy
 as_vxvy(f) = f[1, 1, 1, :, :, 1] |> Array |> copy
+as_vxvz(f) = f[1, 1, 1, :, 1, :] |> Array |> copy
 as_xyvxvy(f) = f[:, :, 1, :, :, 1] |> Array |> copy
 
 # Scheme may be :WENO or :fourier.

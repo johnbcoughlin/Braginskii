@@ -109,6 +109,49 @@ function dfp_vy!(df, f, uy, T, ν, species, buffer)
     df
 end
 
+function dfp_vz!(df, f, uz, T, ν, species, buffer)
+    (; discretization) = species
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+    vgrid = discretization.vdisc.grid
+    dvz = vgrid.z.dx
+
+    fM₋½ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
+    fM₊½ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
+
+    for λxyz in CartesianIndices((Nx, Ny, Nz))
+        for λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
+            vz = vgrid.VZ[λvz]
+
+            fM₋½[λxyz, λvx, λvy, λvz] = f[λxyz, λvx, λvy, λvz] * M_ratio(uz[λxyz], T[λxyz], vz, -dvz/2)
+            fM₊½[λxyz, λvx, λvy, λvz] = f[λxyz, λvx, λvy, λvz] * M_ratio(uz[λxyz], T[λxyz], vz, dvz/2)
+        end
+    end
+
+    for λxyz in CartesianIndices((Nx, Ny, Nz))
+        for λvx in 1:Nvx, λvy in 1:Nvy
+            for λvz in 2:Nvz-1
+                df[λxyz, λvx, λvy, λvz] += (fM₋½[λxyz, λvx, λvy, λvz+1] - fM₋½[λxyz, λvx, λvy, λvz]) / dvz^2
+                df[λxyz, λvx, λvy, λvz] += (fM₊½[λxyz, λvx, λvy, λvz-1] - fM₊½[λxyz, λvx, λvy, λvz]) / dvz^2
+            end
+
+            df[λxyz, λvx, λvy, 1] += (fM₋½[λxyz, λvx, λvy, 2] - fM₋½[λxyz, λvx, λvy, 1]) / dvz^2
+            df[λxyz, λvx, λvy, Nvz] += (fM₊½[λxyz, λvx, λvy, Nvz-1] - fM₊½[λxyz, λvx, λvy, Nvz]) / dvz^2
+
+            left = f[λxyz, λvx, λvy, 1] * M_ratio(uz[λxyz], T[λxyz], vgrid.VZ[1], -dvz/2)
+            df[λxyz, λvx, λvy, 1] += (left - fM₊½[λxyz, λvx, λvy, 1]) / dvz^2
+
+            right = f[λxyz, λvx, λvy, Nvz] * M_ratio(uz[λxyz], T[λxyz], vgrid.VZ[Nvz], dvz/2)
+            df[λxyz, λvx, λvy, Nvz] += (right - fM₋½[λxyz, λvx, λvy, Nvz]) / dvz^2
+        end
+    end
+    for λxyz in CartesianIndices((Nx, Ny, Nz))
+        for λvxyz in CartesianIndices((Nvx, Nvy, Nvz))
+            df[λxyz, λvxyz] *= ν[λxyz] * T[λxyz]
+        end
+    end
+    df
+end
+
 # Compute Mᵢ±½ / Mᵢ
 function M_ratio(u, T, vᵢ, dv_inc)
     vᵢ_inc = vᵢ + dv_inc

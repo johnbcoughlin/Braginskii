@@ -22,7 +22,7 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CM_DICT}
     x_dims::Vector{Symbol}
     x_grid::XGrid
 
-    Bz::BA
+    By::BA
     ϕ_left::PHI_L
     ϕ_right::PHI_R
     ϕ::PHI
@@ -45,7 +45,7 @@ struct Simulation{SM<:SimulationMetadata, U}
 end
 
 getproperty(sim::Simulation, sym::Symbol) = begin
-    if sym ∈ (:u, :metadata, :Bz)
+    if sym ∈ (:u, :metadata, :By)
         getfield(sim, sym)
     else
         getproperty(sim.metadata, sym)
@@ -61,7 +61,7 @@ function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
     λmax[] = 0.0
 
     @no_escape buffer begin
-        @timeit "poisson" Ex, Ey, _ = poisson(sim, f, buffer)
+        @timeit "poisson" Ex, Ey, Ez = poisson(sim, f, buffer)
 
         @timeit "collisional moments" collisional_moments!(sim, f, buffer)
 
@@ -74,7 +74,7 @@ function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
             if sim.free_streaming
                 @timeit "free streaming" free_streaming!(df, f.x[i], α, buffer)
             end
-            @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, sim.Bz, α, buffer)
+            @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, Ez, sim.By, α, buffer)
             @timeit "dfp" dfp!(df, f.x[i], α, sim, buffer)
         end
     end

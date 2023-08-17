@@ -15,8 +15,6 @@ Returns the fitted exponential curve for plotting as well as the slope γ.
 function find_damping_fit(t, E, use_peaks=nothing)
     peaks = (diff(sign.(diff(log.(E)))) .== -2)
 
-    display(E[3:end][peaks])
-
     j = sum(peaks)
 
     fit_slope(range) = begin
