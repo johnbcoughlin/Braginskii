@@ -60,10 +60,7 @@
         (; X) = sim.species[1].discretization.x_grid
         (; VX) = sim.species[1].discretization.vdisc.grid
 
-        display(as_xvx(actual0))
-        display(as_xvx(actual))
         expected = (n.(X .- VX*T) .* exp.(-(VX).^2 ./ 2))
-        display(as_xvx(expected))
 
         error = norm(actual - expected) / norm(expected)
         @test abs(error) < 1e-7
