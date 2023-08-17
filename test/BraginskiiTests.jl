@@ -9,7 +9,8 @@ using FFTW
 using CUDA
 
 supported_devices() = begin
-    CUDA.functional() ? (:cpu, :gpu) : (:cpu,)
+    #CUDA.functional() ? (:cpu, :gpu) : (:cpu,)
+    return (:gpu,)
 end
 
 set_default_buffer_size!(100_000_000)

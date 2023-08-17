@@ -83,7 +83,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
             ϕ_with_x_bdy[4:Nx+3, :, :] .= ϕ
             apply_poisson_bcs!(ϕ_with_x_bdy, ϕ_left, ϕ_right)
 
-            stencil = [1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dx^2;
+            stencil = SVector[1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dx^2;
             convolve_x!(dest, ϕ_with_x_bdy, stencil, true, buffer)
         else
             dest .= 0
@@ -121,7 +121,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
             ϕ_with_x_bdy[4:Nx+3, :, :] .= ϕ
             apply_poisson_bcs!(ϕ_with_x_bdy, ϕ_left, ϕ_right)
 
-            stencil = -1 * [-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dx
+            stencil = -1 * SVector[-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dx
             convolve_x!(Ex, ϕ_with_x_bdy, stencil, true, buffer)
         else
             Ex .= 0
@@ -179,8 +179,10 @@ function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right)
     Q = @SMatrix [60   -5  0  0;
                   90  -20  3  0;
                   140 -70 28 -5];
+    S1 = @SVector ones(3);
+
     rhs = -Q * reshape(ϕ[4:7, :, :], (4, :)) 
-    rhs .+= 128 * [1, 1, 1] .* vec(ϕ_left)'
+    rhs .+= 128 * S1 .* vec(ϕ_left)'
 
     ϕ_ghosts = reshape(M \ rhs, (3, Ny, Nz))
     ϕ[1:3, :, :] .= ϕ_ghosts
@@ -193,7 +195,7 @@ function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right)
                    0  3 -20  90;
                   -5 28 -70 140];
     rhs = -Q * reshape(ϕ[end-6:end-3, :, :], (4, :)) 
-    rhs .+= 128 * [1, 1, 1] * vec(ϕ_right)'
+    rhs .+= 128 * S1 .* vec(ϕ_right)'
 
     ϕ_ghosts = reshape(M \ rhs, (3, Ny, Nz))
     ϕ[end-2:end, :, :] .= ϕ_ghosts
