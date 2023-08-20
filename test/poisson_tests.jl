@@ -7,9 +7,9 @@
         errors = Float64[]
         for Nz in Ns
             @no_escape begin
-                grid = x_grid_3d(20, 20, Nz)
+                grid = x_grid_3d(20, 20, Nz, buffer)
                 (; X, Y, Z) = grid
-                fft_plans = Braginskii.plan_ffts(grid)
+                fft_plans = Braginskii.plan_ffts(grid, buffer)
 
                 ϕ = sin.(π * grid.Z) .* cos.(3grid.Y) .* cos.(5grid.X)
 
@@ -44,8 +44,8 @@
         errors = Float64[]
         for Nz in Ns
             @no_escape begin
-                grid = x_grid_3d(20, 20, Nz)
-                fft_plans = Braginskii.plan_ffts(grid)
+                grid = x_grid_3d(20, 20, Nz, buffer)
+                fft_plans = Braginskii.plan_ffts(grid, buffer)
 
                 ϕ_xx = -π^2 * sin.(π * grid.Z) .* cos.(3grid.Y) .* cos.(5grid.X)
                 ϕ_yy = sin.(π * grid.Z) .* -9cos.(3grid.Y) .* cos.(5grid.X)
@@ -59,7 +59,7 @@
                 ϕr = ϕ_right.(grid.X, grid.Y)
 
                 Ex, Ey, Ez = Braginskii.poisson(ρ, ϕl, ϕr, grid, [:x, :y, :z], 
-                    buffer, zeros(size(grid)), fft_plans)
+                    buffer, alloc_zeros(Float64, buffer, size(grid)...), fft_plans)
 
                 Ez_expected = π * cos.(π * grid.Z) .* cos.(3grid.Y) .* cos.(5grid.X)
 

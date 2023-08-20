@@ -15,6 +15,9 @@ mutable struct GPUAllocator
     offset::UInt
 end
 
+arraytype(::Bumper.AllocBuffer) = Array
+arraytype(::GPUAllocator) = CuArray
+
 GPUAllocator() = GPUAllocator(CuArray[], 0)
 
 next_greatest_multiple(x, b) = (((x-1) ÷ b)+1) * b

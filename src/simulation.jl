@@ -74,7 +74,7 @@ function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
             if sim.free_streaming
                 @timeit "free streaming" free_streaming!(df, f.x[i], α, buffer)
             end
-            @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, Ez, sim.By, α, buffer)
+            @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, Ez, sim.By, α, buffer, sim.fft_plans)
             #@timeit "dfp" dfp!(df, f.x[i], α, sim, buffer)
         end
     end

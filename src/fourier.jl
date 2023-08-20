@@ -1,10 +1,14 @@
-struct FFTPlans{A, B}
+struct FFTPlans{A, B, C, D}
     kxy_rfft::A
     kxy_irfft::B
+
+    kxy_double_irfft::C
+    kxy_double_rfft::D
 end
 
 function plan_ffts(grid, buffer)
     Nx, Ny, Nz = size(grid)
+    rest = prod(size(grid)) / (Nx * Ny * Nz) |> Int
 
     arr = alloc_array(Float64, buffer, size(grid)...)
 
@@ -13,7 +17,13 @@ function plan_ffts(grid, buffer)
     modes = kxy_rfft * arr
     kxy_irfft = plan_irfft(modes, Nx, (1, 2))
 
-    return FFTPlans(kxy_rfft, kxy_irfft)
+    double_modes = alloc_zeros(Complex{Float64}, buffer, Nx, 2Ny, Nz*rest)
+    kxy_double_irfft = plan_irfft(double_modes, 2Nx-1, (1, 2))
+
+    U = kxy_double_irfft * double_modes
+    kxy_double_rfft = plan_rfft(U, (1, 2))
+
+    return FFTPlans(kxy_rfft, kxy_irfft, kxy_double_irfft, kxy_double_rfft)
 end
 
 function in_kxy_domain!(g!, arr, buffer, plans)

@@ -39,12 +39,12 @@ function free_streaming_z!(df, f, species::Species{WENO5}, buffer)
         F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz÷2)
         F⁻ .= @view parent(f_with_boundaries)[:, :, :, :, :, 1:Nvz÷2]
         vz = Array(reshape(vgrid.VZ[1:Nvz÷2], (1, 1, 1, 1, 1, :)))
-        broadcast_mul_over_vz(F⁻, vz)
+        F⁻ .*= vgrid.VZ[:, :, :, :, :, 1:Nvz÷2]
 
         F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz÷2)
         F⁺ .= @view parent(f_with_boundaries)[:, :, :, :, :, Nvz÷2+1:Nvz]
         vz = reshape(vgrid.VZ[Nvz÷2+1:Nvz], (1, 1, 1, 1, 1, :))
-        broadcast_mul_over_vz(F⁺, vz)
+        F⁺ .*= vgrid.VZ[:, :, :, :, :, Nvz÷2+1:Nvz]
 
         right_biased_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1 / dz)
         left_biased_stencil =  [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1 / dz)
@@ -79,19 +79,20 @@ function free_streaming_x!(df, f, species::Species{WENO5}, buffer)
     xgrid = discretization.x_grid
     vgrid = discretization.vdisc.grid
 
-    f = reshape(f, (Nx, Ny, Nz, Nvx, Nvy*Nvz))
-    df = reshape(df, (Nx, Ny, Nz, Nvx, Nvy*Nvz))
-    F = plan_rfft(f, [1, 2])
+    f = reshape(f, (Nx, Ny, :))
+    df = reshape(df, (Nx, Ny, :))
+    F = species.fft_plans.kxy_rfft
 
     @no_escape buffer begin
         Kx = (Nx ÷ 2 + 1)
-        xy_modes = alloc_array(Complex{Float64}, buffer, Kx, Ny, Nz, Nvx, Nvy*Nvz)
+        xy_modes = alloc_array(Complex{Float64}, buffer, Kx, Ny, Nz*Nvx*Nvy*Nvz)
         mul!(xy_modes, F, f)
-        for kx in 1:Kx, λy in 1:Ny, kz in 1:Nz, λvx in 1:Nvx, λvyvz in 1:(Nvy*Nvz)
-            vx = vgrid.VX[λvx]
-            xy_modes[kx, λy, kz, λvx, λvyvz] *= -im * (kx-1) * vx * 2π / xgrid.x.L
-        end
-        mul!(df, inv(F), xy_modes)
+        xy_modes = reshape(xy_modes, Kx, Ny, Nz, Nvx, Nvy*Nvz)
+        kxs = alloc_array(Complex{Float64}, buffer, Kx, 1, 1, Nvx)
+        kxs .= (-im * 2π / xgrid.x.L) * ((0:Kx-1) .* vgrid.VX)
+        xy_modes .*= kxs
+        xy_modes = reshape(xy_modes, (Kx, Ny, :))
+        mul!(df, species.fft_plans.kxy_irfft, xy_modes)
         nothing
     end
 end
@@ -110,13 +111,15 @@ function free_streaming_y!(df, f, species::Species{WENO5}, buffer)
     @no_escape buffer begin
         Kx = (Nx ÷ 2 + 1)
         Ky = Ny
-        kys = mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
+        kys = alloc_array(Complex{Float64}, buffer, 1, Ky, 1, 1, Nvy)
+        kys .= (-im * 2π / xgrid.y.L) * arraytype(buffer)(mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))') .* vgrid.VY
         xy_modes = alloc_zeros(Complex{Float64}, buffer, Kx, Ny, Nz, Nvx, Nvy, Nvz)
         mul!(xy_modes, F, f)
-        for λx in 1:Kx, ky in 1:Ky, λz in 1:Nz, λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
-            vy = vgrid.VY[λvy]
-            xy_modes[λx, ky, λz, λvx, λvy, λvz] *= -im * kys[ky] * vy * 2π / xgrid.y.L
-        end
+        xy_modes .*= kys
+        #for λx in 1:Kx, ky in 1:Ky, λz in 1:Nz, λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
+            #vy = vgrid.VY[λvy]
+            #xy_modes[λx, ky, λz, λvx, λvy, λvz] *= -im * kys[ky] * vy * 2π / xgrid.y.L
+        #end
         mul!(df, inv(F), xy_modes)
         nothing
     end

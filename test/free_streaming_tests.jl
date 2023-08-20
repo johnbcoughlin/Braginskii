@@ -7,15 +7,26 @@
             T = 0.2
             f0(z, vz) = (0.1 + 0.8exp(-z^2/0.01)) * (exp(-(vz-1.5)^2/2) + exp(-(vz+1.5)^2/2))
 
-            characteristic(z, vz) = begin
+            characteristic_z(z, vz) = begin
                 if -1 <= (z - vz*T) <= 1
-                    (z - vz*T, vz)
+                    z - vz*T
                 elseif (z - vz*T) >= 1
                     t = T - (z - 1) / vz
-                    (1 + vz*t, -vz)
-                elseif (z - vz*T) <= -1
+                    1 + vz*t
+                else # if (z - vz*T) <= -1
                     t = T - (z + 1) / vz
-                    (-1 + vz*t, -vz)
+                    -1 + vz*t
+                end
+            end
+            characteristic_vz(z, vz) = begin
+                if -1 <= (z - vz*T) <= 1
+                    vz
+                elseif (z - vz*T) >= 1
+                    t = T - (z - 1) / vz
+                    -vz
+                else #if (z - vz*T) <= -1
+                    t = T - (z + 1) / vz
+                    -vz
                 end
             end
 
@@ -30,7 +41,8 @@
 
                 (; Z) = sim.species[1].discretization.x_grid
                 (; VZ) = sim.species[1].discretization.vdisc.grid
-                expected = ((z, vz) -> f0(characteristic(z, vz)...)).(Z, VZ)
+                # Iterating like characteristic(z, vz)... not supported by CUDA
+                expected = ((z, vz) -> f0(characteristic_z(z, vz), characteristic_vz(z, vz))).(Z, VZ)
                 expected = as_zvz(expected)
                 
                 error = norm(expected - actual) / norm(expected)

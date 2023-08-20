@@ -6,7 +6,7 @@ function poisson(sim, f, buffer)
     Nx, Ny, Nz = size(grid)
 
     ρ_c = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
-    for i in eachindex(sim.species)
+    @timeit "charge density" for i in eachindex(sim.species)
         α = sim.species[i]
         fi = f.x[i]
         ρ_c .+= density(fi, α.discretization, α.v_dims, buffer) .* α.q
@@ -36,9 +36,9 @@ end
 function poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims, buffer, fft_plans)
     Δ = LaplacianOperator(grid, x_dims, buffer, ϕ_left, ϕ_right, fft_plans)
 
-    minres!(vec(ϕ), Δ, -ρ_c, abstol=1e-12, maxiter=10)
+    @timeit "minres" minres!(vec(ϕ), Δ, -ρ_c, abstol=1e-12, maxiter=10)
 
-    potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans) 
+    @timeit "potential gradient" potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans) 
 end
 
 struct LaplacianOperator{BUF, LEFT, RIGHT, FFTPLANS}
@@ -56,14 +56,14 @@ size(Δ::LaplacianOperator, d) = begin
 end
 
 *(Δ::LaplacianOperator, ϕ) = begin
-    y = zeros(size(Δ, 1))
+    y = alloc_zeros(Float64, Δ.buffer, size(Δ, 1))
     mul!(y, Δ, ϕ)
     return y
 end
 
 function mul!(y, Δ::LaplacianOperator, ϕ)
     @no_escape Δ.buffer begin
-        apply_laplacian!(y, ϕ, Δ.ϕ_left, Δ.ϕ_right, Δ.grid, Δ.x_dims, Δ.buffer, Δ.fft_plans)
+        @timeit "laplacian" apply_laplacian!(y, ϕ, Δ.ϕ_left, Δ.ϕ_right, Δ.grid, Δ.x_dims, Δ.buffer, Δ.fft_plans)
     end
     return y
 end
@@ -78,10 +78,10 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
     dz = grid.z.dx
 
     @no_escape buffer begin
-        if :z ∈ x_dims
+        @timeit "z" if :z ∈ x_dims
             ϕ_with_z_bdy = alloc_array(Float64, buffer, Nx, Ny, Nz+6)
             ϕ_with_z_bdy[:, :, 4:Nz+3] .= ϕ
-            apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right)
+            apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, buffer)
 
             stencil = [1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2;
             convolve_z!(dest, ϕ_with_z_bdy, stencil, true, buffer)
@@ -89,22 +89,22 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
             dest .= 0
         end
 
-        if :x ∈ x_dims
+        @timeit "x" if :x ∈ x_dims
             ϕ_xx = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_xx .= ϕ
             in_kxy_domain!(ϕ_xx, buffer, fft_plans) do ϕ̂
-                kxs = (0:Nx÷2)
+                kxs = arraytype(buffer)(0:Nx÷2)
                 ϕ̂ .*= -kxs.^2 * (2π / grid.x.L)^2
             end
             dest .+= ϕ_xx
         end
 
-        if :y ∈ x_dims
+        @timeit "y" if :y ∈ x_dims
             ϕ_yy = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_yy .= ϕ
             in_kxy_domain!(ϕ_yy, buffer, fft_plans) do ϕ̂
-                kys = alloc_array(Float64, buffer, Ny)
-                kys .= mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
+                #kys = alloc_array(Float64, buffer, Ny)
+                kys = arraytype(buffer)(mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2)))
                 ϕ̂ .*= -(kys').^2 * (2π / grid.y.L)^2
             end
             dest .+= ϕ_yy
@@ -122,7 +122,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
         if :z ∈ x_dims
             ϕ_with_z_bdy = alloc_array(Float64, buffer, Nx, Ny, Nz+6)
             ϕ_with_z_bdy[:, :, 4:Nz+3] .= ϕ
-            apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right)
+            apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, buffer)
 
             stencil = -1 * [-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz
             convolve_z!(Ez, ϕ_with_z_bdy, stencil, true, buffer)
@@ -176,32 +176,39 @@ function apply_k²!(ϕ̂, factor=1.0, dim=1)
     end
 end
 
-function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right)
+function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right, buffer)
     Nx, Ny, Nz6 = size(ϕ)
     Nz = Nz6-6
     
     # Do left side first
-    M = @SMatrix [3  -20  90;
-                  0   -5  60;
-                  0    0  35];
-    Q = @SMatrix [60   -5  0  0;
-                  90  -20  3  0;
-                  140 -70 28 -5];
-    S1 = @SVector ones(3);
+    M = arraytype(buffer)(
+         [3  -20  90;
+          0   -5  60;
+          0    0  35]);
+    Q = arraytype(buffer)(
+        [60   -5  0  0;
+         90  -20  3  0;
+         140 -70 28 -5]);
+    S1 = alloc_array(Float64, buffer, 3);
+    S1 .= 1.0;
 
+    #@show typeof(ϕ[:, :, 4:7])
     rhs = -reshape(ϕ[:, :, 4:7], (:, 4)) * Q' 
+    #@show typeof(rhs)
     rhs .+= 128 * S1' .* vec(ϕ_left)
 
     ϕ_ghosts = reshape(rhs / M', (Nx, Ny, 3))
     ϕ[:, :, 1:3] .= ϕ_ghosts
 
     # Right side
-    M = @SMatrix [90 -20   3;
-                  60  -5   0;
-                  35   0   0];
-    Q = @SMatrix [ 0  0  -5  60;
-                   0  3 -20  90;
-                  -5 28 -70 140];
+    M = arraytype(buffer)(
+         [90 -20   3;
+          60  -5   0;
+          35   0   0]);
+    Q = arraytype(buffer)(
+        [ 0  0  -5  60;
+           0  3 -20  90;
+           -5 28 -70 140]);
     rhs = -reshape(ϕ[:, :, end-6:end-3], (:, 4)) * Q'
     rhs .+= 128 * S1' .* vec(ϕ_right)
 
