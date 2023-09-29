@@ -51,7 +51,7 @@ vy_grid_1v(Nvy, vymax, buffer) = begin
     VGrid([:y], vx_grid, vy_grid, vz_grid, buffer)
 end
 
-hermite_disc(; Nvx=1, Nvy=1, Nvz=1, vth=1.0, buffer=allocator(:cpu)) = begin
+hermite_disc(; Nvx=1, Nvy=1, Nvz=1, vth=1.0, buffer=allocator(:cpu), kwargs...) = begin
     Hermite(Nvx, Nvy, Nvz, vth)
 end
 

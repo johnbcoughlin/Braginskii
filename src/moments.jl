@@ -100,3 +100,46 @@ function collisional_moments_single_species(α, f, x_grid, ν_p, buffer)
 
     return (ux, uy, uz), T, ν
 end
+
+function density(f, disc::XVDiscretization{Hermite}, v_dims, buffer)
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
+
+    M0 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    M0 .= @view f[:, :, :, 1, 1, 1]
+end
+
+function moments(f, disc::XVDiscretization{Hermite}, v_dims, buffer)
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
+
+    vth = disc.vdisc.vth
+
+    M0 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    M1x = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    M1y = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    M1z = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    M2 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+
+    H000 = @view f[:, :, :, 1, 1, 1]
+    M0 .= H000
+
+    if :vx in v_dims
+        H100 = @view f[:, :, :, 2, 1, 1]
+        @. M1x = H100 * vth
+        H200 = @view f[:, :, :, 3, 1, 1]
+        @. M2 += vth^2 * (sqrt(2) * H200 + H000)
+    end
+    if :vy in v_dims
+        H010 = @view f[:, :, :, 1, 2, 1]
+        @. M1y = H010 * vth
+        H020 = @view f[:, :, :, 1, 3, 1]
+        @. M2 += vth^2 * (sqrt(2) * H020 + H000)
+    end
+    if :vz in v_dims
+        H001 = @view f[:, :, :, 1, 1, 2]
+        @. M1z = H001 * vth
+        H002 = @view f[:, :, :, 1, 1, 3]
+        @. M2 += vth^2 * (sqrt(2) * H002 + H000)
+    end
+
+    M0, (M1x, M1y, M1z), M2
+end

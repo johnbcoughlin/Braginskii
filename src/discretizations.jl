@@ -104,6 +104,31 @@ struct Hermite
     Nvz::Int
 
     vth::Float64
+
+    Ξx::SparseMatrixCSC{Float64, Int64}
+    Ξy::SparseMatrixCSC{Float64, Int64}
+    Ξz::SparseMatrixCSC{Float64, Int64}
+
+    Dvx::SparseMatrixCSC{Float64, Int64}
+    Dvy::SparseMatrixCSC{Float64, Int64}
+    Dvz::SparseMatrixCSC{Float64, Int64}
+end
+
+Hermite(Nvx, Nvy, Nvz, vth) = begin
+    N = max(Nvx, Nvy, Nvz)
+
+    Ξ = spdiagm(-1 => sqrt.(1:N-1), 1 => sqrt.(1:N-1))
+    D = spdiagm(-1 => -sqrt.(1:N-1))
+
+    Ξx = kron(I(Nvz), I(Nvy), Ξ[1:Nvx, 1:Nvx])
+    Ξy = kron(I(Nvz), Ξ[1:Nvy, 1:Nvy], I(Nvx))
+    Ξz = kron(Ξ[1:Nvz, 1:Nvz], I(Nvy), I(Nvx))
+
+    Dvx = kron(I(Nvz), I(Nvy), D[1:Nvx, 1:Nvx])
+    Dvy = kron(I(Nvz), D[1:Nvy, 1:Nvy], I(Nvx))
+    Dvz = kron(D[1:Nvz, 1:Nvz], I(Nvy), I(Nvx))
+
+    Hermite(Nvx, Nvy, Nvz, vth, Ξx, Ξy, Ξz, Dvx, Dvy, Dvz)
 end
 
 size(hd::Hermite) = (hd.Nvx, hd.Nvy, hd.Nvz)

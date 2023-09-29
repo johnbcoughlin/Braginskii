@@ -9,6 +9,7 @@ using FastBroadcast
 using RecursiveArrayTools
 using TimerOutputs
 using StaticArrays
+using SparseArrays
 using IterativeSolvers
 using DataFrames
 using PDEHarness

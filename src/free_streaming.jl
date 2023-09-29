@@ -1,3 +1,5 @@
+include("free_streaming_kernels.jl")
+
 function free_streaming!(df, f, species, buffer)
     @no_escape buffer begin
         df_fs = alloc_zeros(Float64, buffer, size(df)...)
@@ -72,14 +74,14 @@ function broadcast_mul_over_vz(F, vz)
     F
 end
 
-function free_streaming_x!(df, f, species::Species{WENO5}, buffer)
+function free_streaming_x!(df, f, species::Species, buffer)
     (; discretization) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
     xgrid = discretization.x_grid
-    vgrid = discretization.vdisc.grid
 
     f = reshape(f, (Nx, Ny, :))
+    df_size = size(df)
     df = reshape(df, (Nx, Ny, :))
     F = species.fft_plans.kxy_rfft
 
@@ -89,10 +91,14 @@ function free_streaming_x!(df, f, species::Species{WENO5}, buffer)
         mul!(xy_modes, F, f)
         xy_modes = reshape(xy_modes, Kx, Ny, Nz, Nvx, Nvy*Nvz)
         kxs = alloc_array(Complex{Float64}, buffer, Kx, 1, 1, Nvx)
-        kxs .= (-im * 2π / xgrid.x.L) * ((0:Kx-1) .* vgrid.VX)
+        kxs .= (-im * 2π / xgrid.x.L) * ((0:Kx-1))
         xy_modes .*= kxs
         xy_modes = reshape(xy_modes, (Kx, Ny, :))
-        mul!(df, species.fft_plans.kxy_irfft, xy_modes)
+        df2 = alloc_array(Float64, buffer, size(df)...)
+        mul!(df2, species.fft_plans.kxy_irfft, xy_modes)
+        df = reshape(df, df_size)
+        df2 = reshape(df2, df_size)
+        mul_by_vx!(df, df2, discretization)
         nothing
     end
 end
@@ -102,7 +108,6 @@ function free_streaming_y!(df, f, species::Species{WENO5}, buffer)
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
     xgrid = discretization.x_grid
-    vgrid = discretization.vdisc.grid
 
     f = reshape(f, (Nx, Ny, Nz, Nvx, Nvy, Nvz))
     df = reshape(df, (Nx, Ny, Nz, Nvx, Nvy, Nvz))
@@ -112,15 +117,13 @@ function free_streaming_y!(df, f, species::Species{WENO5}, buffer)
         Kx = (Nx ÷ 2 + 1)
         Ky = Ny
         kys = alloc_array(Complex{Float64}, buffer, 1, Ky, 1, 1, Nvy)
-        kys .= (-im * 2π / xgrid.y.L) * arraytype(buffer)(mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))') .* vgrid.VY
+        kys .= (-im * 2π / xgrid.y.L) * arraytype(buffer)(mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))')
         xy_modes = alloc_zeros(Complex{Float64}, buffer, Kx, Ny, Nz, Nvx, Nvy, Nvz)
         mul!(xy_modes, F, f)
         xy_modes .*= kys
-        #for λx in 1:Kx, ky in 1:Ky, λz in 1:Nz, λvx in 1:Nvx, λvy in 1:Nvy, λvz in 1:Nvz
-            #vy = vgrid.VY[λvy]
-            #xy_modes[λx, ky, λz, λvx, λvy, λvz] *= -im * kys[ky] * vy * 2π / xgrid.y.L
-        #end
-        mul!(df, inv(F), xy_modes)
+        df2 = alloc_array(Float64, buffer, size(df)...)
+        mul!(df2, inv(F), xy_modes)
+        mul_by_vy!(df, df2, discretization)
         nothing
     end
 end
