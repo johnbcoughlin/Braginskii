@@ -7,10 +7,14 @@ struct FFTPlans{A, B, C, D}
 end
 
 function plan_ffts(grid, buffer)
-    Nx, Ny, Nz = size(grid)
-    rest = prod(size(grid)) / (Nx * Ny * Nz) |> Int
+    Nx, Ny, Nz, rest... = size(grid)
+    plan_ffts(Nx, Ny, Nz, rest, buffer)
+end
 
-    arr = alloc_array(Float64, buffer, size(grid)...)
+function plan_ffts(Nx, Ny, Nz, rest, buffer)
+    rest = prod(rest)
+
+    arr = alloc_array(Float64, buffer, Nx, Ny, Nz, rest...)
 
     arr = reshape(arr, (Nx, Ny, :))
     kxy_rfft = plan_rfft(arr, (1, 2))

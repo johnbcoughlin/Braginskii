@@ -10,7 +10,7 @@ using CUDA
 
 supported_devices() = begin
     #CUDA.functional() ? (:cpu, :gpu) : (:cpu,)
-    return (:gpu,)
+    return (:cpu,)
 end
 
 set_default_buffer_size!(100_000_000)
