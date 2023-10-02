@@ -35,12 +35,15 @@
             for Nz in Ns
                 sim = single_species_1d1v_z(f0; Nz, Nvz=20, q=0.0, vdisc, device)
 
-                actual0 = as_zvz(sim.u.x[1])
                 runsim_lightweight!(sim, T, dt)
-                actual = as_zvz(sim.u.x[1])
+
+                disc = sim.species[1].discretization
+
+                vgrid = vgrid_of(disc.vdisc, 50)
+                actual = expand_f(sim.u.x[1], disc, vgrid) |> as_zvz
 
                 (; Z) = sim.species[1].discretization.x_grid
-                (; VZ) = sim.species[1].discretization.vdisc.grid
+                (; VZ) = vgrid
                 # Iterating like characteristic(z, vz)... not supported by CUDA
                 expected = ((z, vz) -> f0(characteristic_z(z, vz), characteristic_vz(z, vz))).(Z, VZ)
                 expected = as_zvz(expected)
