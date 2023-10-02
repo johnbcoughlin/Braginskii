@@ -126,3 +126,41 @@ function expand_bigfloat_hermite_f(coefs::AbstractMatrix, v::AbstractVector, v�
     normalized_He_n_vand = He_up_to_n(M, v/v₀; normalized)
     coefs * normalized_He_n_vand .* exp.(-(v/v₀).^2/2)' / sqrt(2π) / v₀
 end
+
+function expand_bigfloat_hermite_f(coefs::AbstractArray{Float64, 6}, vgrid::VGrid, v₀, normalized=true)
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(coefs)
+    Mvx = Nvx - 1
+    Mvy = Nvy - 1
+    Mvz = Nvz - 1
+
+    vx_nodes = vgrid.x.nodes
+    vy_nodes = vgrid.y.nodes
+    vz_nodes = vgrid.z.nodes
+    Kvx = length(vx_nodes)
+    Kvy = length(vy_nodes)
+    Kvz = length(vz_nodes)
+
+    ndims = sum([Mvx > 0, Mvy > 0, Mvz > 0])
+
+    (; VX, VY, VZ) = vgrid
+    exp_weight = @. exp(-(VX^2 + VY^2 + VZ^2) / (2v₀)) / sqrt(2π)^ndims
+    exp_weight = reshape(exp_weight, (Kvx, Kvy, Kvz))
+
+    vx_vand = He_up_to_n(Mvx, vx_nodes/v₀; normalized=true) .|> Float64
+    vy_vand = He_up_to_n(Mvy, vy_nodes/v₀; normalized=true) .|> Float64
+    vz_vand = He_up_to_n(Mvz, vz_nodes/v₀; normalized=true) .|> Float64
+
+    result = zeros(Nx, Ny, Nz, length(vx_nodes), length(vy_nodes), length(vz_nodes))
+
+    @turbo for λxyz in CartesianIndices((Nx, Ny, Nz))
+        for αvx in eachindex(vx_nodes), βvx in 1:Mvx+1
+            for αvy in eachindex(vy_nodes), βvy in 1:Mvy+1
+                for αvz in eachindex(vz_nodes), βvz in 1:Mvz+1
+                    vand = vx_vand[βvx, αvx] * vy_vand[βvy, αvy] * vz_vand[βvz, αvz]
+                    result[λxyz, αvx, αvy, αvz] += coefs[λxyz, βvx, βvy, βvz] * vand * exp_weight[αvx, αvy, αvz]
+                end
+            end
+        end
+    end
+    result
+end

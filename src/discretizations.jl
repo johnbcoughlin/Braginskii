@@ -60,7 +60,7 @@ size(grid::XGrid) = (grid.x.N, grid.y.N, grid.z.N)
 # Velocity space discretizations
 ===============================#
 
-export approximate_f
+export approximate_f, vgrid_of, expand_f
 
 struct VGrid{XA, YA, ZA}
     x::Grid1D
@@ -133,6 +133,36 @@ end
 
 size(hd::Hermite) = (hd.Nvx, hd.Nvy, hd.Nvz)
 
+function vgrid_of(fd::WENO5, args...)
+    return fd.grid
+end
+
+function vgrid_of(hd::Hermite, K=50, vmax=5.0, buffer=default_buffer())
+    vmax = vmax*hd.vth
+
+    dims = Symbol[]
+    if hd.Nvx == 1
+        vx_grid = grid1d(1, 0.0, 0.0)
+    else
+        vx_grid = grid1d(K, -vmax, vmax)
+        push!(dims, :x)
+    end
+    if hd.Nvy == 1
+        vy_grid = grid1d(1, 0.0, 0.0)
+    else
+        vy_grid = grid1d(K, -vmax, vmax)
+        push!(dims, :y)
+    end
+    if hd.Nvz == 1
+        vz_grid = grid1d(1, 0.0, 0.0)
+    else
+        vz_Grid = grid1d(K, -vmax, vmax)
+        push!(dims, :z)
+    end
+
+    return VGrid(dims, vx_grid, vy_grid, vz_grid, buffer)
+end
+
 struct XVDiscretization{VDISC}
     x_grid::XGrid
     vdisc::VDISC
@@ -160,4 +190,12 @@ approximate_f!(result, f, disc::XVDiscretization{Hermite}, dims) = begin
     (; Nvx, Nvy, Nvz, vth) = hd
     (; X, Y, Z) = disc.x_grid
     result .= Float64.(bigfloat_weighted_hermite_expansion(f_all, Nvx-1, Nvy-1, Nvz-1, X, Y, Z, vth))
+end
+
+expand_f(f, disc::XVDiscretization{WENO5}, vgrid) = begin
+    return f
+end
+
+expand_f(coefs, disc::XVDiscretization{Hermite}, vgrid) = begin
+    expand_bigfloat_hermite_f(coefs, vgrid, disc.vdisc.vth)
 end

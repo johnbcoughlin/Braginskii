@@ -103,26 +103,31 @@ function free_streaming_x!(df, f, species::Species, buffer)
     end
 end
 
-function free_streaming_y!(df, f, species::Species{WENO5}, buffer)
+function free_streaming_y!(df, f, species::Species, buffer)
     (; discretization) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
     xgrid = discretization.x_grid
 
-    f = reshape(f, (Nx, Ny, Nz, Nvx, Nvy, Nvz))
-    df = reshape(df, (Nx, Ny, Nz, Nvx, Nvy, Nvz))
-    F = plan_rfft(f, [1, 2])
+    f = reshape(f, (Nx, Ny, :))
+    df_size = size(df)
+    df = reshape(df, (Nx, Ny, :))
+    F = species.fft_plans.kxy_rfft
 
     @no_escape buffer begin
         Kx = (Nx ÷ 2 + 1)
         Ky = Ny
+        xy_modes = alloc_zeros(Complex{Float64}, buffer, Kx, Ny, Nz*Nvx*Nvy*Nvz)
+        mul!(xy_modes, F, f)
+        xy_modes = reshape(xy_modes, Kx, Ny, Nz, Nvx, Nvy, Nvz)
         kys = alloc_array(Complex{Float64}, buffer, 1, Ky, 1, 1, Nvy)
         kys .= (-im * 2π / xgrid.y.L) * arraytype(buffer)(mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))')
-        xy_modes = alloc_zeros(Complex{Float64}, buffer, Kx, Ny, Nz, Nvx, Nvy, Nvz)
-        mul!(xy_modes, F, f)
         xy_modes .*= kys
+        xy_modes = reshape(xy_modes, (Kx, Ny, :))
         df2 = alloc_array(Float64, buffer, size(df)...)
-        mul!(df2, inv(F), xy_modes)
+        mul!(df2, species.fft_plans.kxy_irfft, xy_modes)
+        df = reshape(df, df_size)
+        df2 = reshape(df2, df_size)
         mul_by_vy!(df, df2, discretization)
         nothing
     end
