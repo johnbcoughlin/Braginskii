@@ -185,7 +185,7 @@ function electrostatic_z!(df, f, Ez, By, species::Species{WENO5}, buffer, xgrid_
     end
 end
 
-function electrostatic_z!(df, f, Ez, By, species::Species{Hermite}, buffer, fft_plans)
+function electrostatic_z!(df, f, Ez, By, species::Species{Hermite}, buffer, xgrid_fft_plans)
     (; discretization, q, m) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)

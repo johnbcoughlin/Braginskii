@@ -109,6 +109,14 @@ struct Hermite
     Ξy::SparseMatrixCSC{Float64, Int64}
     Ξz::SparseMatrixCSC{Float64, Int64}
 
+    Ξx⁻::SparseMatrixCSC{Float64, Int64}
+    Ξy⁻::SparseMatrixCSC{Float64, Int64}
+    Ξz⁻::SparseMatrixCSC{Float64, Int64}
+
+    Ξx⁺::SparseMatrixCSC{Float64, Int64}
+    Ξy⁺::SparseMatrixCSC{Float64, Int64}
+    Ξz⁺::SparseMatrixCSC{Float64, Int64}
+
     Dvx::SparseMatrixCSC{Float64, Int64}
     Dvy::SparseMatrixCSC{Float64, Int64}
     Dvz::SparseMatrixCSC{Float64, Int64}
@@ -118,6 +126,23 @@ Hermite(Nvx, Nvy, Nvz, vth) = begin
     N = max(Nvx, Nvy, Nvz)
 
     Ξ = spdiagm(-1 => sqrt.(1:N-1), 1 => sqrt.(1:N-1))
+    
+    Ξx = Ξ[1:Nvx, 1:Nvx]
+    Ξy = Ξ[1:Nvy, 1:Nvy]
+    Ξz = Ξ[1:Nvz, 1:Nvz]
+
+    Λx, Rx = eigen(Array(Ξx))
+    Ξx⁻ = kron(I(Nvz), I(Nvy), Rx * Diagonal(min.(Λx, 0.0)) / Rx)
+    Ξx⁺ = kron(I(Nvz), I(Nvy), Rx * Diagonal(max.(Λx, 0.0)) / Rx)
+
+    Λy, Ry = eigen(Array(Ξy))
+    Ξy⁻ = kron(I(Nvz), Ry * Diagonal(min.(Λy, 0.0)) / Ry, I(Nvx))
+    Ξy⁺ = kron(I(Nvz), Ry * Diagonal(max.(Λy, 0.0)) / Ry, I(Nvx))
+
+    Λz, Rz = eigen(Array(Ξz))
+    Ξz⁻ = kron(Rz * Diagonal(min.(Λz, 0.0)) / Rz, I(Nvy), I(Nvx))
+    Ξz⁺ = kron(Rz * Diagonal(max.(Λz, 0.0)) / Rz, I(Nvy), I(Nvx))
+
     D = spdiagm(-1 => -sqrt.(1:N-1))
 
     Ξx = kron(I(Nvz), I(Nvy), Ξ[1:Nvx, 1:Nvx])
@@ -128,7 +153,7 @@ Hermite(Nvx, Nvy, Nvz, vth) = begin
     Dvy = kron(I(Nvz), D[1:Nvy, 1:Nvy], I(Nvx))
     Dvz = kron(D[1:Nvz, 1:Nvz], I(Nvy), I(Nvx))
 
-    Hermite(Nvx, Nvy, Nvz, vth, Ξx, Ξy, Ξz, Dvx, Dvy, Dvz)
+    Hermite(Nvx, Nvy, Nvz, vth, Ξx, Ξy, Ξz, Ξx⁻, Ξy⁻, Ξz⁻, Ξx⁺, Ξy⁺, Ξz⁺, Dvx, Dvy, Dvz)
 end
 
 size(hd::Hermite) = (hd.Nvx, hd.Nvy, hd.Nvz)
@@ -156,7 +181,7 @@ function vgrid_of(hd::Hermite, K=50, vmax=5.0, buffer=default_buffer())
     if hd.Nvz == 1
         vz_grid = grid1d(1, 0.0, 0.0)
     else
-        vz_Grid = grid1d(K, -vmax, vmax)
+        vz_grid = grid1d(K, -vmax, vmax)
         push!(dims, :z)
     end
 

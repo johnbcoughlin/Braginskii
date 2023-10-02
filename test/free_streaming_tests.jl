@@ -2,10 +2,10 @@
     @testset "z free streaming" begin
         @testset "reflection" begin
             @no_escape begin
-            for device in supported_devices(), vdisc in [:weno]
+            for device in supported_devices(), vdisc in [:hermite]
             dt = 0.001
             T = 0.2
-            f0(z, vz) = (0.1 + 0.8exp(-z^2/0.01)) * (exp(-(vz-1.5)^2/2) + exp(-(vz+1.5)^2/2))
+            f0(z, vz) = (0.1 + 0.8exp(-(z-0.3)^2/0.01)) * (exp(-(vz-1.5)^2/2) + exp(-(vz+1.5)^2/2))
 
             characteristic_z(z, vz) = begin
                 if -1 <= (z - vz*T) <= 1
@@ -31,15 +31,16 @@
             end
 
             errors = Float64[]
-            Ns = [20, 40, 80] .* 4
+            Ns = [20, 40, 60] .* 2
+            Nvz = 150
             for Nz in Ns
-                sim = single_species_1d1v_z(f0; Nz, Nvz=20, q=0.0, vdisc, device)
+                sim = single_species_1d1v_z(f0; Nz, Nvz, q=0.0, vdisc, device)
 
-                runsim_lightweight!(sim, T, dt)
+                runsim_lightweight!(sim, T, dt / (Nz / 80 * Nvz / 100))
 
                 disc = sim.species[1].discretization
 
-                vgrid = vgrid_of(disc.vdisc, 50)
+                vgrid = vgrid_of(disc.vdisc, 50, 8.0)
                 actual = expand_f(sim.u.x[1], disc, vgrid) |> as_zvz
 
                 (; Z) = sim.species[1].discretization.x_grid
@@ -49,8 +50,11 @@
                 expected = as_zvz(expected)
                 
                 error = norm(expected - actual) / norm(expected)
+                @show error
                 push!(errors, error)
             end
+
+            @show errors
 
             γ = estimate_log_slope(Ns, errors)
             @test -4 >= γ >= -5

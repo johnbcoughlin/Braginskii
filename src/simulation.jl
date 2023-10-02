@@ -81,7 +81,7 @@ function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
 end
 
 function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
-    set_default_buffer_size!(100_000_000)
+    set_default_buffer_size!(200_000_000)
     buffer = allocator(sim.device)
 
     prog = Progress(Int(ceil(T / Δt)))

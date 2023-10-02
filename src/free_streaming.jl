@@ -28,7 +28,6 @@ function free_streaming_z!(df, f, species::Species{WENO5}, buffer)
     (; discretization) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
-    _, rest... = size(discretization)
     xgrid = discretization.x_grid
     dz = xgrid.z.dx
     vgrid = discretization.vdisc.grid
@@ -60,7 +59,44 @@ function free_streaming_z!(df, f, species::Species{WENO5}, buffer)
 
         nothing
     end
+end
 
+function free_streaming_z!(df, f, species::Species{Hermite}, buffer)
+    (; discretization) = species
+
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+    xgrid = discretization.x_grid
+    dz = xgrid.z.dx
+    Ξz⁻ = discretization.vdisc.Ξz⁻
+    Ξz⁺ = discretization.vdisc.Ξz⁺
+
+    α = discretization.vdisc.vth * sqrt(Nvz)
+
+    @no_escape buffer begin
+        f_with_boundaries = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)
+        f_with_boundaries[:, :, 4:Nz+3, :, :, :] .= f
+        reflecting_wall_bcs!(f_with_boundaries, f, discretization)
+
+        F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
+        mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁻)', 1.0, 0.0)
+
+        F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
+        mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁺)', 1.0, 0.0)
+
+        #f_with_boundaries = reshape(f_with_boundaries, (Nx, Ny, Nz+6, Nvx*Nvy*Nvz))
+        #@. F⁻ -= 0.5 * α * f_with_boundaries
+        #@. F⁺ += 0.5 * α * f_with_boundaries
+
+        right_biased_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1 / dz)
+
+        left_biased_stencil =  [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1 / dz)
+        convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
+
+        convolve_z!(convolved, reshape(F⁻, (Nx, Ny, Nz+6, Nvx, Nvy, Nvz)), right_biased_stencil, true, buffer)
+        df .+= convolved
+        convolve_z!(convolved, reshape(F⁺, (Nx, Ny, Nz+6, Nvx, Nvy, Nvz)), left_biased_stencil, true, buffer)
+        df .+= convolved
+    end
 end
 
 function broadcast_mul_over_vz(F, vz)
@@ -133,8 +169,8 @@ function free_streaming_y!(df, f, species::Species, buffer)
     end
 end
 
-function reflecting_wall_bcs!(f_with_boundaries, f, grid)
-    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(grid)
+function reflecting_wall_bcs!(f_with_boundaries, f, discretization::XVDiscretization{WENO5})
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
     # Left boundary
     f_with_boundaries[:, :, 1, :, :, 1:Nvz] .= f[:, :, 3, :, :, Nvz:-1:1]
@@ -147,3 +183,17 @@ function reflecting_wall_bcs!(f_with_boundaries, f, grid)
     f_with_boundaries[:, :, end-2, :, :, 1:Nvz] .= f[:, :, Nz, :, :, Nvz:-1:1]
 end
 
+function reflecting_wall_bcs!(f_with_boundaries, f, discretization::XVDiscretization{Hermite})
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+
+    flip = i -> iseven(i-1) ? 1 : -1
+    flips = reshape(flip.(1:Nvz), (1, 1, 1, 1, Nvz))
+
+    @. f_with_boundaries[:, :, 1, :, :, :] = f[:, :, 3, :, :, :] * flips
+    @. f_with_boundaries[:, :, 2, :, :, :] = f[:, :, 2, :, :, :] * flips
+    @. f_with_boundaries[:, :, 3, :, :, :] = f[:, :, 1, :, :, :] * flips
+
+    @. f_with_boundaries[:, :, end, :, :, :] = f[:, :, Nz-2, :, :, :] * flips
+    @. f_with_boundaries[:, :, end-1, :, :, :] = f[:, :, Nz-1, :, :, :] * flips
+    @. f_with_boundaries[:, :, end-2, :, :, :] = f[:, :, Nz, :, :, :] * flips
+end
