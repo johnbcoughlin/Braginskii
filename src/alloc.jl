@@ -29,7 +29,7 @@ alloc_zeros(::Type{T}, args...) where {T} = begin
 end
 
 alloc_array(::Type{T}, buffer::Bumper.AllocBuffer, s...) where {T} = begin
-    ptr = Bumper.alloc_ptr(buffer, prod(s) * sizeof(T))
+    ptr = Bumper.Internals.alloc_ptr(buffer, prod(s) * sizeof(T))
     buffer.offset = next_greatest_multiple(buffer.offset, 16)
     unsafe_wrap(Array, convert(Ptr{T}, ptr), s)
 end

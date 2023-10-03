@@ -96,8 +96,6 @@ function collisional_moments_single_species(α, f, x_grid, ν_p, buffer)
     ν = alloc_zeros(Float64, buffer, size(x_grid)...)
     ν .= ν_p
 
-    #@show sum(M1x) * x_grid.x.dx
-
     return (ux, uy, uz), T, ν
 end
 
@@ -106,6 +104,7 @@ function density(f, disc::XVDiscretization{Hermite}, v_dims, buffer)
 
     M0 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
     M0 .= @view f[:, :, :, 1, 1, 1]
+    return M0
 end
 
 function moments(f, disc::XVDiscretization{Hermite}, v_dims, buffer)
