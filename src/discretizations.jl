@@ -72,8 +72,9 @@ struct VGrid{XA, YA, ZA}
     VZ::ZA
 
     VGrid(dims, x, y, z, buffer) = begin
+        @assert dims ⊆ [:vx, :vy, :vz]
         # Check that it's suitable for reflecting wall BCs
-        if :x ∈ dims
+        if :vx ∈ dims
             @assert iseven(x.N) && x.max == -x.min
         end
 
@@ -170,19 +171,19 @@ function vgrid_of(hd::Hermite, K=50, vmax=5.0, buffer=default_buffer())
         vx_grid = grid1d(1, 0.0, 0.0)
     else
         vx_grid = grid1d(K, -vmax, vmax)
-        push!(dims, :x)
+        push!(dims, :vx)
     end
     if hd.Nvy == 1
         vy_grid = grid1d(1, 0.0, 0.0)
     else
         vy_grid = grid1d(K, -vmax, vmax)
-        push!(dims, :y)
+        push!(dims, :vy)
     end
     if hd.Nvz == 1
         vz_grid = grid1d(1, 0.0, 0.0)
     else
         vz_grid = grid1d(K, -vmax, vmax)
-        push!(dims, :z)
+        push!(dims, :vz)
     end
 
     return VGrid(dims, vx_grid, vy_grid, vz_grid, buffer)

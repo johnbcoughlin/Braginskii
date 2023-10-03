@@ -23,6 +23,58 @@ function dfp!(df, f, cm::CollisionalMoments, species::Species, buffer)
     end
 end
 
+function dfp_vx!(df, f, ux, T, ν, species::Species{Hermite}, buffer)
+    (; discretization) = species
+    (; Dvx, Ξx) = discretization.vdisc
+    dfp_vi!(df, f, ux, T, ν, Ξx, Dvx, species, buffer)
+end
+
+function dfp_vy!(df, f, uy, T, ν, species::Species{Hermite}, buffer)
+    (; discretization) = species
+    (; Dvy, Ξy) = discretization.vdisc
+    dfp_vi!(df, f, uy, T, ν, Ξy, Dvy, species, buffer)
+end
+
+function dfp_vz!(df, f, uz, T, ν, species::Species{Hermite}, buffer)
+    (; discretization) = species
+    (; Dvz, Ξz) = discretization.vdisc
+    dfp_vi!(df, f, uz, T, ν, Ξz, Dvz, species, buffer)
+end
+
+function dfp_vi!(df, f, u, T, ν, Ξ, Dv, species::Species{Hermite}, buffer)
+    (; discretization) = species
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+
+    vth = discretization.vdisc.vth
+
+    NX = Nx*Ny*Nz
+    NV = Nvx*Nvy*Nvz
+
+    f = reshape(f, (NX, NV))
+    u = vec(u)
+    T = vec(T)
+
+    @no_escape buffer begin
+        u_f = alloc_array(Float64, buffer, NX, NV)
+        @. u_f = u * f
+        v_f = alloc_array(Float64, buffer, NX, NV)
+        mul!(v_f, f, Ξ', vth, 0.0)
+
+        T_Dv_f = alloc_array(Float64, buffer, NX, NV)
+        mul!(T_Dv_f, f, Dv', 1/vth, 0.0)
+        @. T_Dv_f *= T
+
+        L = alloc_array(Float64, buffer, NX, NV)
+        @. L = T_Dv_f + v_f - u_f
+
+        Dv_L = alloc_array(Float64, buffer, NX, NV)
+        mul!(Dv_L, L, Dv', 1/vth, 0.0)
+
+        Dv_L = reshape(Dv_L, size(discretization))
+        @. df += ν * Dv_L
+    end
+end
+
 function dfp_vx!(df, f, ux, T, ν, species::Species{WENO5}, buffer)
     (; discretization) = species
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
@@ -66,7 +118,7 @@ function dfp_vx!(df, f, ux, T, ν, species::Species{WENO5}, buffer)
     df
 end
 
-function dfp_vy!(df, f, uy, T, ν, species, buffer)
+function dfp_vy!(df, f, uy, T, ν, species::Species{WENO5}, buffer)
     (; discretization) = species
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
     vgrid = discretization.vdisc.grid
@@ -109,7 +161,7 @@ function dfp_vy!(df, f, uy, T, ν, species, buffer)
     df
 end
 
-function dfp_vz!(df, f, uz, T, ν, species, buffer)
+function dfp_vz!(df, f, uz, T, ν, species::Species{WENO5}, buffer)
     (; discretization) = species
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
     vgrid = discretization.vdisc.grid

@@ -75,6 +75,8 @@ function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
                 @timeit "free streaming" free_streaming!(df, f.x[i], α, buffer)
             end
             @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, Ez, sim.By, α, buffer, sim.fft_plans)
+
+            @timeit "dfp" dfp!(df, f.x[i], α, sim, buffer)
         end
     end
 end
@@ -86,7 +88,6 @@ function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
     t = 0.0
     λmax = Ref(0.0)
     u = sim.u
-    @show sum(u)
     if !isnothing(diagnostic)
         diagnostics = diagnostic.init()
     end
@@ -113,8 +114,6 @@ function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
 end
 
 function runsim!(sim, d, t_end; kwargs...)
-    set_default_buffer_size!(100_000_000)
-
     buffer = allocator(sim.device)
     rk_step!(sim, t, dt) = begin
         λmax = Ref(0.0)

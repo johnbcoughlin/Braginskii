@@ -41,14 +41,14 @@ vz_grid_1v(Nvz, vzmax, buffer) = begin
     vy_grid = grid1d(1, 0.0, 0.0)
     vx_grid = grid1d(1, 0.0, 0.0)
     vz_grid = grid1d(Nvz, vzmin, vzmax)
-    VGrid([:z], vx_grid, vy_grid, vz_grid, buffer)
+    VGrid([:vz], vx_grid, vy_grid, vz_grid, buffer)
 end
 
 vy_grid_1v(Nvy, vymax, buffer) = begin
     vx_grid = grid1d(1, 0.0, 0.0)
     vy_grid = grid1d(Nvy, vymin, vymax)
     vz_grid = grid1d(1, 0.0, 0.0)
-    VGrid([:y], vx_grid, vy_grid, vz_grid, buffer)
+    VGrid([:vy], vx_grid, vy_grid, vz_grid, buffer)
 end
 
 hermite_disc(; Nvx=1, Nvy=1, Nvz=1, vth=1.0, buffer=allocator(:cpu), kwargs...) = begin
@@ -56,7 +56,7 @@ hermite_disc(; Nvx=1, Nvy=1, Nvz=1, vth=1.0, buffer=allocator(:cpu), kwargs...) 
 end
 
 weno_v_disc(dims; Nvx=1, Nvy=1, Nvz=1, vxmax=0.0, vymax=0.0, vzmax=0.0, 
-    vxmin=-vxmax, vymin=-vymax, vzmin=-vzmax, buffer) = begin
+    vxmin=-vxmax, vymin=-vymax, vzmin=-vzmax, buffer, kwargs...) = begin
     vx_grid = grid1d(Nvx, vxmin, vxmax)
     vy_grid = grid1d(Nvy, vymin, vymax)
     vz_grid = grid1d(Nvz, vzmin, vzmax)
@@ -93,12 +93,12 @@ end
 function single_species_1d1v_z(f; Nz, Nvz,
     zmin=-1., zmax=1., vdisc, vzmax=8.0,
     free_streaming=true, q=1.0, ϕ_left=0., ϕ_right=0., ν_p=0.0,
-    device=:cpu)
+    device=:cpu, vth=1.0)
     buffer = allocator(device)
 
     x_grid = z_grid_1d(Nz, zmin, zmax, buffer)
 
-    v_disc = v_discretization(vdisc, [:z]; Nvz, vzmax, buffer)
+    v_disc = v_discretization(vdisc, [:vz]; Nvz, vzmax, buffer, vth)
     disc = XVDiscretization(x_grid, v_disc)
 
     fe = approximate_f(f, disc, (3, 6), buffer)
@@ -118,11 +118,11 @@ function single_species_1d1v_z(f; Nz, Nvz,
 end
 
 function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true,
-    device=:cpu)
+    device=:cpu, vth=1.0)
     buffer = allocator(device)
     x_grid = x_grid_1d(Nx, Lx, buffer)
 
-    v_disc = v_discretization(vdisc, [:x]; Nvx, vxmax, buffer)
+    v_disc = v_discretization(vdisc, [:vx]; Nvx, vxmax, buffer, vth)
     disc = XVDiscretization(x_grid, v_disc)
 
 
@@ -141,11 +141,11 @@ function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, v
 end
 
 function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true,
-    device=:cpu)
+    device=:cpu, vth=1.0)
     buffer = allocator(device)
     x_grid = y_grid_1d(Ny, Ly, buffer)
 
-    v_disc = v_discretization(vdisc, [:y]; Nvy, vymax, buffer)
+    v_disc = v_discretization(vdisc, [:vy]; Nvy, vymax, buffer, vth)
     disc = XVDiscretization(x_grid, v_disc)
 
 
@@ -177,7 +177,7 @@ vxvy_grid_2v(Nvx, Nvy, vxmax, vymax, buffer) = begin
     vx_grid = grid1d(Nvx, vxmin, vxmax)
     vy_grid = grid1d(Nvy, vymin, vymax)
     vz_grid = grid1d(1, 0.0, 0.0)
-    VGrid([:x, :y], vx_grid, vy_grid, vz_grid, buffer)
+    VGrid([:vx, :vy], vx_grid, vy_grid, vz_grid, buffer)
 end
 
 function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=8.0, vzmax=8.0, 
@@ -185,7 +185,7 @@ function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=8.0, vzmax=8.0,
     buffer = allocator(device)
     x_grid = x_grid_0d(buffer)
 
-    v_disc = v_discretization(vdisc, [:x, :z]; Nvx, Nvz, vxmax, vzmax, buffer)
+    v_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax, vzmax, buffer)
     disc = XVDiscretization(x_grid, v_disc)
 
     fe = approximate_f(f, disc, (4, 6), buffer)

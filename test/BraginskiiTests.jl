@@ -13,8 +13,6 @@ supported_devices() = begin
     return (:cpu,)
 end
 
-set_default_buffer_size!(100_000_000)
-
 include("test_utils.jl")
 include("alloc_test.jl")
 include("hermite_tests.jl")

@@ -92,7 +92,7 @@ function collisional_moments_single_species(α, f, x_grid, ν_p, buffer)
     uz = M1z ./ M0
     d = length(α.v_dims)
 
-    T = (M2 .- (ux.^2 + uy.^2 + uz.^2)) ./ (d .* M0)
+    T = (M2 ./ M0 .- (ux.^2 + uy.^2 + uz.^2)) ./ d
     ν = alloc_zeros(Float64, buffer, size(x_grid)...)
     ν .= ν_p
 

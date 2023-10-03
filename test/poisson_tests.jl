@@ -2,7 +2,6 @@
     @testset "Evaluate Laplacian" begin
         for device in supported_devices()
         buffer = Braginskii.allocator(device)
-        device == :cpu && set_default_buffer_size!(200_000_000)
         Ns = [20, 40, 80, 160]
         errors = Float64[]
         for Nz in Ns
@@ -39,7 +38,6 @@
     @testset "Poisson solve" begin
         for device in supported_devices()
         buffer = Braginskii.allocator(device)
-        device == :cpu && set_default_buffer_size!(200_000_000)
         Ns = [20, 40, 80, 160]
         errors = Float64[]
         for Nz in Ns
