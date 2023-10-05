@@ -82,6 +82,56 @@ function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
     end
 end
 
+function filter!(f, sim, buffer)
+    for i in eachindex(sim.species)
+        α = sim.species[i]
+
+        filter!(f.x[i], α, buffer)
+    end
+end
+
+function filter!(f, species::Species, buffer)
+    (; discretization) = species
+
+    # Need to filter fourier coefficients first
+    in_kxy_domain!(f, buffer, species.fft_plans) do modes
+        Kx, Ky = size(modes)
+        σx = hou_li_filter(Kx, buffer)
+        σy = hou_li_filter(Ky, buffer)
+
+        @. modes *= σx * σy'
+    end
+
+    filter_v!(f, species, buffer)
+end
+
+# No-op for WENO disc.
+filter_v!(f, species::Species{WENO5}, buffer) = begin end
+
+filter_v!(f, species::Species{<:Hermite}, buffer) = begin
+    (; discretization) = species
+
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+
+    σvx = reshape(hou_li_filter(Nvx, buffer), (1, 1, 1, :))
+    σvy = reshape(hou_li_filter(Nvy, buffer), (1, 1, 1, 1, :))
+    σvz = reshape(hou_li_filter(Nvz, buffer), (1, 1, 1, 1, 1, :))
+
+    @. f *= σvx * σvy * σvz
+end
+
+function hou_li_filter(N, buffer)
+    res = ones(N)
+    β = 36.0
+    for i in 1:N
+        s = i / N
+        if i >= 4 && s >= 2/3
+            res[i] = exp(-β * s^β)
+        end
+    end
+    return arraytype(buffer)(res)
+end
+
 function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
     buffer = allocator(sim.device)
 
@@ -96,6 +146,8 @@ function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
         stepdt = min(Δt, T-t)
         p = (; sim=sim.metadata, λmax, buffer)
         success, sf = ssp_rk43(vlasov_fokker_planck_step!, u, p, t, stepdt, 1.0, buffer)
+
+        filter!(sim.u, sim, buffer)
 
         if success
             t += stepdt
@@ -120,6 +172,8 @@ function runsim!(sim, d, t_end; kwargs...)
         λmax = Ref(0.0)
         p = (; sim=sim.metadata, λmax, buffer)
         ssp_rk43(vlasov_fokker_planck_step!, sim.u, p, t, dt, 1.0, buffer)
+
+        filter!(sim.u, sim, buffer)
     end
 
     integrate_stably(rk_step!, sim, t_end, d; run_diagnostics=core_diagnostics, kwargs...)
