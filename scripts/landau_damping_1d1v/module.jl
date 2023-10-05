@@ -5,7 +5,7 @@ using DrWatson
 using Braginskii.Helpers
 using PDEHarness
 
-function make_sim(device=:cpu)
+function make_sim(device=:cpu, vdisc=:hermite)
     d = Dict{String, Any}()
 
     problem = "landau_damping"

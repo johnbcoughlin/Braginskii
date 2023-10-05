@@ -1,5 +1,7 @@
 module Helpers
 
+using TimerOutputs
+
 import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Species, ..Simulation, ..SimulationMetadata, ..CollisionalMoments, ..Hermite, ..WENO5, ..XVDiscretization, ..approximate_f, ..allocator, ..alloc_zeros
 import ..plan_ffts
 using RecursiveArrayTools
@@ -51,8 +53,8 @@ vy_grid_1v(Nvy, vymax, buffer) = begin
     VGrid([:vy], vx_grid, vy_grid, vz_grid, buffer)
 end
 
-hermite_disc(; Nvx=1, Nvy=1, Nvz=1, vth=1.0, buffer=allocator(:cpu), kwargs...) = begin
-    Hermite(Nvx, Nvy, Nvz, vth)
+hermite_disc(; Nvx=1, Nvy=1, Nvz=1, vth=1.0, device, kwargs...) = begin
+    Hermite(Nvx, Nvy, Nvz, vth, device)
 end
 
 weno_v_disc(dims; Nvx=1, Nvy=1, Nvz=1, vxmax=0.0, vymax=0.0, vzmax=0.0, 
@@ -98,7 +100,7 @@ function single_species_1d1v_z(f; Nz, Nvz,
 
     x_grid = z_grid_1d(Nz, zmin, zmax, buffer)
 
-    v_disc = v_discretization(vdisc, [:vz]; Nvz, vzmax, buffer, vth)
+    v_disc = v_discretization(vdisc, [:vz]; Nvz, vzmax, buffer, vth, device)
     disc = XVDiscretization(x_grid, v_disc)
 
     fe = approximate_f(f, disc, (3, 6), buffer)
@@ -120,9 +122,9 @@ end
 function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true,
     device=:cpu, vth=1.0)
     buffer = allocator(device)
-    x_grid = x_grid_1d(Nx, Lx, buffer)
+    @timeit "xgrid" x_grid = x_grid_1d(Nx, Lx, buffer)
 
-    v_disc = v_discretization(vdisc, [:vx]; Nvx, vxmax, buffer, vth)
+    @timeit "vdisc" v_disc = v_discretization(vdisc, [:vx]; Nvx, vxmax, buffer, vth, device)
     disc = XVDiscretization(x_grid, v_disc)
 
 
@@ -145,7 +147,7 @@ function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, v
     buffer = allocator(device)
     x_grid = y_grid_1d(Ny, Ly, buffer)
 
-    v_disc = v_discretization(vdisc, [:vy]; Nvy, vymax, buffer, vth)
+    v_disc = v_discretization(vdisc, [:vy]; Nvy, vymax, buffer, vth, device)
     disc = XVDiscretization(x_grid, v_disc)
 
 
@@ -185,7 +187,7 @@ function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=8.0, vzmax=8.0,
     buffer = allocator(device)
     x_grid = x_grid_0d(buffer)
 
-    v_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax, vzmax, buffer)
+    v_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax, vzmax, buffer, device)
     disc = XVDiscretization(x_grid, v_disc)
 
     fe = approximate_f(f, disc, (4, 6), buffer)

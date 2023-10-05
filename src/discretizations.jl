@@ -99,31 +99,31 @@ end
 
 size(fd::WENO5) = size(fd.grid)
 
-struct Hermite
+struct Hermite{SPARSE}
     Nvx::Int
     Nvy::Int
     Nvz::Int
 
     vth::Float64
 
-    Ξx::SparseMatrixCSC{Float64, Int64}
-    Ξy::SparseMatrixCSC{Float64, Int64}
-    Ξz::SparseMatrixCSC{Float64, Int64}
+    Ξx::SPARSE
+    Ξy::SPARSE
+    Ξz::SPARSE
 
-    Ξx⁻::SparseMatrixCSC{Float64, Int64}
-    Ξy⁻::SparseMatrixCSC{Float64, Int64}
-    Ξz⁻::SparseMatrixCSC{Float64, Int64}
+    Ξx⁻::SPARSE
+    Ξy⁻::SPARSE
+    Ξz⁻::SPARSE
 
-    Ξx⁺::SparseMatrixCSC{Float64, Int64}
-    Ξy⁺::SparseMatrixCSC{Float64, Int64}
-    Ξz⁺::SparseMatrixCSC{Float64, Int64}
+    Ξx⁺::SPARSE
+    Ξy⁺::SPARSE
+    Ξz⁺::SPARSE
 
-    Dvx::SparseMatrixCSC{Float64, Int64}
-    Dvy::SparseMatrixCSC{Float64, Int64}
-    Dvz::SparseMatrixCSC{Float64, Int64}
+    Dvx::SPARSE
+    Dvy::SPARSE
+    Dvz::SPARSE
 end
 
-Hermite(Nvx, Nvy, Nvz, vth) = begin
+Hermite(Nvx, Nvy, Nvz, vth, device) = begin
     N = max(Nvx, Nvy, Nvz)
 
     Ξ = spdiagm(-1 => sqrt.(1:N-1), 1 => sqrt.(1:N-1))
@@ -133,16 +133,16 @@ Hermite(Nvx, Nvy, Nvz, vth) = begin
     Ξz = Ξ[1:Nvz, 1:Nvz]
 
     Λx, Rx = eigen(Array(Ξx))
-    Ξx⁻ = kron(I(Nvz), I(Nvy), Rx * Diagonal(min.(Λx, 0.0)) / Rx)
-    Ξx⁺ = kron(I(Nvz), I(Nvy), Rx * Diagonal(max.(Λx, 0.0)) / Rx)
+    Ξx⁻ = kron(I(Nvz), I(Nvy), Rx * Diagonal(min.(Λx, 0.0)) / Rx) |> sparse
+    Ξx⁺ = kron(I(Nvz), I(Nvy), Rx * Diagonal(max.(Λx, 0.0)) / Rx) |> sparse
 
     Λy, Ry = eigen(Array(Ξy))
-    Ξy⁻ = kron(I(Nvz), Ry * Diagonal(min.(Λy, 0.0)) / Ry, I(Nvx))
-    Ξy⁺ = kron(I(Nvz), Ry * Diagonal(max.(Λy, 0.0)) / Ry, I(Nvx))
+    Ξy⁻ = kron(I(Nvz), Ry * Diagonal(min.(Λy, 0.0)) / Ry |> sparse, I(Nvx))
+    Ξy⁺ = kron(I(Nvz), Ry * Diagonal(max.(Λy, 0.0)) / Ry |> sparse, I(Nvx))
 
     Λz, Rz = eigen(Array(Ξz))
-    Ξz⁻ = kron(Rz * Diagonal(min.(Λz, 0.0)) / Rz, I(Nvy), I(Nvx))
-    Ξz⁺ = kron(Rz * Diagonal(max.(Λz, 0.0)) / Rz, I(Nvy), I(Nvx))
+    Ξz⁻ = kron(Rz * Diagonal(min.(Λz, 0.0)) / Rz, I(Nvy), I(Nvx)) |> sparse
+    Ξz⁺ = kron(Rz * Diagonal(max.(Λz, 0.0)) / Rz, I(Nvy), I(Nvx)) |> sparse
 
     D = spdiagm(-1 => -sqrt.(1:N-1))
 
@@ -154,7 +154,14 @@ Hermite(Nvx, Nvy, Nvz, vth) = begin
     Dvy = kron(I(Nvz), D[1:Nvy, 1:Nvy], I(Nvx))
     Dvz = kron(D[1:Nvz, 1:Nvz], I(Nvy), I(Nvx))
 
-    Hermite(Nvx, Nvy, Nvz, vth, Ξx, Ξy, Ξz, Ξx⁻, Ξy⁻, Ξz⁻, Ξx⁺, Ξy⁺, Ξz⁺, Dvx, Dvy, Dvz)
+    cx = if device == :cpu
+        identity
+    elseif device == :gpu
+        CuSparseMatrixCSC
+    end
+
+    Hermite(Nvx, Nvy, Nvz, vth, cx(Ξx), cx(Ξy), cx(Ξz), cx(Ξx⁻), cx(Ξy⁻), cx(Ξz⁻), 
+        cx(Ξx⁺), cx(Ξy⁺), cx(Ξz⁺), cx(Dvx), cx(Dvy), cx(Dvz))
 end
 
 size(hd::Hermite) = (hd.Nvx, hd.Nvy, hd.Nvz)
@@ -208,7 +215,7 @@ approximate_f!(result, f, disc::XVDiscretization{WENO5}, dims) = begin
     result .= f.(dimensions...)
 end
 
-approximate_f!(result, f, disc::XVDiscretization{Hermite}, dims) = begin
+approximate_f!(result, f, disc::XVDiscretization{<:Hermite}, dims) = begin
     vdims = sum(dims .>= 4)
     factor = 1 / (2π)^((3-vdims)/2)
     f_all(args...) = factor * f((args[dim] for dim in dims)...)
@@ -222,6 +229,6 @@ expand_f(f, disc::XVDiscretization{WENO5}, vgrid) = begin
     return f
 end
 
-expand_f(coefs, disc::XVDiscretization{Hermite}, vgrid) = begin
+expand_f(coefs, disc::XVDiscretization{<:Hermite}, vgrid) = begin
     expand_bigfloat_hermite_f(coefs, vgrid, disc.vdisc.vth)
 end

@@ -23,25 +23,25 @@ function dfp!(df, f, cm::CollisionalMoments, species::Species, buffer)
     end
 end
 
-function dfp_vx!(df, f, ux, T, ν, species::Species{Hermite}, buffer)
+function dfp_vx!(df, f, ux, T, ν, species::Species{<:Hermite}, buffer)
     (; discretization) = species
     (; Dvx, Ξx) = discretization.vdisc
     dfp_vi!(df, f, ux, T, ν, Ξx, Dvx, species, buffer)
 end
 
-function dfp_vy!(df, f, uy, T, ν, species::Species{Hermite}, buffer)
+function dfp_vy!(df, f, uy, T, ν, species::Species{<:Hermite}, buffer)
     (; discretization) = species
     (; Dvy, Ξy) = discretization.vdisc
     dfp_vi!(df, f, uy, T, ν, Ξy, Dvy, species, buffer)
 end
 
-function dfp_vz!(df, f, uz, T, ν, species::Species{Hermite}, buffer)
+function dfp_vz!(df, f, uz, T, ν, species::Species{<:Hermite}, buffer)
     (; discretization) = species
     (; Dvz, Ξz) = discretization.vdisc
     dfp_vi!(df, f, uz, T, ν, Ξz, Dvz, species, buffer)
 end
 
-function dfp_vi!(df, f, u, T, ν, Ξ, Dv, species::Species{Hermite}, buffer)
+function dfp_vi!(df, f, u, T, ν, Ξ, Dv, species::Species{<:Hermite}, buffer)
     (; discretization) = species
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 

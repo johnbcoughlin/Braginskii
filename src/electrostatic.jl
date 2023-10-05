@@ -57,7 +57,7 @@ function electrostatic_x!(df, f, Ex, By, species::Species{WENO5}, buffer, xgrid_
     end
 end
 
-function electrostatic_x!(df, f, Ex, By, species::Species{Hermite}, buffer, xgrid_fft_plans)
+function electrostatic_x!(df, f, Ex, By, species::Species{<:Hermite}, buffer, xgrid_fft_plans)
     (; discretization, q, m) = species
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
@@ -123,7 +123,7 @@ function electrostatic_y!(df, f, Ey, By, species::Species{WENO5}, buffer, xgrid_
     end
 end
 
-function electrostatic_y!(df, f, Ey, By, species::Species{Hermite}, buffer, xgrid_fft_plans)
+function electrostatic_y!(df, f, Ey, By, species::Species{<:Hermite}, buffer, xgrid_fft_plans)
     (; discretization, q, m) = species
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
@@ -185,7 +185,7 @@ function electrostatic_z!(df, f, Ez, By, species::Species{WENO5}, buffer, xgrid_
     end
 end
 
-function electrostatic_z!(df, f, Ez, By, species::Species{Hermite}, buffer, xgrid_fft_plans)
+function electrostatic_z!(df, f, Ez, By, species::Species{<:Hermite}, buffer, xgrid_fft_plans)
     (; discretization, q, m) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)

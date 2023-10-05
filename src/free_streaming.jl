@@ -61,7 +61,7 @@ function free_streaming_z!(df, f, species::Species{WENO5}, buffer)
     end
 end
 
-function free_streaming_z!(df, f, species::Species{Hermite}, buffer)
+function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
     (; discretization) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
@@ -183,7 +183,7 @@ function reflecting_wall_bcs!(f_with_boundaries, f, discretization::XVDiscretiza
     f_with_boundaries[:, :, end-2, :, :, 1:Nvz] .= f[:, :, Nz, :, :, Nvz:-1:1]
 end
 
-function reflecting_wall_bcs!(f_with_boundaries, f, discretization::XVDiscretization{Hermite})
+function reflecting_wall_bcs!(f_with_boundaries, f, discretization::XVDiscretization{<:Hermite})
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
     flip = i -> iseven(i-1) ? 1 : -1

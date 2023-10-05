@@ -85,7 +85,10 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     vy_nodes = reshape(vy_nodes, (1, 1, 1, 1, :, 1))
     vz_nodes = reshape(vz_nodes, (1, 1, 1, 1, 1, :))
 
-    fxv = @. f(X, Y, Z, sqrt(2) * vx_nodes, sqrt(2) * vy_nodes, sqrt(2) * vz_nodes)
+    X_array = Array(X)
+    Y_array = Array(Y)
+    Z_array = Array(Z)
+    fxv = @. f(X_array, Y_array, Z_array, sqrt(2) * vx_nodes, sqrt(2) * vy_nodes, sqrt(2) * vz_nodes)
     fxv_exp = @. fxv * exp(big(vx_nodes^2 + vy_nodes^2 + vz_nodes^2))
     fxv_exp = Float64.(fxv_exp)
 
@@ -105,7 +108,7 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
             end
         end
     end
-    sqrt(2^3) * result
+    sqrt(2^3) * arraytype(X)(result)
 end
 
 """

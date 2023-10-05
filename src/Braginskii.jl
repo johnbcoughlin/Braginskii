@@ -19,6 +19,7 @@ using CUDA
 using cuDNN
 using NNlib
 using NNlibCUDA
+using CUDA.CUSPARSE
 
 import Base.size, Base.getproperty
 
