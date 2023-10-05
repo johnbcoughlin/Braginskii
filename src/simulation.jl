@@ -35,6 +35,7 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CM_DICT}
     species::SP
 
     fft_plans::FFTPLANS
+    cpu_fft_plans::FFTPLANS
 
     device::Symbol
 end

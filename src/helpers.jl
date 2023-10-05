@@ -123,7 +123,10 @@ function single_species_1d1v_z(f; Nz, Nvz,
     electrons = Species("electrons", [:z], [:vz], q, 1.0, plan_ffts(disc, buffer), disc)
     cms = collisional_moments(x_grid, ["electrons"], buffer)
     sim = SimulationMetadata([:z], x_grid, By, ϕl, ϕr, ϕ, free_streaming, 
-        ν_p, cms, (electrons,), plan_ffts(x_grid, buffer), device)
+        ν_p, cms, (electrons,), 
+        plan_ffts(x_grid, buffer), 
+        plan_ffts(x_grid, allocator(:cpu)), 
+        device)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -146,7 +149,10 @@ function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, v
     electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc, buffer), disc)
     cms = collisional_moments(x_grid, ["electrons"], buffer)
     sim = SimulationMetadata([:x], x_grid, By, ϕl, ϕr, ϕ, free_streaming, 
-        ν_p, cms, (electrons,), plan_ffts(x_grid, buffer), device)
+        ν_p, cms, (electrons,), 
+        plan_ffts(x_grid, buffer), 
+        plan_ffts(x_grid, allocator(:cpu)), 
+        device)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -169,7 +175,10 @@ function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, v
     electrons = Species("electrons", [:y], [:vy], q, 1.0, plan_ffts(disc, buffer), disc)
     cms = collisional_moments(x_grid, ["electrons"], buffer)
     sim = SimulationMetadata([:y], x_grid, By, ϕl, ϕr, ϕ, free_streaming, 
-        ν_p, cms, (electrons,), plan_ffts(x_grid, buffer), device)
+        ν_p, cms, (electrons,), 
+        plan_ffts(x_grid, buffer), 
+        plan_ffts(x_grid, allocator(:cpu)), 
+        device)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -209,7 +218,10 @@ function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=8.0, vzmax=8.0,
     electrons = Species("electrons", Symbol[], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc)
     cms = collisional_moments(x_grid, ["electrons"], buffer)
     sim = SimulationMetadata(Symbol[], x_grid, By0, ϕl, ϕr, ϕ, 
-        free_streaming, ν_p, cms, (electrons,), plan_ffts(x_grid, buffer), device)
+        free_streaming, ν_p, cms, (electrons,), 
+        plan_ffts(x_grid, buffer), 
+        plan_ffts(x_grid, allocator(:cpu)), 
+        device)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -253,7 +265,10 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
     cms = collisional_moments(x_grid, ["ions"], buffer)
 
     sim = SimulationMetadata([:x, :z], x_grid, By, ϕl, ϕr, ϕ,
-        free_streaming, ν_p, cms, (ions,), plan_ffts(x_grid, buffer), device)
+        free_streaming, ν_p, cms, (ions,), 
+        plan_ffts(x_grid, buffer), 
+        plan_ffts(x_grid, allocator(:cpu)), 
+        device)
     Simulation(sim, ArrayPartition(fi))
 end
 
@@ -289,7 +304,10 @@ function two_species_xz_2d2v((; fe_0, fi_0, By0); Nx, Nz, Nvx, Nvz,
     cms = collisional_moments(x_grid, ["electrons", "ions"], buffer)
 
     sim = SimulationMetadata([:x, :z], x_grid, By0, ϕl, ϕr, ϕ,
-        free_streaming, ν_p, cms, (electrons, ions), plan_ffts(x_grid, buffer), device)
+        free_streaming, ν_p, cms, (electrons, ions), 
+        plan_ffts(x_grid, buffer), 
+        plan_ffts(x_grid, allocator(:cpu)), 
+        device)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 

@@ -10,7 +10,7 @@ function make_sim(device=:cpu, vdisc=:hermite)
 
     problem = "landau_damping"
     Nx = 32
-    Nvx = 100
+    Nvx = 300
     δ = 0.001
     q = 1.0
     k = 0.5

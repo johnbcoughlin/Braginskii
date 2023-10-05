@@ -18,7 +18,8 @@ function poisson(sim, f, buffer)
     end
     @assert sum(ρ_c) < sqrt(eps())
 
-    poisson(ρ_c, sim.ϕ_left, sim.ϕ_right, grid, sim.x_dims, buffer, sim.ϕ, sim.fft_plans)
+    poisson(ρ_c, sim.ϕ_left, sim.ϕ_right, grid, 
+        sim.x_dims, buffer, sim.ϕ, sim.cpu_fft_plans)
 end
 
 function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans)
@@ -28,17 +29,24 @@ function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans)
     Ey = alloc_array(Float64, buffer, Nx, Ny, Nz)
     Ez = alloc_array(Float64, buffer, Nx, Ny, Nz)
 
-    poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans)
+    cpu_buffer = allocator(:cpu)
+    @no_escape cpu_buffer begin
+        poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid, x_dims, cpu_buffer, fft_plans)
+    end
 
     return (Ex, Ey, Ez)
 end
 
-function poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims, buffer, fft_plans)
-    Δ = LaplacianOperator(grid, x_dims, buffer, ϕ_left, ϕ_right, fft_plans)
+function poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims, cpu_buffer, fft_plans)
+    Δ = LaplacianOperator(grid, x_dims, cpu_buffer, 
+        Array(ϕ_left), Array(ϕ_right), fft_plans)
 
-    @timeit "minres" minres!(vec(ϕ), Δ, -ρ_c, abstol=1e-12, maxiter=10)
+    ϕ = Array(ϕ)
 
-    @timeit "potential gradient" potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans) 
+    @timeit "minres" minres!(vec(ϕ), Δ, -Array(ρ_c), abstol=1e-12, maxiter=10)
+
+    @timeit "potential gradient" potential_gradient!(Ex, Ey, Ez, ϕ, 
+        Array(ϕ_left), Array(ϕ_right), grid, x_dims, cpu_buffer, fft_plans) 
 end
 
 struct LaplacianOperator{BUF, LEFT, RIGHT, FFTPLANS}
@@ -124,8 +132,10 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
             ϕ_with_z_bdy[:, :, 4:Nz+3] .= ϕ
             apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, buffer)
 
-            stencil = -1 * [-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz
-            convolve_z!(Ez, ϕ_with_z_bdy, stencil, true, buffer)
+            stencil = 1 * [-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz
+            ϕ_z = alloc_array(Float64, buffer, Nx, Ny, Nz)
+            convolve_z!(ϕ_z, ϕ_with_z_bdy, stencil, true, buffer)
+            Ez .= arraytype(Ez)(ϕ_z)
         else
             Ez .= 0
         end
@@ -137,7 +147,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
                 kxs = (0:Nx÷2)
                 ϕ̂ .*= im * kxs * (2π / grid.x.L)
             end
-            Ex .= -ϕ_x
+            Ex .= -arraytype(Ex)(ϕ_x)
         else
             Ex .= 0
         end
@@ -150,7 +160,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
                 kys .= mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
                 ϕ̂ .*= im  * (2π / grid.y.L) .* kys'
             end
-            Ey .= -ϕ_y
+            Ey .= -arraytype(Ey)(ϕ_y)
         else
             Ey .= 0
         end
