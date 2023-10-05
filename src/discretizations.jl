@@ -133,16 +133,16 @@ Hermite(Nvx, Nvy, Nvz, vth, device) = begin
     Ξz = Ξ[1:Nvz, 1:Nvz]
 
     Λx, Rx = eigen(Array(Ξx))
-    Ξx⁻ = kron(I(Nvz), I(Nvy), Rx * Diagonal(min.(Λx, 0.0)) / Rx) |> sparse
-    Ξx⁺ = kron(I(Nvz), I(Nvy), Rx * Diagonal(max.(Λx, 0.0)) / Rx) |> sparse
+    Ξx⁻ = kron(I(Nvz), I(Nvy), sparsify(Rx * Diagonal(min.(Λx, 0.0)) / Rx))
+    Ξx⁺ = kron(I(Nvz), I(Nvy), sparsify(Rx * Diagonal(max.(Λx, 0.0)) / Rx))
 
     Λy, Ry = eigen(Array(Ξy))
-    Ξy⁻ = kron(I(Nvz), Ry * Diagonal(min.(Λy, 0.0)) / Ry |> sparse, I(Nvx))
-    Ξy⁺ = kron(I(Nvz), Ry * Diagonal(max.(Λy, 0.0)) / Ry |> sparse, I(Nvx))
+    Ξy⁻ = kron(I(Nvz), sparsify(Ry * Diagonal(min.(Λy, 0.0)) / Ry), I(Nvx))
+    Ξy⁺ = kron(I(Nvz), sparsify(Ry * Diagonal(max.(Λy, 0.0)) / Ry), I(Nvx))
 
     Λz, Rz = eigen(Array(Ξz))
-    Ξz⁻ = kron(Rz * Diagonal(min.(Λz, 0.0)) / Rz, I(Nvy), I(Nvx)) |> sparse
-    Ξz⁺ = kron(Rz * Diagonal(max.(Λz, 0.0)) / Rz, I(Nvy), I(Nvx)) |> sparse
+    Ξz⁻ = kron(sparsify(Rz * Diagonal(min.(Λz, 0.0)) / Rz), I(Nvy), I(Nvx))
+    Ξz⁺ = kron(sparsify(Rz * Diagonal(max.(Λz, 0.0)) / Rz), I(Nvy), I(Nvx))
 
     D = spdiagm(-1 => -sqrt.(1:N-1))
 
@@ -162,6 +162,11 @@ Hermite(Nvx, Nvy, Nvz, vth, device) = begin
 
     Hermite(Nvx, Nvy, Nvz, vth, cx(Ξx), cx(Ξy), cx(Ξz), cx(Ξx⁻), cx(Ξy⁻), cx(Ξz⁻), 
         cx(Ξx⁺), cx(Ξy⁺), cx(Ξz⁺), cx(Dvx), cx(Dvy), cx(Dvz))
+end
+
+function sparsify(A)
+    A[abs.(A) .< 1e-15] .= 0.0
+    sparse(A)
 end
 
 size(hd::Hermite) = (hd.Nvx, hd.Nvy, hd.Nvz)

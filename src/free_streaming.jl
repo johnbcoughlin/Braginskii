@@ -15,7 +15,7 @@ function free_streaming!(df, f, species, buffer)
         end
         if :z ∈ species.x_dims
             df_z = alloc_zeros(Float64, buffer, size(species.discretization)...)
-            free_streaming_z!(df_z, f, species, buffer)
+            @timeit "z" free_streaming_z!(df_z, f, species, buffer)
             df_fs .+= df_z
         end
 
@@ -75,13 +75,13 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
     @no_escape buffer begin
         f_with_boundaries = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)
         f_with_boundaries[:, :, 4:Nz+3, :, :, :] .= f
-        reflecting_wall_bcs!(f_with_boundaries, f, discretization)
+        @timeit "bcs" reflecting_wall_bcs!(f_with_boundaries, f, discretization)
 
         F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
-        mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁻)', 1.0, 0.0)
+        @timeit "mul" mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁻)', 1.0, 0.0)
 
         F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
-        mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁺)', 1.0, 0.0)
+        @timeit "mul" mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁺)', 1.0, 0.0)
 
         #f_with_boundaries = reshape(f_with_boundaries, (Nx, Ny, Nz+6, Nvx*Nvy*Nvz))
         #@. F⁻ -= 0.5 * α * f_with_boundaries
@@ -92,9 +92,9 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
         left_biased_stencil =  [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1 / dz)
         convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
-        convolve_z!(convolved, reshape(F⁻, (Nx, Ny, Nz+6, Nvx, Nvy, Nvz)), right_biased_stencil, true, buffer)
+        @timeit "conv" convolve_z!(convolved, reshape(F⁻, (Nx, Ny, Nz+6, Nvx, Nvy, Nvz)), right_biased_stencil, true, buffer)
         df .+= convolved
-        convolve_z!(convolved, reshape(F⁺, (Nx, Ny, Nz+6, Nvx, Nvy, Nvz)), left_biased_stencil, true, buffer)
+        @timeit "conv" convolve_z!(convolved, reshape(F⁺, (Nx, Ny, Nz+6, Nvx, Nvy, Nvz)), left_biased_stencil, true, buffer)
         df .+= convolved
     end
 end

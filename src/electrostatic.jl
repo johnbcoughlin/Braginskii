@@ -9,7 +9,7 @@ function electrostatic!(df, f, Ex, Ey, Ez, By, species, buffer, xgrid_fft_plans)
             electrostatic_y!(df_es, f, Ey, By, species, buffer, xgrid_fft_plans)
         end
         if :vz ∈ species.v_dims
-            electrostatic_z!(df_es, f, Ez, By, species, buffer, xgrid_fft_plans)
+            @timeit "z" electrostatic_z!(df_es, f, Ez, By, species, buffer, xgrid_fft_plans)
         end
 
         df .+= df_es
@@ -27,21 +27,13 @@ function electrostatic_x!(df, f, Ex, By, species::Species{WENO5}, buffer, xgrid_
     dvx = vgrid.x.dx
 
     @no_escape buffer begin
-        Ex = quadratic_dealias(Ex, buffer, xgrid_fft_plans)
-        By = quadratic_dealias(By, buffer, xgrid_fft_plans)
-
-        C = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, 1, 1, Nvz)
+        C = alloc_array(Float64, buffer, Nx, Ny, Nz, 1, 1, Nvz)
         @. C = q / m * (Ex - vgrid.VZ * By)
 
-        f̂ = quadratic_dealias(f, buffer, species.fft_plans)
-
-        F⁺ = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
-        F⁻ = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
-        @. F⁺ = max(C, 0) * f̂
-        @. F⁻ = min(C, 0) * f̂
-
-        F⁺ = reverse_quadratic_dealias(F⁺, buffer, species.fft_plans)
-        F⁻ = reverse_quadratic_dealias(F⁻, buffer, species.fft_plans)
+        F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
+        F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
+        @. F⁺ = max(C, 0) * f
+        @. F⁻ = min(C, 0) * f
 
         right_biased_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1 / dvx)
         left_biased_stencil = [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1 / dvx)
@@ -65,16 +57,9 @@ function electrostatic_x!(df, f, Ex, By, species::Species{<:Hermite}, buffer, xg
         vzf = alloc_array(Float64, buffer, size(f)...)
         @timeit "mul by vz" mul_by_vz!(vzf, f, discretization)
 
-        f̂ = quadratic_dealias(f, buffer, species.fft_plans)
-        vzf̂ = quadratic_dealias(vzf, buffer, species.fft_plans)
-        F = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
+        F = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
-        Ex = quadratic_dealias(Ex, buffer, xgrid_fft_plans)
-        By = quadratic_dealias(By, buffer, xgrid_fft_plans)
-
-        @. F = q / m * (Ex * f̂ - vzf̂ * By)
-
-        @timeit "reverse dealias" F = reverse_quadratic_dealias(F, buffer, species.fft_plans)
+        @. F = q / m * (Ex * f - vzf * By)
 
         df = reshape(df, (:, Nvx*Nvy*Nvz))
         F = reshape(F, (:, Nvx*Nvy*Nvz))
@@ -152,24 +137,18 @@ function electrostatic_z!(df, f, Ez, By, species::Species{WENO5}, buffer, xgrid_
     dvz = vgrid.z.dx
 
     @no_escape buffer begin
-        Ez = quadratic_dealias(Ez, buffer, xgrid_fft_plans)
-        By = quadratic_dealias(By, buffer, xgrid_fft_plans)
-        C = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx)
+        C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx)
 
         @. C = q / m * (Ez + vgrid.VX * By)
 
         F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
         F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
 
-        f̂ = quadratic_dealias(f, buffer, species.fft_plans)
-        F⁺ = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
-        F⁻ = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
+        F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
+        F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
-        @. F⁺ = max(C, 0) * f̂
-        @. F⁻ = min(C, 0) * f̂
-
-        F⁺ = reverse_quadratic_dealias(F⁺, buffer, species.fft_plans)
-        F⁻ = reverse_quadratic_dealias(F⁻, buffer, species.fft_plans)
+        @. F⁺ = max(C, 0) * f
+        @. F⁻ = min(C, 0) * f
 
         right_biased_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1 / dvz)
         left_biased_stencil = [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1 / dvz)
@@ -194,16 +173,9 @@ function electrostatic_z!(df, f, Ez, By, species::Species{<:Hermite}, buffer, xg
         vxf = alloc_array(Float64, buffer, size(f)...)
         mul_by_vx!(vxf, f, discretization)
 
-        f̂ = quadratic_dealias(f, buffer, species.fft_plans)
-        vxf̂ = quadratic_dealias(vxf, buffer, species.fft_plans)
-        F = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
+        F = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
-        Ez = quadratic_dealias(Ez, buffer, xgrid_fft_plans)
-        By = quadratic_dealias(By, buffer, xgrid_fft_plans)
-
-        @. F = q / m * (Ez * f̂ + vxf̂ * By)
-
-        @timeit "reverse dealias" F = reverse_quadratic_dealias(F, buffer, species.fft_plans)
+        @. F = q / m * (Ez * f + vxf * By)
 
         df = reshape(df, (:, Nvx*Nvy*Nvz))
         F = reshape(F, (:, Nvx*Nvy*Nvz))
@@ -228,8 +200,9 @@ function quadratic_dealias(u, buffer, fft_plans)
     U = alloc_zeros(Float64, buffer, 2Nx-1, 2Ny, Nz*prod(Nvs))
     F⁻¹ = fft_plans.kxy_double_irfft
     mul!(U, F⁻¹, u_modes)
+    U .*= (2Nx-1)/Nx * (2Ny)/Ny
 
-    return reshape(U, (2Nx-1, 2Ny, Nz, Nvs...)) * (2Nx-1)/Nx * (2Ny)/Ny
+    return reshape(U, (2Nx-1, 2Ny, Nz, Nvs...))
 end
 
 function copy_to_first_half!(u_modes, u_modes_tmp)
@@ -261,8 +234,9 @@ function reverse_quadratic_dealias(u, buffer, fft_plans)
     U = alloc_zeros(Float64, buffer, Nx, Ny, Nz*prod(Nvs))
     F⁻¹ = fft_plans.kxy_irfft
     mul!(U, F⁻¹, u_modes)
+    U ./= (2Nx-1)/Nx * (2Ny)/Ny
 
-    return reshape(U, (Nx, Ny, Nz, Nvs...)) / ( (2Nx-1)/Nx * (2Ny)/Ny )
+    return reshape(U, (Nx, Ny, Nz, Nvs...))
 end
 
 function copy_from_first_half!(u_modes, u_modes_tmp)

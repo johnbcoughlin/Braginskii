@@ -17,7 +17,7 @@ end
 
 arraytype(::Bumper.AllocBuffer) = Array
 arraytype(::GPUAllocator) = CuArray
-arraytype(::Array) = CuArray
+arraytype(::Array) = Array
 arraytype(::CuArray) = CuArray
 
 GPUAllocator() = GPUAllocator(CuArray[], 0)
