@@ -84,6 +84,8 @@ function collisional_moments!(sim, f, buffer)
 end
 
 function collisional_moments_single_species(α, f, x_grid, ν_p, buffer)
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
+
     M0, M1, M2 = moments(f, α.discretization, α.v_dims, buffer)
     M1x, M1y, M1z = M1
 
@@ -92,7 +94,8 @@ function collisional_moments_single_species(α, f, x_grid, ν_p, buffer)
     uz = M1z ./ M0
     d = length(α.v_dims)
 
-    T = (M2 ./ M0 .- (ux.^2 + uy.^2 + uz.^2)) ./ d
+    T = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    @. T = (M2 / M0 - (ux^2 + uy^2 + uz^2)) / d
     ν = alloc_zeros(Float64, buffer, size(x_grid)...)
     ν .= ν_p
 
