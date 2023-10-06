@@ -18,7 +18,7 @@ struct CollisionalMoments{uA, TA, νA}
     ν::νA
 end
 
-struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CM_DICT}
+struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CPUFFTPLANS, CM_DICT}
     x_dims::Vector{Symbol}
     x_grid::XGrid
 
@@ -35,7 +35,7 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CM_DICT}
     species::SP
 
     fft_plans::FFTPLANS
-    cpu_fft_plans::FFTPLANS
+    cpu_fft_plans::CPUFFTPLANS
 
     device::Symbol
 end
@@ -171,9 +171,8 @@ function runsim!(sim, d, t_end; kwargs...)
     rk_step!(sim, t, dt) = begin
         λmax = Ref(0.0)
         p = (; sim=sim.metadata, λmax, buffer)
-        ssp_rk43(vlasov_fokker_planck_step!, sim.u, p, t, dt, 1.0, buffer)
-
         filter!(sim.u, sim, buffer)
+        ssp_rk43(vlasov_fokker_planck_step!, sim.u, p, t, dt, 1.0, buffer)
     end
 
     integrate_stably(rk_step!, sim, t_end, d; run_diagnostics=core_diagnostics, kwargs...)
