@@ -1,5 +1,5 @@
 function electrostatic!(df, f, Ex, Ey, Ez, By, species, buffer, xgrid_fft_plans)
-    @no_escape buffer begin
+    no_escape(buffer) do
         df_es = alloc_zeros(Float64, buffer, size(df)...)
 
         if :vx ∈ species.v_dims
@@ -26,7 +26,7 @@ function electrostatic_x!(df, f, Ex, By, species::Species{WENO5}, buffer, xgrid_
 
     dvx = vgrid.x.dx
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         C = alloc_array(Float64, buffer, Nx, Ny, Nz, 1, 1, Nvz)
         @. C = q / m * (Ex - vgrid.VZ * By)
 
@@ -53,7 +53,7 @@ function electrostatic_x!(df, f, Ex, By, species::Species{<:Hermite}, buffer, xg
     (; discretization, q, m) = species
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         vzf = alloc_array(Float64, buffer, size(f)...)
         @timeit "mul by vz" mul_by_vz!(vzf, f, discretization)
 
@@ -76,7 +76,7 @@ function electrostatic_y!(df, f, Ey, By, species::Species{WENO5}, buffer, xgrid_
 
     dvy = vgrid.y.dx
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         C = alloc_array(Float64, buffer, Nx, Ny, Nz)
         F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
         F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
@@ -112,7 +112,7 @@ function electrostatic_y!(df, f, Ey, By, species::Species{<:Hermite}, buffer, xg
     (; discretization, q, m) = species
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         f̂ = quadratic_dealias(f, buffer, species.fft_plans)
         F = alloc_array(Float64, buffer, 2Nx-1, 2Ny, Nz, Nvx, Nvy, Nvz)
 
@@ -136,7 +136,7 @@ function electrostatic_z!(df, f, Ez, By, species::Species{WENO5}, buffer, xgrid_
     vgrid = discretization.vdisc.grid
     dvz = vgrid.z.dx
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx)
 
         @. C = q / m * (Ez + vgrid.VX * By)
@@ -169,7 +169,7 @@ function electrostatic_z!(df, f, Ez, By, species::Species{<:Hermite}, buffer, xg
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         vxf = alloc_array(Float64, buffer, size(f)...)
         mul_by_vx!(vxf, f, discretization)
 

@@ -67,17 +67,19 @@ function convolve_over!(
     @assert isodd(length(stencil))
     pad = has_boundary ? 0 : length(stencil) ÷ 2
 
-    u = reshape(u, (size(u)..., 1, 1))
-    dest = reshape(dest, (size(dest)..., 1, 1))
-    stencil = reshape(convert_stencil(stencil, typeof(u)), (stencil_shape..., 1, 1))
+    reshaped_u = reshape(u, (size(u)..., 1, 1))
+    reshaped_dest = reshape(dest, (size(dest)..., 1, 1))
+    reshaped_stencil = reshape(convert_stencil(stencil, typeof(u)), (stencil_shape..., 1, 1))
 
-    cdims = DenseConvDims(size(u), size(stencil), padding=pad_wrapper(pad), flipkernel=true)
+    cdims = DenseConvDims(size(reshaped_u), size(reshaped_stencil), 
+        padding=pad_wrapper(pad), flipkernel=true)
 
-    col = alloc_array(Float64, buffer, prod(size(dest)), length(stencil), 1)
+
     if (isa(u, Array))
-        conv!(dest, u, stencil, cdims; col)
+        col = alloc_array(Float64, buffer, prod(size(reshaped_dest)), length(reshaped_stencil), 1)
+        conv!(reshaped_dest, reshaped_u, reshaped_stencil, cdims; col)
     else
-        conv!(dest, u, stencil, cdims)
+        conv!(reshaped_dest, reshaped_u, reshaped_stencil, cdims)
     end
 end
 

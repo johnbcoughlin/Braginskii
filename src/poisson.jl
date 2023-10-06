@@ -30,7 +30,7 @@ function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans)
     Ez = alloc_array(Float64, buffer, Nx, Ny, Nz)
 
     cpu_buffer = allocator(:cpu)
-    @no_escape cpu_buffer begin
+    no_escape(cpu_buffer) do
         poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid, x_dims, cpu_buffer, fft_plans)
     end
 
@@ -70,7 +70,7 @@ end
 end
 
 function mul!(y, Δ::LaplacianOperator, ϕ)
-    @no_escape Δ.buffer begin
+    no_escape(Δ.buffer) do
         @timeit "laplacian" apply_laplacian!(y, ϕ, Δ.ϕ_left, Δ.ϕ_right, Δ.grid, Δ.x_dims, Δ.buffer, Δ.fft_plans)
     end
     return y
@@ -85,7 +85,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
 
     dz = grid.z.dx
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         @timeit "z" if :z ∈ x_dims
             ϕ_with_z_bdy = alloc_array(Float64, buffer, Nx, Ny, Nz+6)
             ϕ_with_z_bdy[:, :, 4:Nz+3] .= ϕ
@@ -126,7 +126,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
     Nx, Ny, Nz = size(grid)
     dz = grid.z.dx
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         if :z ∈ x_dims
             ϕ_with_z_bdy = alloc_array(Float64, buffer, Nx, Ny, Nz+6)
             ϕ_with_z_bdy[:, :, 4:Nz+3] .= ϕ

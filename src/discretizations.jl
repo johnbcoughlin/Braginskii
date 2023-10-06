@@ -31,7 +31,7 @@ periodic_grid1d(N, L) = begin
     PeriodicGrid1D(N, dx, L, nodes)
 end
 
-struct XGrid{XA, YA, ZA}
+struct XGrid{XA, YA, ZA, STENCILS}
     x::PeriodicGrid1D
     y::PeriodicGrid1D
     z::Grid1D
@@ -39,6 +39,8 @@ struct XGrid{XA, YA, ZA}
     X::XA
     Y::YA
     Z::ZA
+
+    z_fd_stencils::STENCILS
 
     XGrid(xgrid, ygrid, zgrid, buffer) = begin
         X = alloc_zeros(Float64, buffer, length(xgrid.nodes), 1, 1)
@@ -50,7 +52,12 @@ struct XGrid{XA, YA, ZA}
         Z = alloc_zeros(Float64, buffer, 1, 1, length(zgrid.nodes))
         copyto!(Z, reshape(zgrid.nodes, (1, 1, :)))
 
-        new{typeof(X), typeof(Y), typeof(Z)}(xgrid, ygrid, zgrid, X, Y, Z)
+        dz = zgrid.dx
+        right_biased_stencil = arraytype(buffer)([0, 1/20, -1/2, -1/3, 1, -1/4, 1/30]) * (-1 / dz)
+        left_biased_stencil =  arraytype(buffer)([-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]) * (-1 / dz)
+        stencils = (right_biased_stencil, left_biased_stencil)
+
+        new{typeof(X), typeof(Y), typeof(Z), typeof(stencils)}(xgrid, ygrid, zgrid, X, Y, Z, stencils)
     end
 end
 
@@ -99,7 +106,7 @@ end
 
 size(fd::WENO5) = size(fd.grid)
 
-struct Hermite{SPARSE}
+struct Hermite{SPARSE, FLIPS}
     Nvx::Int
     Nvy::Int
     Nvz::Int
@@ -121,6 +128,8 @@ struct Hermite{SPARSE}
     Dvx::SPARSE
     Dvy::SPARSE
     Dvz::SPARSE
+
+    vz_flips_array::FLIPS
 end
 
 Hermite(Nvx, Nvy, Nvz, vth, device) = begin
@@ -160,8 +169,12 @@ Hermite(Nvx, Nvy, Nvz, vth, device) = begin
         CuSparseMatrixCSC
     end
 
+    flip = i -> iseven(i-1) ? 1 : -1
+    flips = reshape(arraytype(device)(flip.(1:Nvz)), (1, 1, 1, 1, Nvz))
+
     Hermite(Nvx, Nvy, Nvz, vth, cx(Ξx), cx(Ξy), cx(Ξz), cx(Ξx⁻), cx(Ξy⁻), cx(Ξz⁻), 
-        cx(Ξx⁺), cx(Ξy⁺), cx(Ξz⁺), cx(Dvx), cx(Dvy), cx(Dvz))
+        cx(Ξx⁺), cx(Ξy⁺), cx(Ξz⁺), cx(Dvx), cx(Dvy), cx(Dvz),
+        flips)
 end
 
 function sparsify(A)

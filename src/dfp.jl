@@ -7,7 +7,7 @@ end
 
 function dfp!(df, f, cm::CollisionalMoments, species::Species, buffer)
     (; ux, uy, uz, T, ν) = cm
-    @no_escape buffer begin
+    no_escape(buffer) do
         df_dfp = alloc_zeros(Float64, buffer, size(df)...)
         if :vx ∈ species.v_dims
             dfp_vx!(df_dfp, f, ux, T, ν, species, buffer)
@@ -54,7 +54,7 @@ function dfp_vi!(df, f, u, T, ν, Ξ, Dv, species::Species{<:Hermite}, buffer)
     u = vec(u)
     T = vec(T)
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         u_f = alloc_array(Float64, buffer, NX, NV)
         @. u_f = u * f
         v_f = alloc_array(Float64, buffer, NX, NV)

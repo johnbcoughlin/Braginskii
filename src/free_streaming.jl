@@ -1,7 +1,7 @@
 include("free_streaming_kernels.jl")
 
 function free_streaming!(df, f, species, buffer)
-    @no_escape buffer begin
+    no_escape(buffer) do
         df_fs = alloc_zeros(Float64, buffer, size(df)...)
         if :x ∈ species.x_dims
             df_x = alloc_zeros(Float64, buffer, size(species.discretization)...)
@@ -32,7 +32,7 @@ function free_streaming_z!(df, f, species::Species{WENO5}, buffer)
     dz = xgrid.z.dx
     vgrid = discretization.vdisc.grid
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         f_with_boundaries = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)
         f_with_boundaries[:, :, 4:Nz+3, :, :, :] .= f
         reflecting_wall_bcs!(f_with_boundaries, f, discretization)
@@ -72,7 +72,7 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
 
     α = discretization.vdisc.vth * sqrt(Nvz)
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         f_with_boundaries = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)
         f_with_boundaries[:, :, 4:Nz+3, :, :, :] .= f
         @timeit "bcs" reflecting_wall_bcs!(f_with_boundaries, f, discretization)
@@ -87,9 +87,7 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
         #@. F⁻ -= 0.5 * α * f_with_boundaries
         #@. F⁺ += 0.5 * α * f_with_boundaries
 
-        right_biased_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1 / dz)
-
-        left_biased_stencil =  [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1 / dz)
+        right_biased_stencil, left_biased_stencil = xgrid.z_fd_stencils
         convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
         @timeit "conv" convolve_z!(convolved, reshape(F⁻, (Nx, Ny, Nz+6, Nvx, Nvy, Nvz)), right_biased_stencil, true, buffer)
@@ -121,7 +119,7 @@ function free_streaming_x!(df, f, species::Species, buffer)
     df = reshape(df, (Nx, Ny, :))
     F = species.fft_plans.kxy_rfft
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         Kx = (Nx ÷ 2 + 1)
         xy_modes = alloc_array(Complex{Float64}, buffer, Kx, Ny, Nz*Nvx*Nvy*Nvz)
         mul!(xy_modes, F, f)
@@ -150,7 +148,7 @@ function free_streaming_y!(df, f, species::Species, buffer)
     df = reshape(df, (Nx, Ny, :))
     F = species.fft_plans.kxy_rfft
 
-    @no_escape buffer begin
+    no_escape(buffer) do
         Kx = (Nx ÷ 2 + 1)
         Ky = Ny
         xy_modes = alloc_zeros(Complex{Float64}, buffer, Kx, Ny, Nz*Nvx*Nvy*Nvz)
@@ -186,14 +184,13 @@ end
 function reflecting_wall_bcs!(f_with_boundaries, f, discretization::XVDiscretization{<:Hermite})
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
-    flip = i -> iseven(i-1) ? 1 : -1
-    flips = reshape(flip.(1:Nvz), (1, 1, 1, 1, Nvz))
+    flips = discretization.vdisc.vz_flips_array
 
-    @. f_with_boundaries[:, :, 1, :, :, :] = f[:, :, 3, :, :, :] * flips
-    @. f_with_boundaries[:, :, 2, :, :, :] = f[:, :, 2, :, :, :] * flips
-    @. f_with_boundaries[:, :, 3, :, :, :] = f[:, :, 1, :, :, :] * flips
+    @. f_with_boundaries[:, :, 1, :, :, :] = (@view f[:, :, 3, :, :, :]) * flips
+    @. f_with_boundaries[:, :, 2, :, :, :] = (@view f[:, :, 2, :, :, :]) * flips
+    @. f_with_boundaries[:, :, 3, :, :, :] = (@view f[:, :, 1, :, :, :]) * flips
 
-    @. f_with_boundaries[:, :, end, :, :, :] = f[:, :, Nz-2, :, :, :] * flips
-    @. f_with_boundaries[:, :, end-1, :, :, :] = f[:, :, Nz-1, :, :, :] * flips
-    @. f_with_boundaries[:, :, end-2, :, :, :] = f[:, :, Nz, :, :, :] * flips
+    @. f_with_boundaries[:, :, end, :, :, :] = (@view f[:, :, Nz-2, :, :, :]) * flips
+    @. f_with_boundaries[:, :, end-1, :, :, :] = (@view f[:, :, Nz-1, :, :, :]) * flips
+    @. f_with_boundaries[:, :, end-2, :, :, :] = (@view f[:, :, Nz, :, :, :]) * flips
 end
