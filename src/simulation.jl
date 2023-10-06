@@ -18,7 +18,7 @@ struct CollisionalMoments{uA, TA, νA}
     ν::νA
 end
 
-struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CM_DICT}
+struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CM_DICT, BUF}
     x_dims::Vector{Symbol}
     x_grid::XGrid
 
@@ -38,6 +38,7 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CM_DICT}
     cpu_fft_plans::FFTPLANS
 
     device::Symbol
+    buffer::BUF
 end
 
 struct Simulation{SM<:SimulationMetadata, U}
@@ -133,7 +134,7 @@ function hou_li_filter(N, buffer)
 end
 
 function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
-    buffer = allocator(sim.device)
+    buffer = sim.buffer
 
     prog = Progress(Int(ceil(T / Δt)))
     t = 0.0
@@ -167,7 +168,7 @@ function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
 end
 
 function runsim!(sim, d, t_end; kwargs...)
-    buffer = allocator(sim.device)
+    buffer = sim.buffer
     rk_step!(sim, t, dt) = begin
         λmax = Ref(0.0)
         p = (; sim=sim.metadata, λmax, buffer)
