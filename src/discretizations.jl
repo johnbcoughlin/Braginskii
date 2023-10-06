@@ -31,7 +31,19 @@ periodic_grid1d(N, L) = begin
     PeriodicGrid1D(N, dx, L, nodes)
 end
 
-struct XGrid{XA, YA, ZA, STENCILS}
+function hou_li_filter(N, buffer)
+    res = ones(N)
+    β = 36.0
+    for i in 1:N
+        s = i / N
+        if i >= 4 && s >= 2/3
+            res[i] = exp(-β * s^β)
+        end
+    end
+    return arraytype(buffer)(res)
+end
+
+struct XGrid{XA, YA, ZA, FILTERS, STENCILS}
     x::PeriodicGrid1D
     y::PeriodicGrid1D
     z::Grid1D
@@ -40,6 +52,7 @@ struct XGrid{XA, YA, ZA, STENCILS}
     Y::YA
     Z::ZA
 
+    xy_hou_li_filters::FILTERS
     z_fd_stencils::STENCILS
 
     XGrid(xgrid, ygrid, zgrid, buffer) = begin
@@ -57,7 +70,17 @@ struct XGrid{XA, YA, ZA, STENCILS}
         left_biased_stencil =  arraytype(buffer)([-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]) * (-1 / dz)
         stencils = (right_biased_stencil, left_biased_stencil)
 
-        new{typeof(X), typeof(Y), typeof(Z), typeof(stencils)}(xgrid, ygrid, zgrid, X, Y, Z, stencils)
+        Nx = xgrid.N
+        Kx = Nx÷2+1
+        Ny = ygrid.N
+        Ky = Ny
+        σx = hou_li_filter(Kx, buffer)
+        σy = hou_li_filter(Ky, buffer)
+
+        filters = (σx, σy)
+
+        new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils)}(xgrid, ygrid, zgrid, X, Y, Z, 
+            filters, stencils)
     end
 end
 
@@ -106,7 +129,7 @@ end
 
 size(fd::WENO5) = size(fd.grid)
 
-struct Hermite{SPARSE, FLIPS}
+struct Hermite{SPARSE, FILTERS, FLIPS}
     Nvx::Int
     Nvy::Int
     Nvz::Int
@@ -129,6 +152,7 @@ struct Hermite{SPARSE, FLIPS}
     Dvy::SPARSE
     Dvz::SPARSE
 
+    filters::FILTERS
     vz_flips_array::FLIPS
 end
 
@@ -172,9 +196,15 @@ Hermite(Nvx, Nvy, Nvz, vth, device) = begin
     flip = i -> iseven(i-1) ? 1 : -1
     flips = reshape(arraytype(device)(flip.(1:Nvz)), (1, 1, 1, 1, Nvz))
 
+    buffer = allocator(device)
+    σvx = reshape(hou_li_filter(Nvx, buffer), (1, 1, 1, :))
+    σvy = reshape(hou_li_filter(Nvy, buffer), (1, 1, 1, 1, :))
+    σvz = reshape(hou_li_filter(Nvz, buffer), (1, 1, 1, 1, 1, :))
+    filters = (σvx, σvy, σvz)
+
     Hermite(Nvx, Nvy, Nvz, vth, cx(Ξx), cx(Ξy), cx(Ξz), cx(Ξx⁻), cx(Ξy⁻), cx(Ξz⁻), 
         cx(Ξx⁺), cx(Ξy⁺), cx(Ξz⁺), cx(Dvx), cx(Dvy), cx(Dvz),
-        flips)
+        filters, flips)
 end
 
 function sparsify(A)

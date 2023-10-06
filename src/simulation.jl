@@ -87,7 +87,7 @@ function filter!(f, sim, buffer)
     for i in eachindex(sim.species)
         α = sim.species[i]
 
-        filter!(f.x[i], α, buffer)
+        @timeit "filter" filter!(f.x[i], α, buffer)
     end
 end
 
@@ -97,8 +97,8 @@ function filter!(f, species::Species, buffer)
     # Need to filter fourier coefficients first
     in_kxy_domain!(f, buffer, species.fft_plans) do modes
         Kx, Ky = size(modes)
-        σx = hou_li_filter(Kx, buffer)
-        σy = hou_li_filter(Ky, buffer)
+
+        σx, σy = discretization.x_grid.xy_hou_li_filters
 
         @. modes *= σx * σy'
     end
@@ -114,23 +114,9 @@ filter_v!(f, species::Species{<:Hermite}, buffer) = begin
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
-    σvx = reshape(hou_li_filter(Nvx, buffer), (1, 1, 1, :))
-    σvy = reshape(hou_li_filter(Nvy, buffer), (1, 1, 1, 1, :))
-    σvz = reshape(hou_li_filter(Nvz, buffer), (1, 1, 1, 1, 1, :))
+    σvx, σvy, σvz = discretization.vdisc.filters
 
     @. f *= σvx * σvy * σvz
-end
-
-function hou_li_filter(N, buffer)
-    res = ones(N)
-    β = 36.0
-    for i in 1:N
-        s = i / N
-        if i >= 4 && s >= 2/3
-            res[i] = exp(-β * s^β)
-        end
-    end
-    return arraytype(buffer)(res)
 end
 
 function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
