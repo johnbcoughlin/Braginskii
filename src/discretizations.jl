@@ -43,7 +43,64 @@ function hou_li_filter(N, buffer)
     return arraytype(buffer)(res)
 end
 
-struct XGrid{XA, YA, ZA, FILTERS, STENCILS}
+function hou_li_filter(buffer, mode_numbers::Vector{Int64})
+    res = ones(length(mode_numbers))
+    N = maximum(abs, mode_numbers)
+    β = 36.0
+    for (i, k) in enumerate(mode_numbers)
+        s = abs(k) / N
+        if s >= 2/3
+            res[i] = exp(-β * s^β)
+        end
+    end
+    return arraytype(buffer)(res)
+end
+
+struct PoissonHelper{A1, A2}
+    centered_first_derivative_stencil::A1
+    centered_second_derivative_stencil::A1
+    M_inv_left::A2
+    M_inv_right::A2
+
+    Q_left::A2
+    Q_right::A2
+
+    S1::A1
+end
+
+function poisson_helper(dz, buffer)
+    T = arraytype(buffer)
+
+    centered_first_derivative_stencil = T([-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz)
+    centered_second_derivative_stencil = T([1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2)
+    M_inv_left = T([3  -20  90;
+                    0   -5  60;
+                    0    0  35] |> inv);
+    M_inv_right = T([90 -20   3;
+                     60  -5   0;
+                     35   0   0] |> inv);
+
+    Q_left = T([60   -5  0  0;
+                90  -20  3  0;
+                140 -70 28 -5]) .|> Float64
+    Q_right = T([ 0  0  -5  60;
+                  0  3 -20  90;
+                 -5 28 -70 140]) .|> Float64;
+
+    S1 = T(ones(3))
+
+    return PoissonHelper(
+        centered_first_derivative_stencil,
+        centered_second_derivative_stencil,
+        M_inv_left,
+        M_inv_right,
+        Q_left,
+        Q_right,
+        S1
+    )
+end
+
+struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
     x::PeriodicGrid1D
     y::PeriodicGrid1D
     z::Grid1D
@@ -54,6 +111,7 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS}
 
     xy_hou_li_filters::FILTERS
     z_fd_stencils::STENCILS
+    poisson_helper::POISSON
 
     XGrid(xgrid, ygrid, zgrid, buffer) = begin
         X = alloc_zeros(Float64, buffer, length(xgrid.nodes), 1, 1)
@@ -70,17 +128,21 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS}
         left_biased_stencil =  arraytype(buffer)([-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]) * (-1 / dz)
         stencils = (right_biased_stencil, left_biased_stencil)
 
+        helper = poisson_helper(dz, buffer)
+
         Nx = xgrid.N
         Kx = Nx÷2+1
         Ny = ygrid.N
         Ky = Ny
         σx = hou_li_filter(Kx, buffer)
-        σy = hou_li_filter(Ky, buffer)
+
+        ky_mode_numbers = mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
+        σy = hou_li_filter(buffer, ky_mode_numbers)
 
         filters = (σx, σy)
 
-        new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils)}(xgrid, ygrid, zgrid, X, Y, Z, 
-            filters, stencils)
+        new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils), typeof(helper)}(
+            xgrid, ygrid, zgrid, X, Y, Z, filters, stencils, helper)
     end
 end
 
@@ -274,7 +336,7 @@ approximate_f!(result, f, disc::XVDiscretization{<:Hermite}, dims) = begin
 end
 
 expand_f(f, disc::XVDiscretization{WENO5}, vgrid) = begin
-    return f
+    return copy(f)
 end
 
 expand_f(coefs, disc::XVDiscretization{<:Hermite}, vgrid) = begin

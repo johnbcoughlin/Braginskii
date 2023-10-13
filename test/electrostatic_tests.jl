@@ -9,7 +9,7 @@
         By = 1.0
 
         errors = Float64[]
-        Ns = [20, 40, 80]
+        Ns = [30, 40, 80]
 
         for N in Ns
             sim = single_species_0d2v((; f=f0, By), N, N; vxmax=6.5, vzmax=6.5, vdisc)
@@ -24,6 +24,7 @@
             actual = expand_f(sim.u.x[1], disc, vgrid) |> as_vxvz
 
             regression_test_value = actual[N÷2, N÷2]
+            @test 40 ∈ Ns
             if N == 40 && vdisc == :weno
                 @test regression_test_value ≈ 0.28479738517275455
             end

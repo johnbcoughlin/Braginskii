@@ -66,11 +66,11 @@
     @testset "x free streaming" begin
         @no_escape begin
         for device in supported_devices(), vdisc in [:weno, :hermite]
-        Nx = 32
+        Nx = 48
         dt = 0.01
         T = 1.0
         n(x) = 1 + 0.2*exp((sin(x) + 0cos(2x)))
-        sim = single_species_1d1v_x(; Nx, Nvx=50, Lx=4pi, vdisc, q=0.0, device) do x, vx
+        sim = single_species_1d1v_x(; Nx, Nvx=80, Lx=4pi, vdisc, q=0.0, device) do x, vx
             n(x) * exp(-vx^2/2)
         end
         actual0 = copy(sim.u.x[1])
@@ -90,6 +90,7 @@
         end
         end
     end
+
     @testset "y free streaming" begin
         @no_escape begin
         for device in supported_devices(), vdisc in [:weno, :hermite]
@@ -97,15 +98,16 @@
         dt = 0.01
         T = 1.0
         n(y) = 1 + 0.2*exp((sin(y) + 0cos(2y)))
-        sim = single_species_1d1v_y(; Ny, Nvy=50, Ly=4pi, vdisc, q=0.0, device) do y, vy
+        sim = single_species_1d1v_y(; Ny, Nvy=60, Ly=4pi, vdisc, q=0.0, device) do y, vy
             n(y) * exp(-vy^2/2)
         end
-        actual0 = copy(sim.u.x[1])
-        runsim_lightweight!(sim, T, dt)
-
         disc = sim.species[1].discretization
         vgrid = vgrid_of(disc.vdisc, 50)
-        actual = expand_f(sim.u.x[1], disc, vgrid)
+
+        actual0 = expand_f(copy(sim.u.x[1]), disc, vgrid)
+        runsim_lightweight!(sim, T, dt)
+
+        actual = expand_f(copy(sim.u.x[1]), disc, vgrid)
         (; Y) = disc.x_grid
         (; VY) = vgrid
 

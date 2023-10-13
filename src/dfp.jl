@@ -18,6 +18,7 @@ function dfp!(df, f, cm::CollisionalMoments, species::Species, buffer)
         if :vz ∈ species.v_dims
             dfp_vz!(df_dfp, f, uz, T, ν, species, buffer)
         end
+        #display(as_xvx(df_dfp)')
         df .+= df_dfp
         nothing
     end
