@@ -130,21 +130,23 @@ function runsim_lightweight!(sim, T, Δt; diagnostic=nothing)
         diagnostics = diagnostic.init()
     end
     while t < T
-        stepdt = min(Δt, T-t)
-        p = (; sim=sim.metadata, λmax, buffer)
-        success, sf = ssp_rk43(vlasov_fokker_planck_step!, u, p, t, stepdt, 1.0, buffer)
+        no_escape(buffer) do 
+            stepdt = min(Δt, T-t)
+            p = (; sim=sim.metadata, λmax, buffer)
+            success, sf = ssp_rk43(vlasov_fokker_planck_step!, u, p, t, stepdt, 1.0, buffer)
 
-        filter!(sim.u, sim, buffer)
+            filter!(sim.u, sim, buffer)
 
-        if success
-            t += stepdt
-            next!(prog)
-        else
-            error("Failed timestep")
-        end
+            if success
+                t += stepdt
+                next!(prog)
+            else
+                error("Failed timestep")
+            end
 
-        if !isnothing(diagnostic)
-            push!(diagnostics, diagnostic.run(sim, t))
+            if !isnothing(diagnostic)
+                push!(diagnostics, diagnostic.run(sim, t))
+            end
         end
     end
 
@@ -156,10 +158,12 @@ end
 function runsim!(sim, d, t_end; kwargs...)
     buffer = sim.buffer
     rk_step!(sim, t, dt) = begin
-        λmax = Ref(0.0)
-        p = (; sim=sim.metadata, λmax, buffer)
-        filter!(sim.u, sim, buffer)
-        ssp_rk43(vlasov_fokker_planck_step!, sim.u, p, t, dt, 1.0, buffer)
+        no_escape(buffer) do
+            λmax = Ref(0.0)
+            p = (; sim=sim.metadata, λmax, buffer)
+            filter!(sim.u, sim, buffer)
+            ssp_rk43(vlasov_fokker_planck_step!, sim.u, p, t, dt, 1.0, buffer)
+        end
     end
 
     integrate_stably(rk_step!, sim, t_end, d; run_diagnostics=core_diagnostics, kwargs...)
