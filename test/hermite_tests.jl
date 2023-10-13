@@ -1,7 +1,7 @@
 @testset "Hermite expansions" begin
     @testset "X-VX" begin
         xgrid = x_grid_3d(10, 1, 1)
-        vdisc = hermite_disc(; Nvx=20)
+        vdisc = hermite_disc(; Nvx=20, device=:cpu)
 
         disc = Braginskii.XVDiscretization(xgrid, vdisc)
 
@@ -20,7 +20,7 @@
 
     @testset "Y-VY" begin
         xgrid = x_grid_3d(1, 10, 1)
-        vdisc = hermite_disc(; Nvy=20)
+        vdisc = hermite_disc(; Nvy=20, device=:cpu)
 
         disc = Braginskii.XVDiscretization(xgrid, vdisc)
 
@@ -39,7 +39,7 @@
 
     @testset "XY-VXVY" begin
         xgrid = x_grid_3d(10, 10, 1)
-        vdisc = hermite_disc(; Nvx=20, Nvy=20)
+        vdisc = hermite_disc(; Nvx=20, Nvy=20, device=:cpu)
 
         disc = Braginskii.XVDiscretization(xgrid, vdisc)
 

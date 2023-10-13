@@ -16,16 +16,25 @@
     @testset "Holds Maxwellian equilibrium" begin
         for device in supported_devices(), vdisc in [:weno, :hermite]
         Nx = 40
-        Nvx = 60
-        sim = single_species_1d1v_x(; Nx, Nvx, vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc) do x, vx
-            1.0 / sqrt(2π * (1.2 + 0.1sin(π*x))) * exp(-(vx-0.3cos(x))^2/(2*(1.2+0.1sin(π*x))))
+        Nvx = 80
+        temp(x) = 1.0 + 0.3*sin(x)
+        u(x) = 0.3*cos(x)
+        sim = single_species_1d1v_x(; Nx, Nvx, vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc, vth=1.0) do x, vx
+            1.0 / sqrt(2π*temp(x)) * exp(-(vx-u(x))^2/(2*temp(x)))
         end
 
+        disc = sim.species[1].discretization
+
+        vgrid = vgrid_of(disc.vdisc, 50)
+        #display(sim.u.x[1])
+        actual0 = expand_f(copy(sim.u.x[1]), disc, vgrid) |> as_xvx
+
         dt = 0.001
-        T = 0.1
-        actual0 = as_xvx(sim.u.x[1])
+        T = dt*100
         df = runsim_lightweight!(sim, T, dt)
-        actual = as_xvx(sim.u.x[1])
+        actual = expand_f(copy(sim.u.x[1]), disc, vgrid) |> as_xvx
+
+        @show (norm(actual0 - actual) / norm(actual))
         @test actual0 ≈ actual
         end
     end

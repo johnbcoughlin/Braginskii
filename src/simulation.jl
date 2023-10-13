@@ -96,10 +96,7 @@ function filter!(f, species::Species, buffer)
 
     # Need to filter fourier coefficients first
     in_kxy_domain!(f, buffer, species.fft_plans) do modes
-        Kx, Ky = size(modes)
-
         σx, σy = discretization.x_grid.xy_hou_li_filters
-
         @. modes *= σx * σy'
     end
 
