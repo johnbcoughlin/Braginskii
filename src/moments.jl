@@ -145,3 +145,28 @@ function moments(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer)
 
     M0, (M1x, M1y, M1z), M2
 end
+
+function heat_flux(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer, (M0, M1, M2))
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
+
+    vth = disc.vdisc.vth
+
+    # The moment of vx*|v|^2
+    M3x = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    # The moment of vy*|v|^2
+    M3y = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    # The moment of vz*|v|^2
+    M3z = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+
+    if :vx in v_dims
+        H100 = @view f[:, :, :, 2, 1, 1]
+        H200 = @view f[:, :, :, 3, 1, 1]
+        H300 = @view f[:, :, :, 4, 1, 1]
+
+        # vx^3 term
+        @. M3x += vth^3 * (sqrt(6) * H300 + H100)
+        # vxvy^2 term
+
+        @. M2 += vth^2 * (sqrt(2) * H200 + H000)
+    end
+end

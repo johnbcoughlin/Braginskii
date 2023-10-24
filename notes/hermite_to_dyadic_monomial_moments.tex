@@ -1,0 +1,70 @@
+\documentclass{article}
+
+\title{Computing dyadic monomial moments from the Hermite moments}
+
+\input{~/dotfiles/latex/notes_header.tex}
+
+\begin{document}
+\maketitle
+
+The first several Hermite polynomials are
+\begin{align*}
+&p_0(v) = He_0 \left( \frac{v}{v_0} \right) = 1 
+&&p_2(v) = He_2 \left( \frac{v}{v_0} \right) = \frac{(v/v_0)^2 - 1}{\sqrt{2}} \\
+&p_1(v) = He_1 \left( \frac{v}{v_0} \right) = v/v_0
+&&p_3(v) = He_3 \left( \frac{v}{v_0} \right) = \frac{(v/v_0)^3 - v/v_0}{\sqrt{6}}.
+\end{align*}
+These can be easily inverted:
+\begin{align*}
+&1 = He_0 \left( \frac{v}{v_0} \right)
+&&v^2 = v_0^2 \left[ \sqrt{2} He_2 \left( \frac{v}{v_0} \right) + He_0 \left( \frac{v}{v_0} \right)  \right] \\
+&v = v_0 He_1 \left( \frac{v}{v_0} \right)
+&&v^3 = v_0^3 \left[ \sqrt{6} He_3 \left( \frac{v}{v_0} \right) + He_1 \left( \frac{v}{v_0} \right)  \right].
+\end{align*}
+
+Denote the moment with respect to the dyadic velocity monomial $v_x^a v_y^b v_z^c$ by $M_{abc}$,
+and the moment with respect to the tensor product Hermite polynomial $He_n(v_x/v_0) He_m(v_y/v_0) He_p(v_z/v_0)$ by $H_{nmp}$.
+
+Zeroth-order moment
+\begin{align*}
+    M_{000} &= H_{000}
+\end{align*}
+First-order moments
+\begin{align*}
+    M_{100} &= v_0 H_{100} \\
+    M_{010} &= v_0 H_{010} \\
+    M_{001} &= v_0 H_{001}
+\end{align*}
+Second-order moments
+\begin{align*}
+    M_{110} &= v_0^2 H_{110} \\
+    M_{101} &= v_0^2 H_{101} \\
+    M_{011} &= v_0^2 H_{011} \\
+    M_{200} &= v_0^2 (\sqrt{2} H_{200} + H_{000}) \\
+    M_{020} &= v_0^2 (\sqrt{2} H_{020} + H_{000}) \\
+    M_{002} &= v_0^2 (\sqrt{2} H_{002} + H_{000})
+\end{align*}
+Third-order moments:
+\begin{align*}
+    M_{111} &= v_0^3 H_{111} \\
+    M_{210} &= v_0^3 (\sqrt{2} H_{210} + H_{010}) \\
+    M_{201} &= v_0^3 (\sqrt{2} H_{201} + H_{001}) \\
+            &\vdots \\
+    M_{300} &= v_0^3 (\sqrt{6} H_{300} + H_{100}).
+\end{align*}
+Fourth and higher total degree moments will start to require expanding the products like $v_x^2 v_y^2$
+in terms of the sums of Hermite moments.
+
+\section{Observables}
+Now consider the dyadic centered moments, where we subtract off the velocity to get the random velocity part:
+\begin{align*}
+    \rho = M_{000}, \quad 
+    \rho \bm{u} = \begin{pmatrix}
+        M_{100} \\ M_{010} \\ M_{001}
+    \end{pmatrix}.
+\end{align*}
+\begin{align*}
+\int f (\bm{v} - \bm{u}) \otimes (\bm{v} - \bm{u})\,d \bm{v}
+\end{align*}
+
+\end{document}
