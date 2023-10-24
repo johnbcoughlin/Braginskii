@@ -35,6 +35,18 @@ function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, h
     return (Ex, Ey, Ez)
 end
 
+function poisson_direct(ρ_c, Δ, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, helper)
+    Nx, Ny, Nz = size(grid)
+
+    Ex = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    Ey = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    Ez = alloc_array(Float64, buffer, Nx, Ny, Nz)
+
+    poisson_direct!(ϕ, (Ex, Ey, Ez), ρ_c, Δ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper)
+
+    return (Ex, Ey, Ez)
+end
+
 function poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims, buffer, fft_plans, helper)
     Δ = LaplacianOperator(grid, x_dims, buffer, ϕ_left, ϕ_right, fft_plans, helper)
 
@@ -43,6 +55,40 @@ function poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims
 
     @timeit "potential gradient" potential_gradient!(Ex, Ey, Ez, ϕ, 
         ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper) 
+end
+
+function poisson_direct!(ϕ, (Ex, Ey, Ez), ρ_c, fourier_domain_operator, ϕ_left, ϕ_right,
+        grid, x_dims, buffer, fft_plans, helper)
+    Nx, Ny, Nz = size(grid) 
+
+    ρ̂ = prepare_poisson_rhs(-ρ_c, grid, x_dims, fft_plans, buffer)
+    ϕ̂ = fourier_domain_operator \ ρ̂
+    ϕ .= postprocess_poisson_soln(ϕ̂, grid, fft_plans, buffer)
+
+    @timeit "potential gradient" potential_gradient!(Ex, Ey, Ez, ϕ, 
+        ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper) 
+end
+
+function prepare_poisson_rhs(ρ, grid, x_dims, fft_plans, buffer)
+    Nx, Ny, Nz = size(grid) 
+
+    Kx = Nx ÷ 2 + 1
+    rhs = alloc_array(Complex{Float64}, buffer, Kx, Ny, Nz)
+    mul!(rhs, fft_plans.kxy_rfft, ρ)
+    if :z ∈ x_dims
+        return rhs |> vec
+    else
+        # Set (0, 0) Fourier mode to zero
+        rhs[1, 1, :] .= 0.0
+        return rhs |> vec
+    end
+end
+
+function postprocess_poisson_soln(ϕ̂, grid, fft_plans, buffer)
+    Nx, Ny, Nz = size(grid) 
+    ϕ = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    mul!(reshape(ϕ, (Nx, Ny, Nz)), fft_plans.kxy_irfft, reshape(ϕ̂, (:, Ny, Nz)))
+    return ϕ
 end
 
 struct LaplacianOperator{BUF, LEFT, RIGHT, FFTPLANS, HELPER}
@@ -89,7 +135,8 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
             @timeit "bcs" apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, helper)
 
             stencil = helper.centered_second_derivative_stencil
-            @timeit "conv" convolve_z!(dest, ϕ_with_z_bdy, stencil, true, buffer)
+            #@timeit "conv" convolve_z!(dest, ϕ_with_z_bdy, stencil, true, buffer)
+            @timeit "conv" convolve_z!(dest, ϕ, stencil, false, buffer)
         else
             dest .= 0
         end
@@ -227,7 +274,6 @@ end
 
 function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right, helper)
     Nx, Ny, Nz6 = size(ϕ)
-    Nz = Nz6-6
     
     # Do left side first
     rhs = -reshape(ϕ[:, :, 4:7], (:, 4)) * helper.Q_left' 
