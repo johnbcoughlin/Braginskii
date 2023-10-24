@@ -12,14 +12,15 @@ function poisson(sim, f, buffer)
         ρ_c .+= density(fi, α.discretization, α.v_dims, buffer) .* α.q
     end
 
-    if length(sim.species) == 1
-        ρ_sum = sum(ρ_c)
-        ρ_c .-= ρ_sum / length(ρ_c)
+    @timeit "ρ_c" if length(sim.species) == 1
+        @timeit "sum" ρ_sum = sum(ρ_c, dims=(1, 2, 3))
+        #ρ0 = ρ_sum / (Nx*Ny*Nz)
+        @. ρ_c -= ρ_sum / (Nx*Ny*Nz)
     end
-    @assert sum(ρ_c) < sqrt(eps())
+    #@timeit "assert" @assert sum(ρ_c) < sqrt(eps())
 
     poisson(ρ_c, sim.ϕ_left, sim.ϕ_right, grid, 
-        sim.x_dims, buffer, sim.ϕ, sim.cpu_fft_plans, grid.poisson_helper)
+        sim.x_dims, buffer, sim.ϕ, sim.fft_plans, grid.poisson_helper)
 end
 
 function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, helper)
@@ -29,24 +30,19 @@ function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, h
     Ey = alloc_array(Float64, buffer, Nx, Ny, Nz)
     Ez = alloc_array(Float64, buffer, Nx, Ny, Nz)
 
-    cpu_buffer = allocator(:cpu)
-    no_escape(cpu_buffer) do
-        poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid, x_dims, cpu_buffer, fft_plans, helper)
-    end
+    poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper)
 
     return (Ex, Ey, Ez)
 end
 
-function poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims, cpu_buffer, fft_plans, helper)
-    Δ = LaplacianOperator(grid, x_dims, cpu_buffer, 
-        Array(ϕ_left), Array(ϕ_right), fft_plans, helper)
+function poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims, buffer, fft_plans, helper)
+    Δ = LaplacianOperator(grid, x_dims, buffer, ϕ_left, ϕ_right, fft_plans, helper)
 
-    ϕ = Array(ϕ)
-
-    @timeit "minres" minres!(vec(ϕ), Δ, -Array(ρ_c), abstol=1e-12, maxiter=10)
+    minus_ρ_c = -ρ_c
+    @timeit "minres" minres!(reshape(ϕ, (:,)), Δ, minus_ρ_c, abstol=1e-12, maxiter=10)
 
     @timeit "potential gradient" potential_gradient!(Ex, Ey, Ez, ϕ, 
-        Array(ϕ_left), Array(ϕ_right), grid, x_dims, cpu_buffer, fft_plans, helper) 
+        ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper) 
 end
 
 struct LaplacianOperator{BUF, LEFT, RIGHT, FFTPLANS, HELPER}
@@ -90,10 +86,10 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
         @timeit "z" if :z ∈ x_dims
             ϕ_with_z_bdy = alloc_array(Float64, buffer, Nx, Ny, Nz+6)
             ϕ_with_z_bdy[:, :, 4:Nz+3] .= ϕ
-            apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, helper)
+            @timeit "bcs" apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, helper)
 
             stencil = helper.centered_second_derivative_stencil
-            convolve_z!(dest, ϕ_with_z_bdy, stencil, true, buffer)
+            @timeit "conv" convolve_z!(dest, ϕ_with_z_bdy, stencil, true, buffer)
         else
             dest .= 0
         end
@@ -102,8 +98,9 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
             ϕ_xx = alloc_array(Float64, buffer, Nx, Ny, Nz)
             ϕ_xx .= ϕ
             in_kxy_domain!(ϕ_xx, buffer, fft_plans) do ϕ̂
-                kxs = arraytype(buffer)(0:Nx÷2)
-                ϕ̂ .*= -kxs.^2 * (2π / grid.x.L)^2
+                #kxs = arraytype(buffer)(0:Nx÷2)
+                kxs = 0:Nx÷2
+                @timeit "kxs" @. ϕ̂ *= -kxs^2 * (2π / grid.x.L)^2
             end
             dest .+= ϕ_xx
         end
