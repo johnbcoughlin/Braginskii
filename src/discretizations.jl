@@ -59,6 +59,7 @@ end
 struct PoissonHelper{A1, A2}
     centered_first_derivative_stencil::A1
     centered_second_derivative_stencil::A1
+
     M_inv_left::A2
     M_inv_right::A2
 
@@ -73,6 +74,7 @@ function poisson_helper(dz, buffer)
 
     centered_first_derivative_stencil = T([-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz)
     centered_second_derivative_stencil = T([1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2)
+
     M_inv_left = T([3  -20  90;
                     0   -5  60;
                     0    0  35] |> inv);
@@ -144,6 +146,53 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
         new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils), typeof(helper)}(
             xgrid, ygrid, zgrid, X, Y, Z, filters, stencils, helper)
     end
+end
+
+function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, buffer)
+    Nx, Ny, Nz = size(grid)
+
+    helper = grid.poisson_helper
+
+    @assert ϕ_left ≈ ϕ_left[1] * ones(size(ϕ_left))
+    @assert ϕ_right ≈ ϕ_right[1] * ones(size(ϕ_right))
+
+    if :z ∈ x_dims
+        Dzz = spzeros(Nz, Nz)
+        u = zeros(1, 1, Nz)
+        b = zeros(1, 1, Nz)
+        z_grid = Helpers.z_grid_1d(Nz, grid.z.min, grid.z.max, buffer)
+        for i in 1:Nz
+            u .= 0.0
+            u[i] = 1.0
+            apply_laplacian!(b, u, [ϕ_left[1]], [ϕ_right[1]], z_grid, [:z], buffer, plan_ffts(z_grid, buffer), helper)
+            Dzz[:, i] .= sparse(vec(b))
+        end
+    else
+        Dzz = 0*I(1)
+    end
+
+    Kx = Nx÷2+1
+    kxs = collect(0:Nx÷2)
+    kys = mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
+
+    # If it's just x and y, we need to make sure the overall matrix is invertible.
+    if :z ∉ x_dims
+        kxs[1] = 1.0
+        kys[1] = 1.0
+    end
+
+    if :x ∈ x_dims
+        Dxx = Diagonal(-kxs.^2 * (2π / grid.x.L)^2)
+    else
+        Dxx = 0*I(1)
+    end
+    if :y ∈ x_dims
+        Dyy = Diagonal(-kys.^2 * (2π / grid.y.L)^2)
+    else
+        Dyy = 0*I(1)
+    end
+
+    return sparse(kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Kx)) + kron(Dzz, I(Ny), I(Kx)))
 end
 
 size(grid::XGrid) = (grid.x.N, grid.y.N, grid.z.N)

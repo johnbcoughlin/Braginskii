@@ -2,7 +2,8 @@ module Helpers
 
 using TimerOutputs
 
-import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Species, ..Simulation, ..SimulationMetadata, ..CollisionalMoments, ..Hermite, ..WENO5, ..XVDiscretization, ..approximate_f, ..allocator, ..alloc_zeros
+import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Species, ..Simulation, 
+..SimulationMetadata, ..CollisionalMoments, ..Hermite, ..WENO5, ..XVDiscretization, ..approximate_f, ..allocator, ..alloc_zeros, ..construct_sim_metadata
 import ..plan_ffts
 using RecursiveArrayTools
 using TimerOutputs
@@ -74,22 +75,6 @@ weno_v_disc(dims; Nvx=1, Nvy=1, Nvz=1, vxmax=0.0, vymax=0.0, vzmax=0.0,
     WENO5(vgrid)
 end
 
-function collisional_moments(xgrid, species, buffer)
-    result = Dict{Tuple{String, String}, CollisionalMoments}()
-    for α in species
-        for β in species
-            ux = alloc_zeros(Float64, buffer, size(xgrid)...)
-            uy = alloc_zeros(Float64, buffer, size(xgrid)...)
-            uz = alloc_zeros(Float64, buffer, size(xgrid)...)
-            T = alloc_zeros(Float64, buffer, size(xgrid)...)
-            ν = alloc_zeros(Float64, buffer, size(xgrid)...)
-            cm = CollisionalMoments(ux, uy, uz, T, ν)
-            push!(result, (α, β) => cm)
-        end
-    end
-    result
-end
-
 v_discretization(method, dims; kwargs...) = begin
     if method == :weno
         weno_v_disc(dims; kwargs...)
@@ -118,15 +103,11 @@ function single_species_1d1v_z(f; Nz, Nvz,
     ϕl .= ϕ_left
     ϕr = alloc_zeros(Float64, buffer, 1, 1)
     ϕr .= ϕ_right
-    ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
     electrons = Species("electrons", [:z], [:vz], q, 1.0, plan_ffts(disc, buffer), disc)
-    cms = collisional_moments(x_grid, ["electrons"], buffer)
-    sim = SimulationMetadata([:z], x_grid, By, ϕl, ϕr, ϕ, free_streaming, 
-        ν_p, cms, (electrons,), 
-        plan_ffts(x_grid, buffer), 
-        plan_ffts(x_grid, allocator(:cpu)), 
-        device, buffer)
+
+    sim = construct_sim_metadata(
+        [:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -138,21 +119,15 @@ function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, v
     @timeit "vdisc" v_disc = v_discretization(vdisc, [:vx]; Nvx, vxmax, buffer, vth, device)
     disc = XVDiscretization(x_grid, v_disc)
 
-
     fe = approximate_f(f, disc, (1, 4), buffer)
 
     By = alloc_zeros(Float64, buffer, size(x_grid)...)
     ϕl = alloc_zeros(Float64, buffer, Nx, 1)
     ϕr = alloc_zeros(Float64, buffer, Nx, 1)
-    ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
     electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc, buffer), disc)
-    cms = collisional_moments(x_grid, ["electrons"], buffer)
-    sim = SimulationMetadata([:x], x_grid, By, ϕl, ϕr, ϕ, free_streaming, 
-        ν_p, cms, (electrons,), 
-        plan_ffts(x_grid, buffer), 
-        plan_ffts(x_grid, allocator(:cpu)), 
-        device, buffer)
+    sim = construct_sim_metadata(
+        [:x], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -164,21 +139,15 @@ function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, v
     v_disc = v_discretization(vdisc, [:vy]; Nvy, vymax, buffer, vth, device)
     disc = XVDiscretization(x_grid, v_disc)
 
-
     fe = approximate_f(f, disc, (2, 5), buffer)
 
     By = alloc_zeros(Float64, buffer, size(x_grid)...)
     ϕl = alloc_zeros(Float64, buffer, 1, Ny)
     ϕr = alloc_zeros(Float64, buffer, 1, Ny)
-    ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
     electrons = Species("electrons", [:y], [:vy], q, 1.0, plan_ffts(disc, buffer), disc)
-    cms = collisional_moments(x_grid, ["electrons"], buffer)
-    sim = SimulationMetadata([:y], x_grid, By, ϕl, ϕr, ϕ, free_streaming, 
-        ν_p, cms, (electrons,), 
-        plan_ffts(x_grid, buffer), 
-        plan_ffts(x_grid, allocator(:cpu)), 
-        device, buffer)
+    sim = construct_sim_metadata(
+        [:y], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -213,15 +182,10 @@ function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=8.0, vzmax=8.0,
     By0 .= (By::Number)
     ϕl = alloc_zeros(Float64, buffer, 1, 1)
     ϕr = alloc_zeros(Float64, buffer, 1, 1)
-    ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
     electrons = Species("electrons", Symbol[], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc)
-    cms = collisional_moments(x_grid, ["electrons"], buffer)
-    sim = SimulationMetadata(Symbol[], x_grid, By0, ϕl, ϕr, ϕ, 
-        free_streaming, ν_p, cms, (electrons,), 
-        plan_ffts(x_grid, buffer), 
-        plan_ffts(x_grid, allocator(:cpu)), 
-        device, buffer)
+    sim = construct_sim_metadata(
+        Symbol[], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -252,9 +216,6 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
     ϕl .= ϕ_left
     ϕr = alloc_zeros(Float64, buffer, Nx, 1)
     ϕr .= ϕ_right
-    ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
-
-    @show device
 
     v_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth, device)
     ion_disc = XVDiscretization(x_grid, v_disc)
@@ -262,13 +223,9 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
     ions = Species("ions", [:x, :z], [:vx, :vz], q, 1.0,
         plan_ffts(ion_disc, buffer), ion_disc)
 
-    cms = collisional_moments(x_grid, ["ions"], buffer)
+    sim = construct_sim_metadata(
+        Symbol[], x_grid, (ions,), free_streaming, By, ϕl, ϕr, ν_p, device, buffer)
 
-    sim = SimulationMetadata([:x, :z], x_grid, By, ϕl, ϕr, ϕ,
-        free_streaming, ν_p, cms, (ions,), 
-        plan_ffts(x_grid, buffer), 
-        plan_ffts(x_grid, allocator(:cpu)), 
-        device, buffer)
     Simulation(sim, ArrayPartition(fi))
 end
 
@@ -287,7 +244,6 @@ function two_species_xz_2d2v((; fe_0, fi_0, By0); Nx, Nz, Nvx, Nvz,
     ϕl .= ϕ_left
     ϕr = alloc_zeros(Float64, buffer, Nx, 1)
     ϕr = ϕ_right
-    ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
     ve_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth)
     electron_disc = XVDiscretization(x_grid, ve_disc)
@@ -301,13 +257,8 @@ function two_species_xz_2d2v((; fe_0, fi_0, By0); Nx, Nz, Nvx, Nvz,
     ions = Species("ions", [:x, :z], [:vx, :vz], q, 1.0,
         plan_ffts(ion_disc, buffer), ion_disc)
 
-    cms = collisional_moments(x_grid, ["electrons", "ions"], buffer)
-
-    sim = SimulationMetadata([:x, :z], x_grid, By0, ϕl, ϕr, ϕ,
-        free_streaming, ν_p, cms, (electrons, ions), 
-        plan_ffts(x_grid, buffer), 
-        plan_ffts(x_grid, allocator(:cpu)), 
-        device, buffer)
+    sim = construct_sim_metadata(
+        [:x, :z], x_grid, (ions,), free_streaming, By, ϕl, ϕr, ν_p, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 

@@ -18,7 +18,7 @@ struct CollisionalMoments{uA, TA, νA}
     ν::νA
 end
 
-struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CPUFFTPLANS, CM_DICT, BUF}
+struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CPUFFTPLANS, CM_DICT, POISSON_LU, BUF}
     x_dims::Vector{Symbol}
     x_grid::XGrid
 
@@ -37,8 +37,44 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CPUFFTPLANS, CM_D
     fft_plans::FFTPLANS
     cpu_fft_plans::CPUFFTPLANS
 
+    Δ_lu::POISSON_LU
+
     device::Symbol
     buffer::BUF
+end
+
+function collisional_moments(xgrid, species, buffer)
+    result = Dict{Tuple{String, String}, CollisionalMoments}()
+    for α in species
+        for β in species
+            ux = alloc_zeros(Float64, buffer, size(xgrid)...)
+            uy = alloc_zeros(Float64, buffer, size(xgrid)...)
+            uz = alloc_zeros(Float64, buffer, size(xgrid)...)
+            T = alloc_zeros(Float64, buffer, size(xgrid)...)
+            ν = alloc_zeros(Float64, buffer, size(xgrid)...)
+            cm = CollisionalMoments(ux, uy, uz, T, ν)
+            push!(result, (α, β) => cm)
+        end
+    end
+    result
+end
+
+function construct_sim_metadata(
+    x_dims, x_grid, species::Tuple, free_streaming, By, ϕl, ϕr, ν_p,
+    device, buffer)
+    ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
+
+    cms = collisional_moments(x_grid, [α.name for α in species], buffer)
+
+    SimulationMetadata(
+        x_dims, x_grid, By, ϕl, ϕr, ϕ, free_streaming,
+        ν_p, cms, species,
+        plan_ffts(x_grid, buffer),
+        plan_ffts(x_grid, allocator(:cpu)),
+        factorize_poisson_operator(form_fourier_domain_poisson_operator(
+            ϕl, ϕr, x_grid, x_dims, buffer
+        )),
+        device, buffer)
 end
 
 struct Simulation{SM<:SimulationMetadata, U}
