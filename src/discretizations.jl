@@ -60,8 +60,6 @@ struct PoissonHelper{A1, A2}
     centered_first_derivative_stencil::A1
     centered_second_derivative_stencil::A1
 
-    Dzz_bc_transfer_matrix::A2
-
     M_inv_left::A2
     M_inv_right::A2
 
@@ -71,27 +69,11 @@ struct PoissonHelper{A1, A2}
     S1::A1
 end
 
-function poisson_helper(Nz, dz, buffer)
+function poisson_helper(dz, buffer)
     T = arraytype(buffer)
 
     centered_first_derivative_stencil = T([-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz)
     centered_second_derivative_stencil = T([1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2)
-
-    Dzz_bc_transfer_matrix_1 = [
-    1/90  -3/20   3/2; 
-     0.0   1/90  -3/20; 
-     0.0    0.0   1/90
-     ] / dz^2;
-    Dzz_bc_transfer_matrix_2 = [
-     1/90   0.0    0.0 
-    -3/20  1/90    0.0;
-     3/2  -3/20   1/90;
-     ] / dz^2;
-    Dzz_bc_transfer_matrix = vcat(
-        hcat(Dzz_bc_transfer_matrix_1, zeros(3, 3)),
-        zeros(Nz-6, 6),
-        hcat(zeros(3, 3), Dzz_bc_transfer_matrix_2)
-    ) |> T
 
     M_inv_left = T([3  -20  90;
                     0   -5  60;
@@ -112,7 +94,6 @@ function poisson_helper(Nz, dz, buffer)
     return PoissonHelper(
         centered_first_derivative_stencil,
         centered_second_derivative_stencil,
-        Dzz_bc_transfer_matrix,
         M_inv_left,
         M_inv_right,
         Q_left,
@@ -149,7 +130,7 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
         left_biased_stencil =  arraytype(buffer)([-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]) * (-1 / dz)
         stencils = (right_biased_stencil, left_biased_stencil)
 
-        helper = poisson_helper(zgrid.N, dz, buffer)
+        helper = poisson_helper(dz, buffer)
 
         Nx = xgrid.N
         Kx = Nx÷2+1
@@ -167,45 +148,32 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
     end
 end
 
-function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper)
+function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, buffer)
     Nx, Ny, Nz = size(grid)
+
+    helper = grid.poisson_helper
 
     @assert ϕ_left ≈ ϕ_left[1] * ones(size(ϕ_left))
     @assert ϕ_right ≈ ϕ_right[1] * ones(size(ϕ_right))
 
-    Dzz = spzeros(Nz, Nz)
-    u = zeros(1, 1, Nz)
-    b = zeros(1, 1, Nz)
-    z_grid = Helpers.z_grid_1d(Nz, grid.z.min, grid.z.max, buffer)
-    for i in 1:Nz
-        u .= 0.0
-        u[i] = 1.0
-        apply_laplacian!(b, u, [ϕ_left[1]], [ϕ_right[1]], z_grid, [:z], buffer, plan_ffts(z_grid, buffer), helper)
-        Dzz[:, i] .= sparse(vec(b))
+    if :z ∈ x_dims
+        Dzz = spzeros(Nz, Nz)
+        u = zeros(1, 1, Nz)
+        b = zeros(1, 1, Nz)
+        z_grid = Helpers.z_grid_1d(Nz, grid.z.min, grid.z.max, buffer)
+        for i in 1:Nz
+            u .= 0.0
+            u[i] = 1.0
+            apply_laplacian!(b, u, [ϕ_left[1]], [ϕ_right[1]], z_grid, [:z], buffer, plan_ffts(z_grid, buffer), helper)
+            Dzz[:, i] .= sparse(vec(b))
+        end
+    else
+        Dzz = 0*I(1)
     end
-
-    #=
-    B_L = helper.Dzz_bc_transfer_matrix[1:3, 1:3]
-    M_inv_L = helper.M_inv_left
-    Q_L = helper.Q_left
-    display(B_L * M_inv_L * Q_L)
-    Dzz[1:3, 1:4] .-= B_L * M_inv_L * Q_L
-
-    B_R = helper.Dzz_bc_transfer_matrix[end-2:end, end-2:end]
-    M_inv_R = helper.M_inv_right
-    Q_R = helper.Q_right
-    display(B_R * M_inv_R * Q_R)
-    Dzz[end-2:end, end-3:end] .-= B_R * M_inv_R * Q_R
-    =#
-
-    @show norm(Dzz - Symmetric(Dzz))
 
     Kx = Nx÷2+1
     kxs = collect(0:Nx÷2)
-    Dxx = Diagonal(-kxs.^2 * (2π / grid.x.L)^2)
-
     kys = mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
-    Dyy = Diagonal(-kys.^2 * (2π / grid.y.L)^2)
 
     # If it's just x and y, we need to make sure the overall matrix is invertible.
     if :z ∉ x_dims
@@ -213,7 +181,18 @@ function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, b
         kys[1] = 1.0
     end
 
-    return kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Kx)) + kron(Dzz, I(Ny), I(Kx))
+    if :x ∈ x_dims
+        Dxx = Diagonal(-kxs.^2 * (2π / grid.x.L)^2)
+    else
+        Dxx = 0*I(1)
+    end
+    if :y ∈ x_dims
+        Dyy = Diagonal(-kys.^2 * (2π / grid.y.L)^2)
+    else
+        Dyy = 0*I(1)
+    end
+
+    return sparse(kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Kx)) + kron(Dzz, I(Ny), I(Kx)))
 end
 
 size(grid::XGrid) = (grid.x.N, grid.y.N, grid.z.N)

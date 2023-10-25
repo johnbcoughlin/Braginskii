@@ -1,4 +1,4 @@
-import LinearAlgebra: mul!
+import LinearAlgebra: mul!, ldiv!
 import Base: eltype, size, *
 
 function poisson(sim, f, buffer)
@@ -19,7 +19,7 @@ function poisson(sim, f, buffer)
     end
     #@timeit "assert" @assert sum(ρ_c) < sqrt(eps())
 
-    poisson(ρ_c, sim.ϕ_left, sim.ϕ_right, grid, 
+    poisson_direct(ρ_c, sim.Δ_lu, sim.ϕ_left, sim.ϕ_right, grid, 
         sim.x_dims, buffer, sim.ϕ, sim.fft_plans, grid.poisson_helper)
 end
 
@@ -35,14 +35,14 @@ function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, h
     return (Ex, Ey, Ez)
 end
 
-function poisson_direct(ρ_c, Δ, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, helper)
+function poisson_direct(ρ_c, Δ_lu, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, helper)
     Nx, Ny, Nz = size(grid)
 
     Ex = alloc_array(Float64, buffer, Nx, Ny, Nz)
     Ey = alloc_array(Float64, buffer, Nx, Ny, Nz)
     Ez = alloc_array(Float64, buffer, Nx, Ny, Nz)
 
-    poisson_direct!(ϕ, (Ex, Ey, Ez), ρ_c, Δ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper)
+    poisson_direct!(ϕ, (Ex, Ey, Ez), ρ_c, Δ_lu, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper)
 
     return (Ex, Ey, Ez)
 end
@@ -57,13 +57,11 @@ function poisson!(ϕ, (Ex, Ey, Ez), ρ_c, ϕ_left, ϕ_right, grid::XGrid, x_dims
         ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper) 
 end
 
-function poisson_direct!(ϕ, (Ex, Ey, Ez), ρ_c, fourier_domain_operator, ϕ_left, ϕ_right,
+function poisson_direct!(ϕ, (Ex, Ey, Ez), ρ_c, Δ_lu, ϕ_left, ϕ_right,
         grid, x_dims, buffer, fft_plans, helper)
     Nx, Ny, Nz = size(grid) 
 
-    ρ̂ = prepare_poisson_rhs(-ρ_c, grid, x_dims, fft_plans, buffer)
-    ϕ̂ = fourier_domain_operator \ ρ̂
-    ϕ .= postprocess_poisson_soln(ϕ̂, grid, fft_plans, buffer)
+    ϕ = do_poisson_solve(Δ_lu, ρ_c, grid, x_dims, fft_plans, buffer)
 
     @timeit "potential gradient" potential_gradient!(Ex, Ey, Ez, ϕ, 
         ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper) 
@@ -135,8 +133,8 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
             @timeit "bcs" apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, helper)
 
             stencil = helper.centered_second_derivative_stencil
-            #@timeit "conv" convolve_z!(dest, ϕ_with_z_bdy, stencil, true, buffer)
-            @timeit "conv" convolve_z!(dest, ϕ, stencil, false, buffer)
+            @timeit "conv" convolve_z!(dest, ϕ_with_z_bdy, stencil, true, buffer)
+            #@timeit "conv" convolve_z!(dest, ϕ, stencil, false, buffer)
         else
             dest .= 0
         end
@@ -230,48 +228,6 @@ function apply_k²!(ϕ̂, factor=1.0, dim=1)
     end
 end
 
-#=
-function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right, buffer)
-    Nx, Ny, Nz6 = size(ϕ)
-    Nz = Nz6-6
-    
-    # Do left side first
-    M = arraytype(buffer)(
-         [3  -20  90;
-          0   -5  60;
-          0    0  35]);
-    Q = arraytype(buffer)(
-        [60   -5  0  0;
-         90  -20  3  0;
-         140 -70 28 -5]);
-    S1 = alloc_array(Float64, buffer, 3);
-    S1 .= 1.0;
-
-    #@show typeof(ϕ[:, :, 4:7])
-    rhs = -reshape(ϕ[:, :, 4:7], (:, 4)) * Q' 
-    #@show typeof(rhs)
-    rhs .+= 128 * S1' .* vec(ϕ_left)
-
-    ϕ_ghosts = reshape(rhs / M', (Nx, Ny, 3))
-    ϕ[:, :, 1:3] .= ϕ_ghosts
-
-    # Right side
-    M = arraytype(buffer)(
-         [90 -20   3;
-          60  -5   0;
-          35   0   0]);
-    Q = arraytype(buffer)(
-        [ 0  0  -5  60;
-           0  3 -20  90;
-           -5 28 -70 140]);
-    rhs = -reshape(ϕ[:, :, end-6:end-3], (:, 4)) * Q'
-    rhs .+= 128 * S1' .* vec(ϕ_right)
-
-    ϕ_ghosts = reshape(rhs / M', (Nx, Ny, 3))
-    ϕ[:, :, end-2:end] .= ϕ_ghosts
-end
-=#
-
 function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right, helper)
     Nx, Ny, Nz6 = size(ϕ)
     
@@ -288,4 +244,28 @@ function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right, helper)
 
     ϕ_ghosts = reshape(rhs * helper.M_inv_right', (Nx, Ny, 3))
     ϕ[:, :, end-2:end] .= ϕ_ghosts
+end
+
+function factorize_poisson_operator(Δ::SparseMatrixCSC)
+    return lu(Δ)
+end
+
+function factorize_poisson_operator(Δ::CuSparseMatrixCSR)
+    return CUSOLVERRF.RFLU(Δ)
+end
+
+function do_poisson_solve(Δ_lu, ρ_c, grid, x_dims, fft_plans, buffer)
+    ρ̂ = prepare_poisson_rhs(-ρ_c, grid, x_dims, fft_plans, buffer)
+    ρ̂_re = alloc_array(Float64, buffer, size(ρ̂)...)
+    ρ̂_re .= real.(ρ̂)
+    ρ̂_im = alloc_array(Float64, buffer, size(ρ̂)...)
+    ρ̂_im .= imag.(ρ̂)
+
+    ϕ̂_re = ldiv!(Δ_lu, ρ̂_re)
+    ϕ̂_im = ldiv!(Δ_lu, ρ̂_im)
+
+    ϕ̂ = alloc_array(ComplexF64, buffer, size(ρ̂)...)
+    @. ϕ̂ = ϕ̂_re + im * ϕ̂_im
+    ϕ = postprocess_poisson_soln(ϕ̂, grid, fft_plans, buffer)
+    return ϕ
 end

@@ -20,6 +20,7 @@ using cuDNN
 using NNlib
 using NNlibCUDA
 using CUDA.CUSPARSE
+using CUSOLVERRF
 
 import Base.size, Base.getproperty
 
