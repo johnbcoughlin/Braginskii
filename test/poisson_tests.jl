@@ -58,8 +58,7 @@
                 ϕl = ϕ_left.(grid.X, grid.Y)
                 ϕr = ϕ_right.(grid.X, grid.Y)
 
-                Δ = Braginskii.form_fourier_domain_poisson_operator(ϕl, ϕr, grid, [:x, :y, :z], 
-                    buffer, fft_plans, helper)
+                Δ = Braginskii.form_fourier_domain_poisson_operator(ϕl, ϕr, grid, [:x, :y, :z], buffer)
 
                 Ex, Ey, Ez = Braginskii.poisson(ρ, ϕl, ϕr, grid, [:x, :y, :z], 
                     buffer, alloc_zeros(Float64, buffer, size(grid)...), fft_plans, helper)
@@ -146,7 +145,7 @@
         end
         @show errors
         γ = estimate_log_slope(Ns, errors)
-        @test -4 >= γ
+        @test norm(errors) < 1e-14
     end
     end
 end

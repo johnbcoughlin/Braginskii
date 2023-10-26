@@ -192,6 +192,10 @@ function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, b
         Dyy = 0*I(1)
     end
 
+    if isempty(x_dims)
+        return sparse(I(1))
+    end
+
     return sparse(kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Kx)) + kron(Dzz, I(Ny), I(Kx)))
 end
 
@@ -276,17 +280,23 @@ Hermite(Nvx, Nvy, Nvz, vth, device) = begin
     Ξy = Ξ[1:Nvy, 1:Nvy]
     Ξz = Ξ[1:Nvz, 1:Nvz]
 
-    Λx, Rx = eigen(Array(Ξx))
-    Ξx⁻ = kron(I(Nvz), I(Nvy), sparsify(Rx * Diagonal(min.(Λx, 0.0)) / Rx))
-    Ξx⁺ = kron(I(Nvz), I(Nvy), sparsify(Rx * Diagonal(max.(Λx, 0.0)) / Rx))
+    #Λx, Rx = eigen(Array(Ξx))
+    #Ξx⁻ = kron(I(Nvz), I(Nvy), sparsify(Rx * Diagonal(min.(Λx, 0.0)) / Rx))
+    #Ξx⁺ = kron(I(Nvz), I(Nvy), sparsify(Rx * Diagonal(max.(Λx, 0.0)) / Rx))
+    Ξx⁻ = kron(I(Nvz), I(Nvy), 0.5*Ξx - 0.5 * I * sqrt(Nvx) * vth)
+    Ξx⁺ = kron(I(Nvz), I(Nvy), 0.5*Ξx + 0.5 * I * sqrt(Nvx) * vth)
 
-    Λy, Ry = eigen(Array(Ξy))
-    Ξy⁻ = kron(I(Nvz), sparsify(Ry * Diagonal(min.(Λy, 0.0)) / Ry), I(Nvx))
-    Ξy⁺ = kron(I(Nvz), sparsify(Ry * Diagonal(max.(Λy, 0.0)) / Ry), I(Nvx))
+    #Λy, Ry = eigen(Array(Ξy))
+    #Ξy⁻ = kron(I(Nvz), sparsify(Ry * Diagonal(min.(Λy, 0.0)) / Ry), I(Nvx))
+    #Ξy⁺ = kron(I(Nvz), sparsify(Ry * Diagonal(max.(Λy, 0.0)) / Ry), I(Nvx))
+    Ξy⁻ = kron(I(Nvz), 0.5*Ξy - 0.5 * I * sqrt(Nvy) * vth, I(Nvx))
+    Ξy⁺ = kron(I(Nvz), 0.5*Ξy + 0.5 * I * sqrt(Nvy) * vth, I(Nvx))
 
-    Λz, Rz = eigen(Array(Ξz))
-    Ξz⁻ = kron(sparsify(Rz * Diagonal(min.(Λz, 0.0)) / Rz), I(Nvy), I(Nvx))
-    Ξz⁺ = kron(sparsify(Rz * Diagonal(max.(Λz, 0.0)) / Rz), I(Nvy), I(Nvx))
+    #Λz, Rz = eigen(Array(Ξz))
+    #Ξz⁻ = kron(sparsify(Rz * Diagonal(min.(Λz, 0.0)) / Rz), I(Nvy), I(Nvx))
+    #Ξz⁺ = kron(sparsify(Rz * Diagonal(max.(Λz, 0.0)) / Rz), I(Nvy), I(Nvx))
+    Ξz⁻ = kron(0.5*Ξz - 0.5 * I * sqrt(Nvz) * vth, I(Nvy), I(Nvx))
+    Ξz⁺ = kron(0.5*Ξz + 0.5 * I * sqrt(Nvz) * vth, I(Nvy), I(Nvx))
 
     D = spdiagm(-1 => -sqrt.(1:N-1))
 

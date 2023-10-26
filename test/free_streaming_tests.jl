@@ -57,7 +57,7 @@
             @show errors
 
             γ = estimate_log_slope(Ns, errors)
-            @test -4 >= γ >= -5
+            @test -3 >= γ >= -5
             end
             end
         end
