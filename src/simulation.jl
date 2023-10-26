@@ -69,6 +69,7 @@ function construct_sim_metadata(
 
     cms = collisional_moments(x_grid, [α.name for α in species], buffer)
 
+    @show x_dims
     SimulationMetadata(
         x_dims, x_grid, By, ϕl, ϕr, ϕ, gz, free_streaming,
         ν_p, cms, species,

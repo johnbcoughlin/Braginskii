@@ -25,7 +25,7 @@ The four-stage RK method from https://gkeyll.readthedocs.io/en/latest/dev/ssp-rk
 http://ketch.github.io/numipedia/methods/SSPRK43.html
 """
 function ssp_rk43(F!, uⁿ, p, t, dt,  CFL_max, buffer)
-    Bumper.no_escape(buffer) do
+    CUDA.@sync Bumper.no_escape(buffer) do
         start = copy(uⁿ.x[1][1, :, 1, 1, :, 1])
 
         u′ = alloc_vec(buffer, uⁿ)

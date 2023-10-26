@@ -19,7 +19,7 @@ function poisson(sim, f, buffer)
     end
     #@timeit "assert" @assert sum(ρ_c) < sqrt(eps())
 
-    poisson_direct(ρ_c, sim.Δ_lu, sim.ϕ_left, sim.ϕ_right, grid, 
+    @timeit "direct" poisson_direct(ρ_c, sim.Δ_lu, sim.ϕ_left, sim.ϕ_right, grid, 
         sim.x_dims, buffer, sim.ϕ, sim.fft_plans, grid.poisson_helper)
 end
 
@@ -255,17 +255,20 @@ function factorize_poisson_operator(Δ::CuSparseMatrixCSR)
 end
 
 function do_poisson_solve(Δ_lu, ρ_c, grid, x_dims, fft_plans, buffer)
-    ρ̂ = prepare_poisson_rhs(-ρ_c, grid, x_dims, fft_plans, buffer)
+    @timeit "prepare rhs" ρ̂ = prepare_poisson_rhs(-ρ_c, grid, x_dims, fft_plans, buffer)
     ρ̂_re = alloc_array(Float64, buffer, size(ρ̂)...)
     ρ̂_re .= real.(ρ̂)
     ρ̂_im = alloc_array(Float64, buffer, size(ρ̂)...)
     ρ̂_im .= imag.(ρ̂)
 
-    ϕ̂_re = ldiv!(Δ_lu, ρ̂_re)
-    ϕ̂_im = ldiv!(Δ_lu, ρ̂_im)
+    # Do in-place solves
+    @timeit "ldiv" ldiv!(Δ_lu, ρ̂_re)
+    ϕ̂_re = ρ̂_re
+    @timeit "ldiv" ldiv!(Δ_lu, ρ̂_im)
+    ϕ̂_im = ρ̂_im
 
     ϕ̂ = alloc_array(ComplexF64, buffer, size(ρ̂)...)
     @. ϕ̂ = ϕ̂_re + im * ϕ̂_im
-    ϕ = postprocess_poisson_soln(ϕ̂, grid, fft_plans, buffer)
+    @timeit "postprocess" ϕ = postprocess_poisson_soln(ϕ̂, grid, fft_plans, buffer)
     return ϕ
 end

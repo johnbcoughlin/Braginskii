@@ -27,7 +27,7 @@ arraytype(::GPUAllocator) = CuArray
 arraytype(::Array) = Array
 arraytype(::CuArray) = CuArray
 sparsearraytype(::Bumper.AllocBuffer) = SparseMatrixCSC{Float64, Int64}
-sparsearraytype(::GPUAllocator) = CuSparseMatrixCSR{Float64, Int64}
+sparsearraytype(::GPUAllocator) = CuSparseMatrixCSR
 
 GPUAllocator() = GPUAllocator(Dict(), CuArray[])
 
