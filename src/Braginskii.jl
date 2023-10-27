@@ -18,7 +18,6 @@ using FastGaussQuadrature
 using CUDA
 using cuDNN
 using NNlib
-using NNlibCUDA
 using CUDA.CUSPARSE
 using CUSOLVERRF
 
