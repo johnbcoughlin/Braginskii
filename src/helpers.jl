@@ -202,7 +202,7 @@ end
 # 2D2V
 
 function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz, 
-    q=1.0, ν_p=0.0, vdisc, free_streaming=true, 
+    q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true, 
     device=:cpu, vth=1.0,
     ϕ_left, ϕ_right
     )
@@ -224,7 +224,7 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
         plan_ffts(ion_disc, buffer), ion_disc)
 
     sim = construct_sim_metadata(
-        Symbol[:x, :z], x_grid, (ions,), free_streaming, By, ϕl, ϕr, ν_p, device, buffer)
+        Symbol[:x, :z], x_grid, (ions,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
 
     Simulation(sim, ArrayPartition(fi))
 end
