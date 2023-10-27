@@ -8,7 +8,7 @@ function mul_by_vx!(dest, f, discretization::XVDiscretization{<:Hermite})
     f = reshape(f, (:, Nvx*Nvy*Nvz))
     dest = reshape(dest, (:, Nvx*Nvy*Nvz))
 
-    mul!(dest, f, discretization.vdisc.Ξx', discretization.vdisc.vth, 0.0)
+    mul!(dest, f, discretization.vdisc.Ξx')
 end
 
 function mul_by_vy!(dest, f, discretization::XVDiscretization{WENO5})
@@ -21,7 +21,7 @@ function mul_by_vy!(dest, f, discretization::XVDiscretization{<:Hermite})
     f = reshape(f, (:, Nvx*Nvy*Nvz))
     dest = reshape(dest, (:, Nvx*Nvy*Nvz))
 
-    mul!(dest, f, discretization.vdisc.Ξy', discretization.vdisc.vth, 0.0)
+    mul!(dest, f, discretization.vdisc.Ξy')
 end
 
 function mul_by_vz!(dest, f, discretization::XVDiscretization{<:Hermite})
@@ -30,6 +30,6 @@ function mul_by_vz!(dest, f, discretization::XVDiscretization{<:Hermite})
     f = reshape(f, (:, Nvx*Nvy*Nvz))
     dest = reshape(dest, (:, Nvx*Nvy*Nvz))
 
-    mul!(dest, f, discretization.vdisc.Ξz', discretization.vdisc.vth, 0.0)
+    mul!(dest, f, discretization.vdisc.Ξz')
 end
 

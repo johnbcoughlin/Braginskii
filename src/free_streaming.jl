@@ -70,18 +70,16 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
     Ξz⁻ = discretization.vdisc.Ξz⁻
     Ξz⁺ = discretization.vdisc.Ξz⁺
 
-    α = discretization.vdisc.vth * sqrt(Nvz)
-
     no_escape(buffer) do
         f_with_boundaries = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)
         f_with_boundaries[:, :, 4:Nz+3, :, :, :] .= f
         @timeit "bcs" reflecting_wall_bcs!(f_with_boundaries, f, discretization)
 
         F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
-        @timeit "mul" mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁻)', 1.0, 0.0)
+        @timeit "mul" mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁻)')
 
         F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
-        @timeit "mul" mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁺)', 1.0, 0.0)
+        @timeit "mul" mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁺)')
 
         #f_with_boundaries = reshape(f_with_boundaries, (Nx, Ny, Nz+6, Nvx*Nvy*Nvz))
         #@. F⁻ -= 0.5 * α * f_with_boundaries
