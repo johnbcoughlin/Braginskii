@@ -1,4 +1,4 @@
-function electrostatic!(df, f, Ex, Ey, Ez, By, species, buffer, xgrid_fft_plans)
+function electrostatic!(df, f, Ex, Ey, Ez, By, gz, species, buffer, xgrid_fft_plans)
     no_escape(buffer) do
         df_es = alloc_zeros(Float64, buffer, size(df)...)
 
@@ -9,7 +9,7 @@ function electrostatic!(df, f, Ex, Ey, Ez, By, species, buffer, xgrid_fft_plans)
             electrostatic_y!(df_es, f, Ey, By, species, buffer, xgrid_fft_plans)
         end
         if :vz ∈ species.v_dims
-            @timeit "z" electrostatic_z!(df_es, f, Ez, By, species, buffer, xgrid_fft_plans)
+            @timeit "z" electrostatic_z!(df_es, f, Ez, By, gz, species, buffer, xgrid_fft_plans)
         end
 
         df .+= df_es
@@ -128,7 +128,7 @@ function electrostatic_y!(df, f, Ey, By, species::Species{<:Hermite}, buffer, xg
     end
 end
 
-function electrostatic_z!(df, f, Ez, By, species::Species{WENO5}, buffer, xgrid_fft_plans)
+function electrostatic_z!(df, f, Ez, By, gz, species::Species{WENO5}, buffer, xgrid_fft_plans)
     (; discretization, q, m) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
@@ -139,7 +139,7 @@ function electrostatic_z!(df, f, Ez, By, species::Species{WENO5}, buffer, xgrid_
     no_escape(buffer) do
         C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx)
 
-        @. C = q / m * (Ez + vgrid.VX * By)
+        @. C = q / m * (Ez + vgrid.VX * By) + gz / m
 
         F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
         F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
@@ -164,7 +164,7 @@ function electrostatic_z!(df, f, Ez, By, species::Species{WENO5}, buffer, xgrid_
     end
 end
 
-function electrostatic_z!(df, f, Ez, By, species::Species{<:Hermite}, buffer, xgrid_fft_plans)
+function electrostatic_z!(df, f, Ez, By, gz, species::Species{<:Hermite}, buffer, xgrid_fft_plans)
     (; discretization, q, m) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
@@ -173,9 +173,14 @@ function electrostatic_z!(df, f, Ez, By, species::Species{<:Hermite}, buffer, xg
         vxf = alloc_array(Float64, buffer, size(f)...)
         mul_by_vx!(vxf, f, discretization)
 
-        F = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
+        F = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
-        @. F = q / m * (Ez * f + vxf * By)
+        if q != 0.0
+            @. F += q / m * (Ez * f + vxf * By)
+        end
+        if gz != 0.0
+            @. F += gz / m * f
+        end
 
         df = reshape(df, (:, Nvx*Nvy*Nvz))
         F = reshape(F, (:, Nvx*Nvy*Nvz))

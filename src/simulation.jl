@@ -27,6 +27,9 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CPUFFTPLANS, CM_D
     ϕ_right::PHI_R
     ϕ::PHI
 
+    # The gravitational force in the z direction
+    gz::Float64
+
     free_streaming::Bool
 
     ν_p::Float64
@@ -60,14 +63,14 @@ function collisional_moments(xgrid, species, buffer)
 end
 
 function construct_sim_metadata(
-    x_dims, x_grid, species::Tuple, free_streaming, By, ϕl, ϕr, ν_p,
+    x_dims, x_grid, species::Tuple, free_streaming, By, ϕl, ϕr, ν_p, gz,
     device, buffer)
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
     cms = collisional_moments(x_grid, [α.name for α in species], buffer)
 
     SimulationMetadata(
-        x_dims, x_grid, By, ϕl, ϕr, ϕ, free_streaming,
+        x_dims, x_grid, By, ϕl, ϕr, ϕ, gz, free_streaming,
         ν_p, cms, species,
         plan_ffts(x_grid, buffer),
         plan_ffts(x_grid, allocator(:cpu)),
@@ -113,7 +116,8 @@ function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
                 @timeit "free streaming" free_streaming!(df, f.x[i], α, buffer)
             end
             if α.q != 0.0
-                @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, Ez, sim.By, α, buffer, sim.fft_plans)
+                @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, Ez, sim.By, sim.gz, 
+                    α, buffer, sim.fft_plans)
             end
             if sim.ν_p != 0.0
                 @timeit "dfp" dfp!(df, f.x[i], α, sim, buffer)
