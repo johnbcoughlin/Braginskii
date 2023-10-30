@@ -1,5 +1,15 @@
 function core_diagnostics(sim, t)
-    return (; t, electric_energy=electric_energy(sim))
+    return (; t, 
+        electric_energy=electric_energy(sim), 
+        kinetic_energy_z=kinetic_energy_z(sim))
+end
+
+function kinetic_energy_z(sim)
+    α = sim.species[1]
+
+    M0, M1, _ = moments(sim.u.x[1], α.discretization, α.v_dims, sim.buffer)
+    M1x, M1y, M1z = M1
+    return sum(M1z.^2 ./ M0) / 2
 end
 
 function electric_energy(sim)
