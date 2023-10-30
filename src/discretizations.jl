@@ -153,18 +153,21 @@ function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, b
 
     helper = grid.poisson_helper
 
-    @assert ϕ_left ≈ ϕ_left[1] * ones(size(ϕ_left))
-    @assert ϕ_right ≈ ϕ_right[1] * ones(size(ϕ_right))
+    T = arraytype(buffer)
+    ST = sparsearraytype(buffer)
+
+    @assert ϕ_left ≈ ϕ_left[1] * T(ones(size(ϕ_left)))
+    @assert ϕ_right ≈ ϕ_right[1] * T(ones(size(ϕ_right)))
 
     if :z ∈ x_dims
         Dzz = spzeros(Nz, Nz)
-        u = zeros(1, 1, Nz)
-        b = zeros(1, 1, Nz)
+        u = T(zeros(1, 1, Nz))
+        b = T(zeros(1, 1, Nz))
         z_grid = Helpers.z_grid_1d(Nz, grid.z.min, grid.z.max, buffer)
         for i in 1:Nz
             u .= 0.0
             u[i] = 1.0
-            apply_laplacian!(b, u, [ϕ_left[1]], [ϕ_right[1]], z_grid, [:z], buffer, plan_ffts(z_grid, buffer), helper)
+            apply_laplacian!(b, u, T([ϕ_left[1]]), T([ϕ_right[1]]), z_grid, [:z], buffer, plan_ffts(z_grid, buffer), helper)
             Dzz[:, i] .= sparse(vec(b))
         end
     else
@@ -196,7 +199,7 @@ function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, b
         return sparse(I(1))
     end
 
-    return sparse(kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Kx)) + kron(Dzz, I(Ny), I(Kx)))
+    return ST(sparse(kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Kx)) + kron(Dzz, I(Ny), I(Kx))))
 end
 
 size(grid::XGrid) = (grid.x.N, grid.y.N, grid.z.N)
