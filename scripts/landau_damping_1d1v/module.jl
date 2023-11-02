@@ -9,8 +9,8 @@ function make_sim(device=:cpu, vdisc=:hermite)
     d = Dict{String, Any}()
 
     problem = "landau_damping"
-    Nx = 96
-    Nvx = 300
+    Nx = 128
+    Nvx = 256
     δ = 0.001
     q = 1.0
     k = 0.5
