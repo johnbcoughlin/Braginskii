@@ -111,7 +111,7 @@ function single_species_1d1v_z(f; Nz, Nvz,
     Simulation(sim, ArrayPartition(fe))
 end
 
-function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true,
+function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true,
     device=:cpu, vth=1.0)
     buffer = allocator(device)
     @timeit "xgrid" x_grid = x_grid_1d(Nx, Lx, buffer)
@@ -127,7 +127,7 @@ function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, v
 
     electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc, buffer), disc)
     sim = construct_sim_metadata(
-        [:x], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, device, buffer)
+        [:x], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
