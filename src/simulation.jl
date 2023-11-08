@@ -1,5 +1,5 @@
 
-struct Species{DISC, FFTPLANS}
+struct Species{DISC, FFTPLANS, Z_BCS}
     name::String
     x_dims::Vector{Symbol}
     v_dims::Vector{Symbol}
@@ -8,6 +8,7 @@ struct Species{DISC, FFTPLANS}
 
     fft_plans::FFTPLANS
     discretization::XVDiscretization{DISC}
+    z_bcs::Z_BCS
 end
 
 struct CollisionalMoments{uA, TA, νA}
@@ -69,7 +70,6 @@ function construct_sim_metadata(
 
     cms = collisional_moments(x_grid, [α.name for α in species], buffer)
 
-    @show x_dims
     SimulationMetadata(
         x_dims, x_grid, By, ϕl, ϕr, ϕ, gz, free_streaming,
         ν_p, cms, species,
@@ -211,7 +211,7 @@ function runsim!(sim, d, t_end; kwargs...)
 end
 
 function lightweight_diagnostics()
-    init() = DataFrame(t=Float64[], electric_energy=Float64[])
+    init() = DataFrame(t=Float64[], electric_energy=Float64[], kinetic_energy_z=Float64[])
     run(sim, t) = begin
         tup = core_diagnostics(sim, t)
         values(tup)

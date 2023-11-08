@@ -34,7 +34,7 @@
             Ns = [20, 40, 60] .* 2
             Nvz = 150
             for Nz in Ns
-                sim = single_species_1d1v_z(f0; Nz, Nvz, q=0.0, vdisc, device)
+                sim = single_species_1d1v_z(f0; Nz, Nvz, q=0.0, vdisc, device, z_bcs=:reflecting)
 
                 runsim_lightweight!(sim, T, dt / (Nz / 80 * Nvz / 100))
 
@@ -47,6 +47,45 @@
                 (; VZ) = vgrid
                 # Iterating like characteristic(z, vz)... not supported by CUDA
                 expected = ((z, vz) -> f0(characteristic_z(z, vz), characteristic_vz(z, vz))).(Z, VZ)
+                expected = as_zvz(expected)
+                
+                error = norm(expected - actual) / norm(expected)
+                @show error
+                push!(errors, error)
+            end
+
+            @show errors
+
+            γ = estimate_log_slope(Ns, errors)
+            @test -3 >= γ >= -5
+            end
+            end
+        end
+
+        @testset "reservoir" begin
+            @no_escape begin
+            for device in supported_devices(), vdisc in [:hermite]
+            dt = 0.001
+            T = 0.2
+            f0(z, vz) = (0.1 + 0.8exp(-(z-0.3)^2/0.01)) * (exp(-(vz-1.5)^2/2) + exp(-(vz+1.5)^2/2))
+
+            errors = Float64[]
+            Ns = [20, 40, 60] .* 2
+            Nvz = 150
+            for Nz in Ns
+                sim = single_species_1d1v_z(f0; Nz, Nvz, q=0.0, vdisc, device, z_bcs=:reservoir)
+
+                runsim_lightweight!(sim, T, dt / (Nz / 80 * Nvz / 100))
+
+                disc = sim.species[1].discretization
+
+                vgrid = vgrid_of(disc.vdisc, 50, 8.0)
+                actual = expand_f(sim.u.x[1], disc, vgrid) |> as_zvz
+
+                (; Z) = sim.species[1].discretization.x_grid
+                (; VZ) = vgrid
+                # Iterating like characteristic(z, vz)... not supported by CUDA
+                expected = f0.(Z .- VZ*T, VZ)
                 expected = as_zvz(expected)
                 
                 error = norm(expected - actual) / norm(expected)

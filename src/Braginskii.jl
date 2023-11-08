@@ -31,6 +31,7 @@ include("alloc.jl")
 
 include("rk.jl")
 
+include("bc.jl")
 include("discretizations.jl")
 
 include("simulation.jl")

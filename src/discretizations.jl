@@ -377,23 +377,22 @@ size(disc::XVDiscretization) = tuple(size(disc.x_grid)..., size(disc.vdisc)...)
 
 approximate_f(f, disc::XVDiscretization, dims, buffer) = begin
     result = alloc_zeros(Float64, buffer, size(disc)...)
-    approximate_f!(result, f, disc, dims)
+    approximate_f!(result, f, disc.x_grid, disc.vdisc, dims)
     result
 end
 
-approximate_f!(result, f, disc::XVDiscretization{WENO5}, dims) = begin
-    all_dimensions = [disc.x_grid.X, disc.x_grid.Y, disc.x_grid.Z, disc.vdisc.grid.VX, disc.vdisc.grid.VY, disc.vdisc.grid.VZ]
+approximate_f!(result, f, x_grid, vdisc::WENO5, dims) = begin
+    all_dimensions = [x_grid.X, x_grid.Y, x_grid.Z, vdisc.grid.VX, vdisc.grid.VY, vdisc.grid.VZ]
     dimensions = all_dimensions[[dims...]]
     result .= f.(dimensions...)
 end
 
-approximate_f!(result, f, disc::XVDiscretization{<:Hermite}, dims) = begin
+approximate_f!(result, f, x_grid, vdisc::Hermite, dims) = begin
     vdims = sum(dims .>= 4)
     factor = 1 / (2π)^((3-vdims)/2)
     f_all(args...) = factor * f((args[dim] for dim in dims)...)
-    hd = disc.vdisc
-    (; Nvx, Nvy, Nvz, vth) = hd
-    (; X, Y, Z) = disc.x_grid
+    (; Nvx, Nvy, Nvz, vth) = vdisc
+    (; X, Y, Z) = x_grid
     result .= Float64.(bigfloat_weighted_hermite_expansion(f_all, Nvx-1, Nvy-1, Nvz-1, X, Y, Z, vth))
 end
 
