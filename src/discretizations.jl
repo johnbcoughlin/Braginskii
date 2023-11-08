@@ -277,7 +277,7 @@ end
 Hermite(Nvx, Nvy, Nvz, vth, device) = begin
     N = max(Nvx, Nvy, Nvz)
 
-    Ξ = spdiagm(-1 => sqrt.(1:N-1), 1 => sqrt.(1:N-1))
+    Ξ = spdiagm(-1 => sqrt.(1:N-1), 1 => sqrt.(1:N-1)) * vth
     
     Ξx = Ξ[1:Nvx, 1:Nvx]
     Ξy = Ξ[1:Nvy, 1:Nvy]

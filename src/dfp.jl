@@ -59,7 +59,7 @@ function dfp_vi!(df, f, u, T, ν, Ξ, Dv, species::Species{<:Hermite}, buffer)
         u_f = alloc_array(Float64, buffer, NX, NV)
         @. u_f = u * f
         v_f = alloc_array(Float64, buffer, NX, NV)
-        mul!(v_f, f, Ξ', vth, 0.0)
+        mul!(v_f, f, Ξ')
 
         T_Dv_f = alloc_array(Float64, buffer, NX, NV)
         mul!(T_Dv_f, f, Dv', 1/vth, 0.0)
