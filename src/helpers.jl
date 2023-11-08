@@ -221,7 +221,7 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
     ϕr .= ϕ_right
 
     v_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth, device)
-    bcs = make_bcs(x_grid, vdisc, f_0, buffer, z_bcs)
+    bcs = make_bcs(x_grid, v_disc, f_0, buffer, z_bcs)
     ion_disc = XVDiscretization(x_grid, v_disc)
 
     @timeit "approx" fi = approximate_f(f_0, ion_disc, (1, 3, 4, 6), buffer)
