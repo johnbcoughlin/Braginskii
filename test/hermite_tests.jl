@@ -1,14 +1,14 @@
 @testset "Hermite expansions" begin
     @testset "X-VX" begin
         xgrid = x_grid_3d(10, 1, 1)
-        vdisc = hermite_disc(; Nvx=20, device=:cpu)
+        vdisc = hermite_disc(; Nvx=10, device=:cpu)
 
         disc = Braginskii.XVDiscretization(xgrid, vdisc)
 
         # Trivial Maxwellian example
         f(x, vx) = 1 / sqrt(2π) * exp(-vx^2/2)
         coefs = approximate_f(f, disc, (1, 4), allocator(:cpu))
-        expected = zeros(10, 20)
+        expected = zeros(10, 10)
         expected[:, 1] .= 1.0
         @test as_xvx(coefs) ≈ expected
 
@@ -16,6 +16,30 @@
         actual = expand_f(coefs, disc, test_grid)
 
         @test as_xvx(actual) ≈ f.(xgrid.x.nodes, test_grid.x.nodes')
+    end
+
+    @testset "Calculates pressure" begin
+        for vth in [1.0]
+            xgrid = x_grid_3d(10, 1, 1)
+            vdisc = hermite_disc(; Nvx=40, device=:cpu, vth)
+
+            disc = Braginskii.XVDiscretization(xgrid, vdisc)
+
+            p(x) = 1.0
+            n(x) = 2 + sin(x)
+            T(x) = p(x) / n(x)
+            
+            # Trivial Maxwellian example
+            f(x, vx) = n(x) / sqrt(2π*T(x)) * exp(-(vx-sin(x))^2/(2T(x)))
+            coefs = approximate_f(f, disc, (1, 4), allocator(:cpu))
+            M0, M1, M2 = Braginskii.moments(coefs, disc, [:vx], allocator(:cpu))
+            M1x, _, _ = M1
+
+            γ = 3 # 1 dimension
+            p = (γ-1) * (M2/2 .- (M1x.^2) ./ (2M0))
+            display(p)
+            @test p ≈ ones(10)
+        end
     end
 
     @testset "Y-VY" begin

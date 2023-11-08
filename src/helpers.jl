@@ -68,10 +68,10 @@ hermite_disc(; Nvx=1, Nvy=1, Nvz=1, vth=1.0, device, kwargs...) = begin
 end
 
 weno_v_disc(dims; Nvx=1, Nvy=1, Nvz=1, vxmax=0.0, vymax=0.0, vzmax=0.0, 
-    vxmin=-vxmax, vymin=-vymax, vzmin=-vzmax, buffer, kwargs...) = begin
-    vx_grid = grid1d(Nvx, vxmin, vxmax)
-    vy_grid = grid1d(Nvy, vymin, vymax)
-    vz_grid = grid1d(Nvz, vzmin, vzmax)
+    vxmin=-vxmax, vymin=-vymax, vzmin=-vzmax, vth=1.0, buffer, kwargs...) = begin
+    vx_grid = grid1d(Nvx, vxmin*vth, vxmax*vth)
+    vy_grid = grid1d(Nvy, vymin*vth, vymax*vth)
+    vz_grid = grid1d(Nvz, vzmin*vth, vzmax*vth)
     vgrid = VGrid(dims, vx_grid, vy_grid, vz_grid, buffer)
     WENO5(vgrid)
 end
@@ -170,12 +170,12 @@ vxvy_grid_2v(Nvx, Nvy, vxmax, vymax, buffer) = begin
     VGrid([:vx, :vy], vx_grid, vy_grid, vz_grid, buffer)
 end
 
-function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=8.0, vzmax=8.0, 
-    q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true, device=:cpu, z_bcs=:reflecting)
+function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0, 
+    q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu, z_bcs=:reflecting)
     buffer = allocator(device)
     x_grid = x_grid_0d(buffer)
 
-    v_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax, vzmax, buffer, device)
+    v_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax, vzmax, vth, buffer, device)
     bcs = make_bcs(x_grid, vdisc, f, buffer, z_bcs)
     disc = XVDiscretization(x_grid, v_disc)
 

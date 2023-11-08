@@ -389,8 +389,7 @@ end
 
 approximate_f!(result, f, x_grid, vdisc::Hermite, dims) = begin
     vdims = sum(dims .>= 4)
-    factor = 1 / (2π)^((3-vdims)/2)
-    f_all(args...) = factor * f((args[dim] for dim in dims)...)
+    f_all(args...) = f((args[dim] for dim in dims)...)
     (; Nvx, Nvy, Nvz, vth) = vdisc
     (; X, Y, Z) = x_grid
     result .= Float64.(bigfloat_weighted_hermite_expansion(f_all, Nvx-1, Nvy-1, Nvz-1, X, Y, Z, vth))

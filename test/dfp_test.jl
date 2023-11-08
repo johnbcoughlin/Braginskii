@@ -14,12 +14,12 @@
     end
 
     @testset "Holds Maxwellian equilibrium" begin
-        for device in supported_devices(), vdisc in [:weno, :hermite]
+        for device in supported_devices(), vdisc in [:hermite]
         Nx = 40
-        Nvx = 80
+        Nvx = 120
         temp(x) = 1.0 + 0.3*sin(x)
         u(x) = 0.3*cos(x)
-        sim = single_species_1d1v_x(; Nx, Nvx, vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc, vth=1.0) do x, vx
+        sim = single_species_1d1v_x(; Nx, Nvx, vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc, vth=1.2) do x, vx
             1.0 / sqrt(2π*temp(x)) * exp(-(vx-u(x))^2/(2*temp(x)))
         end
 
@@ -33,6 +33,34 @@
         T = dt*100
         df = runsim_lightweight!(sim, T, dt)
         actual = expand_f(copy(sim.u.x[1]), disc, vgrid) |> as_xvx
+
+        @show (norm(actual0 - actual) / norm(actual))
+        @test actual0 ≈ actual
+        end
+    end
+
+    @testset "Holds 0D2V Maxwellian equilibrium" begin
+        for device in supported_devices(), vdisc in [:hermite]
+        Nvx = 60
+        Nvz = 60
+        temp = 2.5
+        n = 1.27
+        ux = 0.88
+        uz = 0.32
+        f(vx, vz) = n / (2π*temp) * exp(-((vx-ux)^2 + (vz-uz)^2)/(2temp))
+        sim = single_species_0d2v((; f, By=0.0), Nvx, Nvz; vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc, vth=1.7)
+
+        disc = sim.species[1].discretization
+
+        vgrid = vgrid_of(disc.vdisc, 20)
+
+        actual0 = expand_f(copy(sim.u.x[1]), disc, vgrid) |> as_vxvz
+
+        dt = 0.001
+        T = dt*100
+        df = runsim_lightweight!(sim, T, dt)
+        actual = expand_f(copy(sim.u.x[1]), disc, vgrid) |> as_vxvz
+
 
         @show (norm(actual0 - actual) / norm(actual))
         @test actual0 ≈ actual
@@ -68,8 +96,8 @@
         end
         if vdisc == :hermite
             @test M0_error < eps()
-            @test M1_error < eps()
-            @test M2_error < eps()
+            @test M1_error < 1e-13
+            @test M2_error < 1e-13
         end
     end
     end

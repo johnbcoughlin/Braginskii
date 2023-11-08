@@ -61,25 +61,35 @@ Same as the above, but uses matrix operations to reuse BigFloat calculations.
 function bigfloat_weighted_hermite_expansion(f::Function, M::Int, x::AbstractVector, v₀; normalized=true)
     nodes, w = FastGaussQuadrature.unweightedgausshermite(M+1)
     w = w .* exp.(-big.(nodes).^2)
-    fxv = f.(x, sqrt(2)*nodes')
+    fxv = f.(x, nodes')
     @timeit "fxv_exp" fxv_exp = fxv .* exp.(big.(nodes.^2))'
-    normalized_He_n_vand = He_up_to_n(M, sqrt(2)*nodes/v₀; normalized=true)
+    normalized_He_n_vand = He_up_to_n(M, nodes/v₀; normalized=true)
     @timeit "diagw" mat = (fxv_exp * diagm(big.(w)) * normalized_He_n_vand')
-    return sqrt(2) * mat
+    return mat
 end
 
 function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mvz::Int, X, Y, Z, v₀)
-    vx_nodes, vx_w = FastGaussQuadrature.unweightedgausshermite(Mvx+1)
-    vy_nodes, vy_w = FastGaussQuadrature.unweightedgausshermite(Mvy+1)
-    vz_nodes, vz_w = FastGaussQuadrature.unweightedgausshermite(Mvz+1)
+    # The factor by which we dilate the integrand to ensure the convergence is fast enough.
+    η = 1 / v₀
 
-    vx_w = vx_w .* exp.(-big.(vx_nodes).^2)
-    vy_w = vy_w .* exp.(-big.(vy_nodes).^2)
-    vz_w = vz_w .* exp.(-big.(vz_nodes).^2)
+    # Overintegration factor
+    k = 3
 
-    normalized_He_n_vx_vand = He_up_to_n(Mvx, sqrt(2) * vx_nodes/v₀; normalized=true)
-    normalized_He_n_vy_vand = He_up_to_n(Mvy, sqrt(2) * vy_nodes/v₀; normalized=true)
-    normalized_He_n_vz_vand = He_up_to_n(Mvz, sqrt(2) * vz_nodes/v₀; normalized=true)
+    Nvx = Mvx == 0 ? 1 : k*Mvx+1
+    Nvy = Mvy == 0 ? 1 : k*Mvy+1
+    Nvz = Mvz == 0 ? 1 : k*Mvz+1
+
+    vx_nodes, vx_w = FastGaussQuadrature.unweightedgausshermite(Nvx)
+    vy_nodes, vy_w = FastGaussQuadrature.unweightedgausshermite(Nvy)
+    vz_nodes, vz_w = FastGaussQuadrature.unweightedgausshermite(Nvz)
+
+    vx_w = Mvx == 0 ? [1.0] : vx_w .* exp.(-big.(vx_nodes).^2)
+    vy_w = Mvy == 0 ? [1.0] : vy_w .* exp.(-big.(vy_nodes).^2)
+    vz_w = Mvz == 0 ? [1.0] : vz_w .* exp.(-big.(vz_nodes).^2)
+
+    normalized_He_n_vx_vand = He_up_to_n(Mvx, vx_nodes/(η * v₀); normalized=true)
+    normalized_He_n_vy_vand = He_up_to_n(Mvy, vy_nodes/(η * v₀); normalized=true)
+    normalized_He_n_vz_vand = He_up_to_n(Mvz, vz_nodes/(η * v₀); normalized=true)
 
     vx_nodes = reshape(vx_nodes, (1, 1, 1, :, 1, 1))
     vy_nodes = reshape(vy_nodes, (1, 1, 1, 1, :, 1))
@@ -91,27 +101,27 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     X_array = Array(X)
     Y_array = Array(Y)
     Z_array = Array(Z)
-    fxv = @. f(X_array, Y_array, Z_array, sqrt(2) * vx_nodes, sqrt(2) * vy_nodes, sqrt(2) * vz_nodes)
+    fxv = @. f(X_array, Y_array, Z_array, vx_nodes / η, vy_nodes / η, vz_nodes / η)
     fxv_exp = @. fxv * vx_exp * vy_exp * vz_exp
     fxv_exp = Float64.(fxv_exp)
 
-    result = zeros(size(fxv))
+    result = zeros(size(fxv)[1:3]..., Mvx+1, Mvy+1, Mvz+1)
 
     w_vand_vx = Float64.(normalized_He_n_vx_vand .* vx_w')
     w_vand_vy = Float64.(normalized_He_n_vy_vand .* vy_w')
     w_vand_vz = Float64.(normalized_He_n_vz_vand .* vz_w')
 
     @turbo for λxyz in CartesianIndices((length(X), length(Y), length(Z)))
-        for αvx in 1:Mvx+1, βvx in 1:Mvx+1
-            for αvy in 1:Mvy+1, βvy in 1:Mvy+1
-                for αvz in 1:Mvz+1, βvz in 1:Mvz+1
+        for αvx in 1:Nvx, βvx in 1:Mvx+1
+            for αvy in 1:Nvy, βvy in 1:Mvy+1
+                for αvz in 1:Nvz, βvz in 1:Mvz+1
                     w_vand = w_vand_vx[βvx, αvx] * w_vand_vy[βvy, αvy] * w_vand_vz[βvz, αvz]
                     result[λxyz, βvx, βvy, βvz] += fxv_exp[λxyz, αvx, αvy, αvz] * w_vand
                 end
             end
         end
     end
-    sqrt(2^3) * arraytype(X)(result)
+    arraytype(X)(result / η)
 end
 
 """
@@ -149,7 +159,7 @@ function expand_bigfloat_hermite_f(coefs::AbstractArray{Float64, 6}, vgrid::VGri
     ndims = sum([Mvx > 0, Mvy > 0, Mvz > 0])
 
     (; VX, VY, VZ) = vgrid
-    exp_weight = @. exp(-(VX^2 + VY^2 + VZ^2) / (2v₀)) / sqrt(2π)^ndims
+    exp_weight = @. exp(-(VX^2 + VY^2 + VZ^2) / (2v₀^2)) / sqrt(2π * v₀^2)^ndims
     exp_weight = reshape(exp_weight, (Kvx, Kvy, Kvz))
 
     vx_vand = He_up_to_n(Mvx, vx_nodes/v₀; normalized=true) .|> Float64
