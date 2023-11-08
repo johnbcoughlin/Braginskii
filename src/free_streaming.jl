@@ -33,9 +33,7 @@ function free_streaming_z!(df, f, species::Species{WENO5}, buffer)
     vgrid = discretization.vdisc.grid
 
     no_escape(buffer) do
-        f_with_boundaries = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)
-        f_with_boundaries[:, :, 4:Nz+3, :, :, :] .= f
-        reflecting_wall_bcs!(f_with_boundaries, f, discretization)
+        f_with_boundaries = z_free_streaming_bcs(f, species, buffer)
 
         F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz÷2)
         F⁻ .= @view parent(f_with_boundaries)[:, :, :, :, :, 1:Nvz÷2]
@@ -71,9 +69,7 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
     Ξz⁺ = discretization.vdisc.Ξz⁺
 
     no_escape(buffer) do
-        f_with_boundaries = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)
-        f_with_boundaries[:, :, 4:Nz+3, :, :, :] .= f
-        @timeit "bcs" reflecting_wall_bcs!(f_with_boundaries, f, discretization)
+        f_with_boundaries = z_free_streaming_bcs(f, species, buffer)
 
         F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
         @timeit "mul" mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁻)')
@@ -93,6 +89,23 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
         @timeit "conv" convolve_z!(convolved, reshape(F⁺, (Nx, Ny, Nz+6, Nvx, Nvy, Nvz)), left_biased_stencil, true, buffer)
         df .+= convolved
     end
+end
+
+function z_free_streaming_bcs(f, species, buffer)
+    (; discretization) = species
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+
+    if isa(species.z_bcs, ReflectingWallBCs)
+        f_with_boundaries = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)
+        @timeit "bcs" reflecting_wall_bcs!(f_with_boundaries, f, discretization)
+    elseif isa(species.z_bcs, ReservoirBC)
+        f_with_boundaries = species.z_bcs.f_with_bcs
+    elseif isnothing(species.z_bcs)
+        error("No BCs specified for z free streaming")
+    end
+
+    f_with_boundaries[:, :, 4:Nz+3, :, :, :] .= f
+    return f_with_boundaries
 end
 
 function broadcast_mul_over_vz(F, vz)
