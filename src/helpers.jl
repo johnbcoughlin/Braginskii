@@ -207,10 +207,11 @@ end
 function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz, 
     q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true, 
     device=:cpu, vth=1.0, z_bcs=:reflecting,
+    Lx=2π, zmin=-1.0, zmax=1.0,
     ϕ_left, ϕ_right
     )
     buffer = allocator(device)
-    x_grid = xz_grid_2d(Nx, Nz, -1.0, 1.0, 2π, buffer)
+    x_grid = xz_grid_2d(Nx, Nz, zmin, zmax, Lx, buffer)
 
     By = alloc_zeros(Float64, buffer, size(x_grid)...)
     By .= (By0::Number)
@@ -237,10 +238,11 @@ end
 function two_species_xz_2d2v((; fe_0, fi_0, By0); Nx, Nz, Nvx, Nvz, 
     q=1.0, ν_p=0.0, vdisc, free_streaming=true, 
     device=:cpu, vth=1.0, gz=0.0,
+    Lx=2π, zmin=-1.0, zmax=1.0,
     ϕ_left, ϕ_right
     )
     buffer = allocator(device)
-    x_grid = xz_grid_2d(Nx, Nz, -1.0, 1.0, 2π, buffer)
+    x_grid = xz_grid_2d(Nx, Nz, zmin, zmax, Lx, buffer)
 
     By = alloc_zeros(Float64, buffer, size(x_grid)...)
     By .= (By0::Number)
