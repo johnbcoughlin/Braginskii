@@ -5,8 +5,10 @@ using DrWatson
 using Braginskii.Helpers
 using PDEHarness
 
+preferred_device() = Sys.isapple() ? :cpu : :gpu
+
 function make_sim(; Kn, f_ic)
-    device = Sys.isapple() ? :cpu : :gpu
+    device = preferred_device()
 
     #=============================================
     # Set up the scalar parameters of the problem

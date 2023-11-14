@@ -6,6 +6,7 @@ import ..make_bcs
 import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Species, ..Simulation, 
 ..SimulationMetadata, ..CollisionalMoments, ..Hermite, ..WENO5, ..XVDiscretization, ..approximate_f, ..allocator, ..alloc_zeros, ..construct_sim_metadata
 import ..plan_ffts
+import ..arraytype
 using RecursiveArrayTools
 using TimerOutputs
 
@@ -227,7 +228,11 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
     bcs = make_bcs(x_grid, v_disc, f_0, buffer, z_bcs)
     ion_disc = XVDiscretization(x_grid, v_disc)
 
-    @timeit "approx" fi = isnothing(f_ic) ? approximate_f(f_0, ion_disc, (1, 3, 4, 6), buffer) : f_ic
+    @timeit "approx" fi = if isnothing(f_ic) 
+        approximate_f(f_0, ion_disc, (1, 3, 4, 6), buffer) 
+    else
+        arraytype(buffer)(f_ic)
+    end
     ions = Species("ions", [:x, :z], [:vx, :vz], q, 1.0,
         plan_ffts(ion_disc, buffer), ion_disc, bcs)
 

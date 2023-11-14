@@ -27,7 +27,7 @@ function setup_campaign()
 
     template = read("slurm_template.sh", String)
     slurm = replace(template,
-        "@@WORKDIR@@" => abspath("sims"),
+        "@@WORKDIR@@" => abspath("."),
         "@@NTASKS@@" => length(Kns)
     )
 
@@ -39,7 +39,7 @@ function get_or_save_ic()
         return load("shared/f_ic.jld2")["f"]
     end
     (; sim) = RayleighTaylor2D2V.make_sim(Kn=1.0, f_ic=nothing)
-    save("shared/f_ic.jld2", Dict("f" => sim.u.x[1]))
+    save("shared/f_ic.jld2", Dict("f" => Braginskii.hostarray(sim.u.x[1])))
     return sim.u.x[1]
 end
 
