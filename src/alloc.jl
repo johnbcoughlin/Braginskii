@@ -29,6 +29,9 @@ arraytype(::CuArray) = CuArray
 sparsearraytype(::Bumper.AllocBuffer) = SparseMatrixCSC{Float64, Int64}
 sparsearraytype(::GPUAllocator) = CuSparseMatrixCSR
 
+hostarray(a::Array) = a
+hostarray(a::CuArray) = Array(a)
+
 GPUAllocator() = GPUAllocator(Dict(), CuArray[])
 
 next_greatest_multiple(x, b) = (((x-1) ÷ b)+1) * b

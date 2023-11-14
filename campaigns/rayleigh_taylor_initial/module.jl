@@ -5,7 +5,9 @@ using DrWatson
 using Braginskii.Helpers
 using PDEHarness
 
-function make_sim(device=:cpu)
+function make_sim(; Kn, f_ic)
+    device = Sys.isapple() ? :cpu : :gpu
+
     #=============================================
     # Set up the scalar parameters of the problem
     ==============================================#
@@ -28,7 +30,6 @@ function make_sim(device=:cpu)
 
     gz = -1.0
 
-    Kn = 0.01
     α = 25.0 # Sets width of the interface
     δ = 0.1 # Size of velocity perturbation
 
@@ -71,8 +72,7 @@ function make_sim(device=:cpu)
         Nx, Nz, Nvx, Nvz,
         zmin=-Ly, zmax=Ly, Lx=2*Lx,
         vdisc=:hermite, ϕ_left=1.0, ϕ_right=1.0, vth=sqrt(T_ref),
-        ν_p, q, gz, device, z_bcs=:reservoir);
-
+        ν_p, q, gz, device, z_bcs=:reservoir, f_ic);
     
     #=============================================
     # Return values
@@ -82,13 +82,18 @@ function make_sim(device=:cpu)
     A = (1 - n_ref) / (1 + n_ref)
     @show tau = 1 / sqrt(k*A*abs(gz))
 
-    d = PDEHarness.normalize!(d)
-    return (; d, sim, tau)
+    dt_advection = (Ly / Nz) / (2vth)
+    @show dt_advection
+    dt_collisions = 1 / (ν_p * max(Nx, Nz)) * 2 # Factor of 2 is approximate
+    @show dt_collisions
+
+    dt = min(dt_advection, dt_collisions)
+
+    return (; d, sim, tau, dt)
 end
 
 function ckpt_entrypoint()
     (; d, sim, tau) = make_sim()
-
 end
 
 end

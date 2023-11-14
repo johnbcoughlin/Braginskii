@@ -171,7 +171,8 @@ vxvy_grid_2v(Nvx, Nvy, vxmax, vymax, buffer) = begin
 end
 
 function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0, 
-    q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu, z_bcs=:reflecting)
+    q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu, 
+    z_bcs=:reflecting, f_ic=nothing)
     buffer = allocator(device)
     x_grid = x_grid_0d(buffer)
 
@@ -208,7 +209,8 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
     q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true, 
     device=:cpu, vth=1.0, z_bcs=:reflecting,
     Lx=2π, zmin=-1.0, zmax=1.0,
-    ϕ_left, ϕ_right
+    ϕ_left, ϕ_right,
+    f_ic=nothing
     )
     buffer = allocator(device)
     x_grid = xz_grid_2d(Nx, Nz, zmin, zmax, Lx, buffer)
@@ -225,7 +227,7 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
     bcs = make_bcs(x_grid, v_disc, f_0, buffer, z_bcs)
     ion_disc = XVDiscretization(x_grid, v_disc)
 
-    @timeit "approx" fi = approximate_f(f_0, ion_disc, (1, 3, 4, 6), buffer)
+    @timeit "approx" fi = isnothing(f_ic) ? approximate_f(f_0, ion_disc, (1, 3, 4, 6), buffer) : f_ic
     ions = Species("ions", [:x, :z], [:vx, :vz], q, 1.0,
         plan_ffts(ion_disc, buffer), ion_disc, bcs)
 
