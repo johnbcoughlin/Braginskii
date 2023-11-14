@@ -20,7 +20,7 @@ function setup_campaign()
     f_ic = get_or_save_ic()
 
     for (id, Kn) in enumerate(Kns)
-        (; d) = RayleighTaylor2D2V.make_sim(; device, Kn, f_ic)
+        (; d) = RayleighTaylor2D2V.make_sim(; Kn, f_ic)
         set_simpath(id, d)
         prepare_sim_workdir(id, d)
     end

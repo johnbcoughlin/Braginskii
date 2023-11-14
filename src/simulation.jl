@@ -71,14 +71,14 @@ function construct_sim_metadata(
 
     cms = collisional_moments(x_grid, [α.name for α in species], buffer)
 
+    poisson_operator = CUDA.@allowscalar form_fourier_domain_poisson_operator(
+        ϕl, ϕr, x_grid, x_dims, buffer)
     SimulationMetadata(
         x_dims, x_grid, By, ϕl, ϕr, ϕ, gz, free_streaming,
         ν_p, cms, species,
         plan_ffts(x_grid, buffer),
         plan_ffts(x_grid, allocator(:cpu)),
-        factorize_poisson_operator(form_fourier_domain_poisson_operator(
-            ϕl, ϕr, x_grid, x_dims, buffer
-        )),
+        factorize_poisson_operator(poisson_operator),
         device, buffer)
 end
 
