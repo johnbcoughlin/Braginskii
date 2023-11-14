@@ -1,3 +1,4 @@
+import PDEHarness.frame_writeout
 
 struct Species{DISC, FFTPLANS, Z_BCS}
     name::String
@@ -220,3 +221,10 @@ function lightweight_diagnostics()
     (; init, run=core_diagnostics)
 end
 
+function frame_writeout(sim::Simulation, t)
+    result = Dict{String, Any}("t" => t)
+    for (i, α) in enumerate(sim.species)
+        result[α.name] = Dict("f" => hostarray(sim.u.x[i]))
+    end
+    return result
+end
