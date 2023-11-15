@@ -20,6 +20,7 @@ using cuDNN
 using NNlib
 using CUDA.CUSPARSE
 using CUSOLVERRF
+using JLD2
 
 import Base.size, Base.getproperty
 
@@ -50,5 +51,6 @@ include("helpers.jl")
 
 include("grid.jl")
 include("dispersion_analysis.jl")
+include("datagathering.jl")
 
 end

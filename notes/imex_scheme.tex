@@ -1,0 +1,26 @@
+\documentclass{article}
+
+\title{IMEX schemes for the electrostatic magnetized Vlasov equation with Dougherty-Fokker-Planck collisions}
+
+\begin{document}
+\maketitle
+
+The governing equation is
+\begin{align}
+    \label{eqn:vlasov}
+
+    \partial_t f_\alpha + v \cdot \nabla_x f_\alpha + (E + v \times B) \cdot \nabla_v f_\alpha = Q(f_\alpha),
+\end{align}
+where 
+\begin{align}
+    Q(f_\alpha) = \sum_\beta Q(f_\alpha, f_\beta), \quad Q(f_\alpha, f_\beta) = \nu_{\alpha\beta} \nabla_v \cdot (T_{\alpha\beta} \nabla_v f_\alpha + (v - u_{\alpha\beta}) f_\alpha).
+\end{align}
+We suppose that the magnetic field $B$ is constant and relatively strong (low-beta regime).
+We are interested in regimes where both the magnetization and collisionality is moderate to strong.
+Particularly for physical mass ratios, the timestep restriction in such regimes is dominated by the magnetic and collisional terms.
+This motivates the development of IMEX schemes for \eqref{eqn:vlasov}, wherein the magnetic component of the Lorentz force term and 
+the collisional term are treated implicitly.
+
+
+
+\end{document}

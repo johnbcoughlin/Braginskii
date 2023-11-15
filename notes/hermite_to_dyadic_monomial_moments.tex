@@ -64,7 +64,35 @@ Now consider the dyadic centered moments, where we subtract off the velocity to 
     \end{pmatrix}.
 \end{align*}
 \begin{align*}
-\int f (\bm{v} - \bm{u}) \otimes (\bm{v} - \bm{u})\,d \bm{v}
+    \int f (\bm{v} - \bm{u}) \otimes (\bm{v} - \bm{u})\,d \bm{v} &= \int f \bm{v} \otimes \bm{v} \, \mathrm{d} \bm{v} - \bm{u} \otimes \int f \bm{v} \,\mathrm{d} \bm{v} - \left( \int f \bm{v} \, \mathrm{d} \bm{v} \right) \otimes \bm{u} + \rho(\bm{u} \otimes \bm{u}) \\
+                                                                 &= \underbrace{\begin{pmatrix}
+                                                                     M_{200} & M_{110} & M_{101} \\
+                                                                     M_{110} & M_{020} & M_{011} \\
+                                                                     M_{101} & M_{011} & M_{002}
+                                                             \end{pmatrix}}_{\mathbb{M}^2} - 
+                                                                 \rho
+                                                                 \begin{pmatrix}
+                                                                     u_x^2 & u_x u_y & u_x u_z \\
+                                                                     u_x u_y & u_y^2 & u_y u_z \\
+                                                                     u_x u_z & u_y u_z & u_z^2
+                                                                 \end{pmatrix}
+\end{align*}
+\begin{align*}
+    |\bm{v} - \bm{u}|^2 &= (\bm{v} - \bm{u}) \cdot (\bm{v} - \bm{u}) = |\bm{v}|^2 - 2\bm{v} \cdot \bm{u} + |\bm{u}|^2.
+\end{align*}
+\begin{align*}
+    \int f |\bm{v} - \bm{u}|^2 \,\mathrm{d} \bm{v} &= \int f |\bm{v}|^2 \, \mathrm{d} \bm{v} - \rho |\bm{u}|^2 \\
+                                                   &= M_{200} + M_{020} + M_{002} - \rho |\bm{u}|^2 \\
+                                                   &= \mathrm{Tr}(\mathbb{M}^2) - \rho|\bm{u}|^2
+\end{align*}
+\begin{align*}
+    \int f (\bm{v} - \bm{u}) |\bm{v} - \bm{u}|^2 \,\mathrm{d} \bm{v} &= \int f (\bm{v} |\bm{v}|^2 - 2\bm{v} (\bm{v} \cdot \bm{u}) + \bm{v} |\bm{u}|^2 - \bm{u}|\bm{v}|^2 + 2\bm{u}(\bm{v} \cdot \bm{u}) - \bm{u}|\bm{u}|^2)\,\mathrm{d} \bm{v} \\
+                                                                     &= \underbrace{\begin{pmatrix}
+                                                                         M_{300} + M_{120} + M_{102} \\
+                                                                         M_{210} + M_{030} + M_{012} \\
+                                                                         M_{201} + M_{021} + M_{003}
+                                                                 \end{pmatrix}}_{\mathbb{Q}^3} - 2\mathbb{M}^2 \cdot \bm{u} + \rho \bm{u} |\bm{u}|^2 - \bm{u} \mathrm{Tr}(\mathbb{M}^2) + 2\rho \bm{u} |\bm{u}|^2 - \rho \bm{u} |\bm{u}|^2 \\
+                                                                     &= \mathbb{Q}^3 - 2\mathbb{M}^2 \cdot \bm{u} - \bm{u} \mathrm{Tr} (\mathbb{M}^2) + 2\rho \bm{u} |\bm{u}|^2
 \end{align*}
 
 \end{document}
