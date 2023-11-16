@@ -8,6 +8,9 @@ struct SnapshotSpec
 end
 
 struct SnapshotSample{A}
+    # Number density
+    n::A
+
     # The velocity
     u_x::A
     u_y::A
@@ -23,16 +26,17 @@ struct SnapshotSample{A}
 end
 
 empty_snapshot_sample(::Type{A}, sz) where A = SnapshotSample(
-    zero(A),
-    zero(A),
-    zero(A),
-    zero(A),
-    zero(A),
-    zero(A),
-    zero(A)
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...)
 )
 
-struct Snapshot{A}
+mutable struct Snapshot{A}
     center::Float64
     sample_sum::SnapshotSample{A}
     weight_sum::Float64
@@ -74,22 +78,27 @@ end
 new_snapshot(::Type{A}, sz, center::Float64) where A = Snapshot{A}(center, 
     empty_snapshot_sample(A, sz), 0.0)
 
+new_snapshot(s::Snapshot{A}, center) where {A} = new_snapshot(A, size(s.sample_sum.T), center)
+
 (st::SnapshotTaker)(sim, t) = begin
     @assert st.halfwidth <= st.interval_dt
 
     if t - st.last_called_at > st.interval_dt / 2
         error("The snapshot interval must be at least twice the interval between timesteps.")
     end
+    st.last_called_at = t
 
     # If we step past the end of the prior snapshot, immediately process the
     # prior snapshot, and shift the snapshots up by one.
     if t > st.prior_snapshot.center + st.halfwidth
-        st.process_snapshot(st.prior_snapshot, st.snapshot_index)
+        st.process_snapshot(average_out(st.prior_snapshot), st.snapshot_index)
         st.snapshot_index += 1
 
         st.prior_snapshot = st.next_snapshot
-        st.next_snapshot = new_snapshot(st, st.prior_snapshot.center + st.interval_dt)
+        st.next_snapshot = new_snapshot(st.prior_snapshot, st.prior_snapshot.center + st.interval_dt)
     end
+
+    #@info "" st.prior_snapshot.sample_sum.u_y
 
     prior_start = st.prior_snapshot.center - st.halfwidth
     prior_end = st.prior_snapshot.center + st.halfwidth
@@ -109,6 +118,7 @@ new_snapshot(::Type{A}, sz, center::Float64) where A = Snapshot{A}(center,
 end
 
 function add_onto!(sample_sum::SnapshotSample, sample::SnapshotSample, weight)
+    @. sample_sum.n += sample.n * weight
     @. sample_sum.u_x += sample.u_x * weight
     @. sample_sum.u_y += sample.u_y * weight
     @. sample_sum.u_z += sample.u_z * weight
@@ -118,12 +128,25 @@ function add_onto!(sample_sum::SnapshotSample, sample::SnapshotSample, weight)
     @. sample_sum.q_z += sample.q_z * weight
 end
 
+function average_out(snapshot::Snapshot)
+    return SnapshotSample(
+        snapshot.sample_sum.n / snapshot.weight_sum,
+        snapshot.sample_sum.u_x / snapshot.weight_sum,
+        snapshot.sample_sum.u_y / snapshot.weight_sum,
+        snapshot.sample_sum.u_z / snapshot.weight_sum,
+        snapshot.sample_sum.T / snapshot.weight_sum,
+        snapshot.sample_sum.q_x / snapshot.weight_sum,
+        snapshot.sample_sum.q_y / snapshot.weight_sum,
+        snapshot.sample_sum.q_z / snapshot.weight_sum
+    )
+end
+
 function snapshot_sample(sim, species_index)
     α = sim.species[species_index]
-    u_x, u_y, u_z, T, q_x, q_y, q_z = moments_for_wsindy(
+    n, u_x, u_y, u_z, T, q_x, q_y, q_z = moments_for_wsindy(
         sim.u.x[species_index],
         α.discretization,
         α.v_dims,
         sim.buffer)
-    return SnapshotSample(u_x, u_y, u_z, T, q_x, q_y, q_z)
+    return SnapshotSample(n, u_x, u_y, u_z, T, q_x, q_y, q_z)
 end

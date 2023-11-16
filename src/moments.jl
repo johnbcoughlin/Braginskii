@@ -187,15 +187,18 @@ function dyadic_moments(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer)
     H000 = @view f[:, 1, 1, 1]
     M0 .= H000
 
+    #display(f)
+
     if :vx in v_dims
         H100 = @view f[:, 2, 1, 1]
+        #display(H100)
         @. M1[1, :] = H100 * vth
 
         H200 = @view f[:, 3, 1, 1]
         @. M2[1, 1, :] = vth^2 * (sqrt(2) * H200 + H000)
 
         H300 = @view f[:, 4, 1, 1]
-        @. M3[1, 1, 1, :] = vth^3 * (sqrt(6) * H300 + H100)
+        @. M3[1, 1, 1, :] = vth^3 * (sqrt(6) * H300 + 3*H100)
     end
     if :vy in v_dims
         H010 = @view f[:, 1, 2, 1]
@@ -205,7 +208,7 @@ function dyadic_moments(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer)
         @. M2[2, 2, :] = vth^2 * (sqrt(2) * H020 + H000)
 
         H030 = @view f[:, 1, 4, 1]
-        @. M3[2, 2, 2, :] = vth^3 * (sqrt(6) * H030 + H010)
+        @. M3[2, 2, 2, :] = vth^3 * (sqrt(6) * H030 + 3*H010)
     end
     if :vz in v_dims
         H001 = @view f[:, 1, 1, 2]
@@ -215,7 +218,7 @@ function dyadic_moments(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer)
         @. M2[3, 3, :] = vth^2 * (sqrt(2) * H002 + H000)
 
         H003 = @view f[:, 1, 1, 4]
-        @. M3[3, 3, 3, :] = vth^3 * (sqrt(6) * H003 + H001)
+        @. M3[3, 3, 3, :] = vth^3 * (sqrt(6) * H003 + 3*H001)
     end
 
     if :vx in v_dims && :vy in v_dims
@@ -265,6 +268,8 @@ function moments_for_wsindy(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
 
+    n = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
+
     u_x = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
     u_y = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
     u_z = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
@@ -273,25 +278,35 @@ function moments_for_wsindy(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer
     q_y = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
     q_z = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
 
+    @. n = M0
+
     @. u_x = (@view M1[1, :]) / M0
     @. u_y = (@view M1[2, :]) / M0
     @. u_z = (@view M1[3, :]) / M0
 
-    Tr_M2 = @. @views (M2[1, 1, :] + M2[2, 2, :] + M3[3, 3, :])
+    Tr_M2 = @. @views (M2[1, 1, :] + M2[2, 2, :] + M2[3, 3, :])
     u2 = @. u_x^2 + u_y^2 + u_z^2
 
-    @. T = Tr_M2 / (d * M0)
+    @. T = (Tr_M2 - M0 * u2) / (d * M0)
 
     Q3(comp) = @. @views (M3[comp, 1, 1, :] + M3[comp, 2, 2, :] + M3[comp, 3, 3, :])
     M2_dot_u(comp) = @. @views (M2[comp, 1, :] * u_x + M2[comp, 2, :] * u_y + M2[comp, 3, :] * u_z)
 
-    @. q_x = Q3(1) - 2 * M2_dot_u(1) - u_x * Tr_M2 + 2 * M0 * u_x * u2
-    @. q_y = Q3(2) - 2 * M2_dot_u(2) - u_y * Tr_M2 + 2 * M0 * u_y * u2
-    @. q_z = Q3(3) - 2 * M2_dot_u(3) - u_z * Tr_M2 + 2 * M0 * u_z * u2
+    @. q_x = $Q3(1) - 2 * $M2_dot_u(1) - u_x * Tr_M2 + 2 * M0 * u_x * u2
+    @. q_y = $Q3(2) - 2 * $M2_dot_u(2) - u_y * Tr_M2 + 2 * M0 * u_y * u2
+    #@. q_z = $Q3(3) - 2 * $M2_dot_u(3) - u_z * Tr_M2 + 2 * M0 * u_z * u2
+    #
+    @. q_z = @views M3[3, 3, 3, :] - 3*u_z * M2[3, 3, :] + 2*u_z^3 * M0
+
+    #@info "" hcat(Q3(3), 2*M2_dot_u(3), u_z .* Tr_M2, 2*M0.*u_z .* u2)[100, :]
+    #@info "" vec(q_z)[100]
 
     re(A) = reshape(A, (Nx, Ny, Nz))
 
     return (
-        re(u_x), re(u_y), re(u_z), re(T), re(q_x), re(q_y), re(q_z)
+        re(n), 
+        re(u_x), re(u_y), re(u_z), 
+        re(T), 
+        re(q_x), re(q_y), re(q_z)
     )
 end

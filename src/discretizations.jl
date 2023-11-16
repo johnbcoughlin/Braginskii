@@ -404,7 +404,6 @@ approximate_f!(result, f, x_grid, vdisc::WENO5, dims) = begin
 end
 
 approximate_f!(result, f, x_grid, vdisc::Hermite, dims) = begin
-    vdims = sum(dims .>= 4)
     f_all(args...) = f((args[dim] for dim in dims)...)
     (; Nvx, Nvy, Nvz, vth) = vdisc
     (; X, Y, Z) = x_grid

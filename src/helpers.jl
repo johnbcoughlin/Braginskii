@@ -10,7 +10,7 @@ import ..arraytype
 using RecursiveArrayTools
 using TimerOutputs
 
-export y_grid_1d, vy_grid_1v, single_species_1d1v_x, single_species_1d1v_y, single_species_1d1v_z, single_species_0d2v,
+export y_grid_1d, vy_grid_1v, single_species_1d1v_x, single_species_1d1v_y, single_species_1d1v_z, single_species_0d2v, single_species_z_xz_1d2v,
     x_grid_3d, hermite_disc
 
 #=
@@ -191,6 +191,32 @@ function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0,
     electrons = Species("electrons", Symbol[], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
     sim = construct_sim_metadata(
         Symbol[], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
+    Simulation(sim, ArrayPartition(fe))
+end
+
+function single_species_z_xz_1d2v((; f, By); Nz, Nvx, Nvz, vxmax=5.0, vzmax=5.0,
+    q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu,
+    z_bcs=:reflecting, f_ic=nothing, ϕ_left=0.0, ϕ_right=0.0)
+    buffer = allocator(device)
+
+    x_grid = z_grid_1d(Nz, -1.0, 1.0, buffer)
+    v_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax, vzmax, vth, buffer, device)
+    bcs = make_bcs(x_grid, vdisc, f, buffer, z_bcs)
+    disc = XVDiscretization(x_grid, v_disc)
+
+    fe = approximate_f(f, disc, (3, 4, 6), buffer)
+    @info "" fe[1, 1, :, 1, 1, 1]
+
+    By0 = alloc_zeros(Float64, buffer, size(x_grid)...)
+    By0 .= (By::Number)
+    ϕl = alloc_zeros(Float64, buffer, 1, 1)
+    ϕl .= ϕ_left
+    ϕr = alloc_zeros(Float64, buffer, 1, 1)
+    ϕr .= ϕ_right
+
+    electrons = Species("electrons", Symbol[:z], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
+    sim = construct_sim_metadata(
+        Symbol[:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 

@@ -83,9 +83,9 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     vy_nodes, vy_w = FastGaussQuadrature.unweightedgausshermite(Nvy)
     vz_nodes, vz_w = FastGaussQuadrature.unweightedgausshermite(Nvz)
 
-    vx_w = Mvx == 0 ? [1.0] : vx_w .* exp.(-big.(vx_nodes).^2)
-    vy_w = Mvy == 0 ? [1.0] : vy_w .* exp.(-big.(vy_nodes).^2)
-    vz_w = Mvz == 0 ? [1.0] : vz_w .* exp.(-big.(vz_nodes).^2)
+    vx_w = Mvx == 0 ? [1.0] : vx_w 
+    vy_w = Mvy == 0 ? [1.0] : vy_w 
+    vz_w = Mvz == 0 ? [1.0] : vz_w 
 
     normalized_He_n_vx_vand = He_up_to_n(Mvx, vx_nodes/(η * v₀); normalized=true)
     normalized_He_n_vy_vand = He_up_to_n(Mvy, vy_nodes/(η * v₀); normalized=true)
@@ -102,8 +102,6 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     Y_array = Array(Y)
     Z_array = Array(Z)
     fxv = @. f(X_array, Y_array, Z_array, vx_nodes / η, vy_nodes / η, vz_nodes / η)
-    fxv_exp = @. fxv * vx_exp * vy_exp * vz_exp
-    fxv_exp = Float64.(fxv_exp)
 
     result = zeros(size(fxv)[1:3]..., Mvx+1, Mvy+1, Mvz+1)
 
@@ -116,7 +114,7 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
             for αvy in 1:Nvy, βvy in 1:Mvy+1
                 for αvz in 1:Nvz, βvz in 1:Mvz+1
                     w_vand = w_vand_vx[βvx, αvx] * w_vand_vy[βvy, αvy] * w_vand_vz[βvz, αvz]
-                    result[λxyz, βvx, βvy, βvz] += fxv_exp[λxyz, αvx, αvy, αvz] * w_vand
+                    result[λxyz, βvx, βvy, βvz] += fxv[λxyz, αvx, αvy, αvz] * w_vand
                 end
             end
         end

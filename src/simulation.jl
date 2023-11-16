@@ -243,7 +243,7 @@ function make_snapshot_takers(sim, d; snapshot_interval_dt=Inf, kwargs...)
         α = sim.species[i]
 
         # Δx / vth
-        halfwidth = min_dx(sim.x_grid) / average_vth(α.discretization)
+        halfwidth = min_dx(sim.x_grid) / (1*average_vth(α.discretization))
 
         # 3D arrays of the buffer type
         arraytype = typeof(alloc_array(Float64, sim.buffer, 1, 1, 1))
@@ -253,11 +253,12 @@ function make_snapshot_takers(sim, d; snapshot_interval_dt=Inf, kwargs...)
             snapshot_interval_dt,
             halfwidth,
             arraytype,
+            size(sim.x_grid),
             (snapshot, index) -> process_snapshot(snapshot, index, α, d)
         )
         push!(result, snapshot_taker)
     end
-    initialize_snapshot_file(sim, d)
+    #initialize_snapshot_file(sim, d)
     return result
 end
 
@@ -270,6 +271,7 @@ end
 function initialize_snapshot_file(sim, d)
     snapshot_file = joinpath(PDEHarness.mksimpath(d), "snapshots.jld2")
     jldopen(snapshot_file, "w") do file
+        @info "initializing?"
         for α in sim.species
             file[α.name] = Dict{String, Any}()
         end
@@ -279,7 +281,9 @@ end
 function process_snapshot(snapshot, snapshot_index, α::Species, d)
     snapshot_file = joinpath(PDEHarness.mksimpath(d), "snapshots.jld2")
     jldopen(snapshot_file, "a") do file
-        file[α.name]["snapshot_$(snapshot_index)"] = Dict{String, Any}(
+        @info "Writing snapshot" 
+        file["snapshot_$(snapshot_index)_$(α.name)"] = Dict{String, Any}(
+            "n" => hostarray(snapshot.n),
             "u_x" => hostarray(snapshot.u_x),
             "u_y" => hostarray(snapshot.u_y),
             "u_z" => hostarray(snapshot.u_z),
