@@ -1,0 +1,150 @@
+\documentclass{article}
+
+\title{Computing dyadic monomial moments from the Hermite moments}
+
+\input{~/dotfiles/latex/notes_header.tex}
+
+\newcommand{\dv}{\,\mathrm{d} \bm{v}}
+
+\begin{document}
+\maketitle
+
+The first several Hermite polynomials are
+\begin{align*}
+&p_0(v) = He_0 \left( \frac{v}{v_0} \right) = 1 
+&&p_2(v) = He_2 \left( \frac{v}{v_0} \right) = \frac{(v/v_0)^2 - 1}{\sqrt{2}} \\
+&p_1(v) = He_1 \left( \frac{v}{v_0} \right) = v/v_0
+&&p_3(v) = He_3 \left( \frac{v}{v_0} \right) = \frac{(v/v_0)^3 - v/v_0}{\sqrt{6}}.
+\end{align*}
+These can be easily inverted:
+\begin{align*}
+&1 = He_0 \left( \frac{v}{v_0} \right)
+&&v^2 = v_0^2 \left[ \sqrt{2} He_2 \left( \frac{v}{v_0} \right) + He_0 \left( \frac{v}{v_0} \right)  \right] \\
+&v = v_0 He_1 \left( \frac{v}{v_0} \right)
+&&v^3 = v_0^3 \left[ \sqrt{6} He_3 \left( \frac{v}{v_0} \right) + He_1 \left( \frac{v}{v_0} \right)  \right].
+\end{align*}
+
+Denote the moment with respect to the dyadic velocity monomial $v_x^a v_y^b v_z^c$ by $M_{abc}$:
+\begin{align*}
+    M_{abc} = \int_{\mathbb{R}^3} f v_x^a v_y^b v_z^c \, \mathrm{d} v_x v_y v_z,
+\end{align*}
+and the moment with respect to the tensor product Hermite polynomial $He_n(v_x/v_0) He_m(v_y/v_0) He_p(v_z/v_0)$ by $H_{nmp}$:
+\begin{align*}
+    H_{nmp} = \int_{\mathbb{R}^3} f He_n(v_x/v_0) He_m(v_y/v_0) He_p(v_z/v_0) \, \mathrm{d} v_x v_y v_z.
+\end{align*}
+
+The first step to making sense of the Hermite moments is expanding the dyadic velocity monomial moments in terms of the Hermite moment tensors.
+By solving for the dyadic monomials $v_x^a v_y^b v_z^c$ in terms of the Hermite polynomials up to the same degree, we get the following relationships.
+
+\textbf{Zeroth-order moment}
+\begin{align*}
+    1 = He_0(v_x/v_0) \implies M_{000} &= H_{000}
+\end{align*}
+\textbf{First-order moments}
+\begin{align*}
+    v_x = v_0 He_1(v_x/v_0) \implies M_{100} &= v_0 H_{100} \\
+    M_{010} &= v_0 H_{010} \\
+    M_{001} &= v_0 H_{001}
+\end{align*}
+\textbf{Second-order moments}
+\begin{align*}
+    v_x v_y = v_0^2 He_1(v_x/v_0) He_2(v_y/v_0) \implies M_{110} &= v_0^2 H_{110} \\
+    M_{101} &= v_0^2 H_{101} \\
+    M_{011} &= v_0^2 H_{011} \\
+    v_x^2 = v_0^2 (\sqrt{2} He_2(v_x/v_0) + He_0(v_x/v_0)) \implies M_{200} &= v_0^2 (\sqrt{2} H_{200} + H_{000}) \\
+    M_{020} &= v_0^2 (\sqrt{2} H_{020} + H_{000}) \\
+    M_{002} &= v_0^2 (\sqrt{2} H_{002} + H_{000})
+\end{align*}
+\textbf{Third-order moments:}
+\begin{align*}
+    v_x v_y v_z = v_0^3 He_1\left(\frac{v_x}{v_0}\right) He_1\left(\frac{v_y}{v_0}\right) He_1\left(\frac{v_z}{v_0}\right) \implies M_{111} &= v_0^3 H_{111} \\
+    v_x^2 v_y = v_0^2 \left(\sqrt{2} He_2\left(\frac{v_x}{v_0}\right) + He_0\left(\frac{v_x}{v_0}\right)\right) v_0 He_1 \left( \frac{v_y}{v_0} \right)  \implies M_{210} &= v_0^3 (\sqrt{2} H_{210} + H_{010}) \\
+    M_{201} &= v_0^3 (\sqrt{2} H_{201} + H_{001}) \\
+            &\vdots \\
+    v_x^3 = v_0^3 \left( \sqrt{6} He_3 \left( \frac{v_x}{v_0} \right) + He_1 \left( \frac{v_x}{v_0} \right) \right) \implies M_{300} &= v_0^3 (\sqrt{6} H_{300} + H_{100}).
+\end{align*}
+Fourth and higher total degree moments will start to require expanding the products like $v_x^2 v_y^2$
+in terms of the sums of Hermite moments.
+
+\section{Random velocity moments}
+Now consider the dyadic random velocity moments, where we subtract off the velocity to get the random velocity part.
+
+Denote the moment of $f$ with respect to the dyadic random velocity monomial $(v_x - u_x)^a (v_y - u_y)^b (v_z - u_z)^c$ by $U_{abc}$:
+\begin{align*}
+    U_{abc} = \int_{\mathbb{R}^3} f (v_x - u_x)^a (v_y - u_y)^b (v_z - u_z)^c \, \mathrm{d} \bm{v}
+\end{align*}
+
+\textbf{Zeroth order moment}
+\begin{align*}
+    U_{000} = M_{000}.
+\end{align*}
+
+\textbf{First-order moments}
+\begin{align*}
+    U_{100} = U_{010} = U_{001} = 0.
+\end{align*}
+
+\textbf{Second-order moments}
+\begin{align*}
+    \begin{pmatrix}
+        U_{200} & U_{110} & U_{101} \\
+        U_{110} & U_{020} & U_{011} \\
+        U_{101} & U_{011} & U_{002}
+    \end{pmatrix}
+    &= \int f (\bm{v} - \bm{u}) \otimes (\bm{v} - \bm{u})\,d \bm{v} \\
+    &= \int f \bm{v} \otimes \bm{v} \, \mathrm{d} \bm{v} - \bm{u} \otimes \int f \bm{v} \,\mathrm{d} \bm{v} - \left( \int f \bm{v} \, \mathrm{d} \bm{v} \right) \otimes \bm{u} + \rho(\bm{u} \otimes \bm{u}) \\
+                                                                 &= \underbrace{\begin{pmatrix}
+                                                                     M_{200} & M_{110} & M_{101} \\
+                                                                     M_{110} & M_{020} & M_{011} \\
+                                                                     M_{101} & M_{011} & M_{002}
+                                                             \end{pmatrix}}_{\mathbb{M}^2} - 
+                                                                 \rho
+                                                                 \begin{pmatrix}
+                                                                     u_x^2 & u_x u_y & u_x u_z \\
+                                                                     u_x u_y & u_y^2 & u_y u_z \\
+                                                                     u_x u_z & u_y u_z & u_z^2
+                                                                 \end{pmatrix}
+\end{align*}
+
+\textbf{Third-order moments corresponding to heat flux}
+\begin{align*}
+    U_{300} &= \int f (v_x - u_x)^3 \, \mathrm{d} \bm{v} \\
+            &= \int f (v_x^3 - 3 v_x^2 u_x + 3v_x u_x^2 - u_x^3) \, \mathrm{d} \bm{v} \\
+            &= M_{300} - 3u_x M_{200} + 3u_x^2 M_{100} - u_x^3 M_{000} \\
+            &= M_{300} - 3u_x M_{200} + 2u_x^3 M_{000} \\
+    U_{030} &= M_{030} - 3u_y M_{020} + 2u_y^3 M_{000} \\
+    U_{003} &= M_{003} - 3u_z M_{002} + 2u_z^3 M_{000} \\
+    U_{210} &= \int f (v_x - u_x)^2 (v_y - u_y) \,\mathrm{d} \bm{v} \\
+            &= \int f \left[ v_x^2 - 2v_x u_x + u_x^2 \right] (v_y - u_y) \dv \\
+            &= \int f (v_x^2 v_y - 2v_x v_y u_x + v_y u_x^2 - v_x^2 u_y + 2 v_x u_x u_y - u_x^2 u_y) \dv \\
+            &= M_{210} - 2u_x M_{110} + u_x^2 M_{010} - u_y M_{200} + 2 u_x u_y M_{100} - u_x^2 u_y M_{000} \\
+            &= M_{210} - 2u_x M_{110} - u_y M_{200} + 2 u_x^2 u_y M_{000} \\
+    U_{201} &= M_{201} - 2u_x M_{101} - u_z M_{200} + 2 u_x^2 u_z M_{000} \\
+            &\vdots \\
+    U_{012} &= M_{012} - u_y M_{002} - 2u_z M_{011} + 2 u_y u_z^2 M_{000}
+\end{align*}
+
+\section{Observables}
+
+Finally we can discuss the observables corresponding to the second and third moments,
+namely temperature and heat flux.
+
+\begin{align*}
+    T &= \frac{m}{d n} (U_{200} + U_{020} + U_{002}) \\
+    \bm{q} &= \frac{m}{2} \begin{pmatrix}
+        U_{300} + U_{120} + U_{102} \\
+        U_{210} + U_{030} + U_{012} \\
+        U_{201} + U_{021} + U_{003}
+    \end{pmatrix}.
+\end{align*}
+\textbf{NOTE:} What's the meaning of the factor of $1/2$ in the heat flux definition?
+
+
+\section{Closure relations}
+We should be able to recover a relationship of the form
+\begin{align*}
+\mathbf{q} \approx \kappa \nabla_x T
+\end{align*}
+as the collision frequency increases, $\nu_p \rightarrow \infty$.
+
+\end{document}

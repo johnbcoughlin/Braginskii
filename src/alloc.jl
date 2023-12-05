@@ -42,6 +42,14 @@ alloc_zeros(::Type{T}, args...) where {T} = begin
     res
 end
 
+# Versions without a buffer, just allocate this on the heap.
+alloc_array(::Type{T}, ::Type{<:Array}, s...) where {T} = begin
+    Array{T}(undef, s...)
+end
+alloc_array(::Type{T}, ::Type{<:CuArray}, s...) where {T} = begin
+    CuArray{T}(undef, s...)
+end
+
 alloc_array(::Type{T}, buffer::Bumper.AllocBuffer, s...) where {T} = begin
     ptr = Bumper.Internals.alloc_ptr(buffer, prod(s) * sizeof(T))
     buffer.offset = next_greatest_multiple(buffer.offset, 16)

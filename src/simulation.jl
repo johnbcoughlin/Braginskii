@@ -1,5 +1,6 @@
 import PDEHarness.frame_writeout
 
+using LoopVectorization: initialize_outer_reductions!
 struct Species{DISC, FFTPLANS, Z_BCS}
     name::String
     x_dims::Vector{Symbol}
@@ -199,12 +200,15 @@ end
 
 function runsim!(sim, d, t_end; kwargs...)
     buffer = sim.buffer
+    snapshot_takers = make_snapshot_takers(sim, d; kwargs...)
     rk_step!(sim, t, dt) = begin
         no_escape(buffer) do
             λmax = Ref(0.0)
             p = (; sim=sim.metadata, λmax, buffer)
             filter!(sim.u, sim, buffer)
-            ssp_rk43(vlasov_fokker_planck_step!, sim.u, p, t, dt, 1.0, buffer)
+            success, safety_factor = ssp_rk43(vlasov_fokker_planck_step!, sim.u, p, t, dt, 1.0, buffer)
+            success && take_snapshots(sim, snapshot_takers, t)
+            return (success, safety_factor)
         end
     end
 
@@ -227,4 +231,66 @@ function frame_writeout(sim::Simulation, t)
         result[α.name] = Dict("f" => hostarray(sim.u.x[i]))
     end
     return result
+end
+
+function make_snapshot_takers(sim, d; snapshot_interval_dt=Inf, kwargs...)
+    result = []
+    if !isfinite(snapshot_interval_dt)
+        return result
+    end
+
+    for i in 1:length(sim.species)
+        α = sim.species[i]
+
+        # Δx / vth
+        halfwidth = min_dx(sim.x_grid) / (1*average_vth(α.discretization))
+
+        # 3D arrays of the buffer type
+        arraytype = typeof(alloc_array(Float64, sim.buffer, 1, 1, 1))
+
+        snapshot_taker = SnapshotTaker(
+            i,
+            snapshot_interval_dt,
+            halfwidth,
+            arraytype,
+            size(sim.x_grid),
+            (snapshot, index) -> process_snapshot(snapshot, index, α, d)
+        )
+        push!(result, snapshot_taker)
+    end
+    #initialize_snapshot_file(sim, d)
+    return result
+end
+
+function take_snapshots(sim, snapshot_takers, t)
+    for st in snapshot_takers
+        st(sim, t)
+    end
+end
+
+function initialize_snapshot_file(sim, d)
+    snapshot_file = joinpath(PDEHarness.mksimpath(d), "snapshots.jld2")
+    jldopen(snapshot_file, "w") do file
+        @info "initializing?"
+        for α in sim.species
+            file[α.name] = Dict{String, Any}()
+        end
+    end
+end
+
+function process_snapshot(snapshot, snapshot_index, α::Species, d)
+    snapshot_file = joinpath(PDEHarness.mksimpath(d), "snapshots.jld2")
+    jldopen(snapshot_file, "a") do file
+        @info "Writing snapshot" 
+        file["snapshot_$(snapshot_index)_$(α.name)"] = Dict{String, Any}(
+            "n" => hostarray(snapshot.n),
+            "u_x" => hostarray(snapshot.u_x),
+            "u_y" => hostarray(snapshot.u_y),
+            "u_z" => hostarray(snapshot.u_z),
+            "T" => hostarray(snapshot.T),
+            "q_x" => hostarray(snapshot.q_x),
+            "q_y" => hostarray(snapshot.q_y),
+            "q_z" => hostarray(snapshot.q_z),
+        )
+    end
 end

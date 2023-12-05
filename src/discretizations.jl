@@ -148,6 +148,20 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
     end
 end
 
+function min_dx(grid::XGrid)
+    result = Inf
+    if grid.x.N != 1
+        result = min(grid.x.dx, result)
+    end
+    if grid.y.N != 1
+        result = min(grid.y.dx, result)
+    end
+    if grid.z.N != 1
+        result = min(grid.z.dx, result)
+    end
+    return result
+end
+
 function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, buffer)
     Nx, Ny, Nz = size(grid)
 
@@ -373,6 +387,8 @@ struct XVDiscretization{VDISC}
     vdisc::VDISC
 end
 
+average_vth(disc::XVDiscretization{<:Hermite}) = disc.vdisc.vth
+
 size(disc::XVDiscretization) = tuple(size(disc.x_grid)..., size(disc.vdisc)...)
 
 approximate_f(f, disc::XVDiscretization, dims, buffer) = begin
@@ -388,7 +404,6 @@ approximate_f!(result, f, x_grid, vdisc::WENO5, dims) = begin
 end
 
 approximate_f!(result, f, x_grid, vdisc::Hermite, dims) = begin
-    vdims = sum(dims .>= 4)
     f_all(args...) = f((args[dim] for dim in dims)...)
     (; Nvx, Nvy, Nvz, vth) = vdisc
     (; X, Y, Z) = x_grid
