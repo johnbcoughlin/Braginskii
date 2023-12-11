@@ -33,6 +33,19 @@ function interpolate(f, (scheme1, scheme2), (points1, points2))
     g2
 end
 
+# Perform Fourier interpolation on the first dimension of u,
+# evaluating u at K points.
+function fourier_interpolate(u, K)
+    u = reshape(u, (size(u, 1), :))
+    result = zeros(K, size(u, 2))
+    @show size(result)
+    @show size(u)
+    modes = FFTW.rfft(u, 1)
+    resultmodes = FFTW.rfft(result, 1)
+    resultmodes[axes(modes, 1), :] .= modes
+    return FFTW.irfft(resultmodes, size(result, 1), 1)
+end
+
 # Points should be a vector of points in the interval [-1/2, 1/2].
 function weno_interpolate!(g, f, points)
     N = length(f)
