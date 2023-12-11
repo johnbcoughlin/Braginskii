@@ -14,6 +14,9 @@ rk_4stage_cache(arr::AbstractArray) = begin
     RK4StageCache(similar(arr), similar(arr), similar(arr), similar(arr), similar(arr))
 end
 
+function alloc_vec(buffer, template::Union{Array})
+    alloc_zeros
+end
 function alloc_vec(buffer, template)
     return ArrayPartition((map(template.x) do tmp
         alloc_zeros(Float64, buffer, size(tmp)...)
@@ -26,8 +29,6 @@ http://ketch.github.io/numipedia/methods/SSPRK43.html
 """
 function ssp_rk43(F!, uⁿ, p, t, dt,  CFL_max, buffer)
     Bumper.no_escape(buffer) do
-        start = copy(uⁿ.x[1][1, :, 1, 1, :, 1])
-
         u′ = alloc_vec(buffer, uⁿ)
         k¹ = alloc_vec(buffer, uⁿ)
         k² = alloc_vec(buffer, uⁿ)

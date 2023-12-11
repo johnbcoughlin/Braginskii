@@ -1,7 +1,9 @@
 import LinearAlgebra: mul!, ldiv!
 import Base: eltype, size, *
 
-function poisson(sim, f, buffer)
+poisson(sim::Simulation, f, buffer) = poisson(sim.metadata, f, buffer)
+
+function poisson(sim::SimulationMetadata, f, buffer)
     grid = sim.x_grid
     Nx, Ny, Nz = size(grid)
 

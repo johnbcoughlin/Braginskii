@@ -83,9 +83,17 @@ function construct_sim_metadata(
         device, buffer)
 end
 
-struct Simulation{SM<:SimulationMetadata, U}
+struct Simulation{SM<:SimulationMetadata, U<:ArrayPartition}
     metadata::SM
     u::U
+end
+
+Simulation(metadata, fs...) = begin
+    @info "Using this constructor"
+    f = ArrayPartition(fs...)
+    Ex, Ey, Ez = poisson(metadata, f, metadata.buffer)
+    E = ArrayPartition(Ex, Ey, Ez)
+    Simulation(metadata, ArrayPartition(f, E))
 end
 
 getproperty(sim::Simulation, sym::Symbol) = begin
@@ -101,24 +109,29 @@ function vlasov_fokker_planck_step!(du, u, p, t)
     vlasov_fokker_planck!(du, u, sim, λmax, buffer)
 end
 
-function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
+function vlasov_fokker_planck!(du, fE, sim, λmax, buffer)
     λmax[] = 0.0
 
+    f, E = fE.x
+    dfs, dE = du.x
+
     no_escape(buffer) do
-        @timeit "poisson" Ex, Ey, Ez = poisson(sim, f, buffer)
+        #@timeit "poisson" Ex, Ey, Ez = poisson(sim, f, buffer)
+        @timeit "ampere" ampere!(dE, f, sim, buffer)
 
         @timeit "collisional moments" collisional_moments!(sim, f, buffer)
 
         for i in eachindex(sim.species)
             α = sim.species[i]
 
-            df = du.x[i]
+            df = dfs.x[i]
             df .= 0
 
             if sim.free_streaming
                 @timeit "free streaming" free_streaming!(df, f.x[i], α, buffer)
             end
             if α.q != 0.0 || sim.gz != 0.0
+                Ex, Ey, Ez = E.x
                 @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, Ez, sim.By, sim.gz, 
                     α, buffer, sim.fft_plans)
             end

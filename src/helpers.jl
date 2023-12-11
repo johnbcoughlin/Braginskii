@@ -111,7 +111,7 @@ function single_species_1d1v_z(f; Nz, Nvz,
 
     sim = construct_sim_metadata(
         [:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
-    Simulation(sim, ArrayPartition(fe))
+    Simulation(sim, fe)
 end
 
 function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, gz=0.0, 
@@ -131,7 +131,7 @@ function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, g
     electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc, buffer), disc, nothing)
     sim = construct_sim_metadata(
         [:x], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
-    Simulation(sim, ArrayPartition(fe))
+    Simulation(sim, fe)
 end
 
 function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true,
@@ -151,7 +151,7 @@ function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, v
     electrons = Species("electrons", [:y], [:vy], q, 1.0, plan_ffts(disc, buffer), disc, nothing)
     sim = construct_sim_metadata(
         [:y], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
-    Simulation(sim, ArrayPartition(fe))
+    Simulation(sim, fe)
 end
 
 #=
@@ -191,7 +191,7 @@ function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0,
     electrons = Species("electrons", Symbol[], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
     sim = construct_sim_metadata(
         Symbol[], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
-    Simulation(sim, ArrayPartition(fe))
+    Simulation(sim, fe)
 end
 
 function single_species_z_xz_1d2v((; f, By); Nz, Nvx, Nvz, vxmax=5.0, vzmax=5.0,
@@ -265,7 +265,7 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
     sim = construct_sim_metadata(
         Symbol[:x, :z], x_grid, (ions,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
 
-    Simulation(sim, ArrayPartition(fi))
+    Simulation(sim, fi)
 end
 
 function two_species_xz_2d2v((; fe_0, fi_0, By0); Nx, Nz, Nvx, Nvz, 
