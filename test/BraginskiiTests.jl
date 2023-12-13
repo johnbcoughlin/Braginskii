@@ -16,6 +16,7 @@ end
 include("test_utils.jl")
 include("alloc_test.jl")
 include("hermite_tests.jl")
+include("laguerre_tests.jl")
 include("free_streaming_tests.jl")
 include("electrostatic_tests.jl")
 include("poisson_tests.jl")

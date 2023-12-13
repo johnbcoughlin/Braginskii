@@ -382,6 +382,94 @@ function vgrid_of(hd::Hermite, K=50, vmax=5.0, buffer=default_buffer())
     return VGrid(dims, vx_grid, vy_grid, vz_grid, buffer)
 end
 
+struct HermiteLaguerre{SPARSE, DENSE, FILTERS}
+    Nμ::Int
+    Nvy::Int
+
+    μ0::Float64
+    vth::Float64
+
+    # Parallel direction
+    Ξy::SPARSE
+    Dvy::SPARSE
+
+    # Perpendicular direction
+    Dμ::DENSE
+    ΞμDμ::DENSE
+
+    filters::FILTERS
+end
+
+HermiteLaguerre(Nμ, Nvy, μ0, vth, device, buffer) = begin
+    # Notation from Olver et al.
+    R = spdiagm(0 => ones(Nμ), 1 => -ones(Nμ-1)) |> Array
+    L = spdiagm(0 => 0.5 .+ (1:Nμ), -1 => -(1:Nμ-1)) |> Array
+    W = spdiagm(-1 => (1:Nμ-1)) |> Array
+
+    Dμ = L \ (W - 0.5 * inv(R)) / μ0 |> arraytype(buffer)
+    ΞμDμ = R*W - 0.5*I(Nμ) |> arraytype(buffer)
+
+    cx = if device == :cpu
+        identity
+    elseif device == :gpu
+        CuSparseMatrixCSC
+    end
+
+    Ξy = spdiagm(-1 => sqrt.(1:Nvy-1), 1 => sqrt.(1:Nvy-1)) * vth |> cx
+    Dvy = spdiagm(-1 => -sqrt.(1:Nvy-1)) |> cx
+
+    σμ = reshape(hou_li_filter(Nμ, buffer), (1, 1, 1, :))
+    σvy = reshape(hou_li_filter(Nvy, buffer), (1, 1, 1, 1, :))
+
+    filters = (σμ, σvy)
+
+    HermiteLaguerre(Nμ, Nvy, μ0, vth, cx(Ξy), cx(Dvy), Dμ, ΞμDμ, filters)
+end
+
+size(hl::HermiteLaguerre) = (hl.Nμ, hl.Nvy)
+
+struct GyroVGrid{μA, YA}
+    μ::Grid1D
+    y::Grid1D
+
+    Vμ::μA
+    VY::YA
+
+    GyroVGrid(dims, μ, y, buffer) = begin
+        @assert dims ⊆ [:μ, :vy]
+        Vμ = alloc_zeros(Float64, buffer, 1, 1, 1, length(μ.nodes), 1)
+        copyto!(Vμ, reshape(μ.nodes, (1, 1, 1, :, 1)))
+
+        Y = alloc_zeros(Float64, buffer, 1, 1, 1, 1, length(y.nodes))
+        copyto!(Y, reshape(y.nodes, (1, 1, 1, 1, :)))
+
+        new{typeof(Vμ), typeof(Y)}(μ, y, Vμ, Y)
+    end
+end
+
+function vgrid_of(hl::HermiteLaguerre; K=50, vmax=5.0, μmax=vmax^2/2, buffer=default_buffer())
+    vmax = vmax*hl.vth
+    μmax = μmax*hl.μ0
+
+    dims = Symbol[]
+    if hl.Nμ == 1
+        μ_grid = grid1d(1, 0.0, 0.0)
+    else
+        μ_grid = grid1d(K, 0.0, μmax)
+        push!(dims, :μ)
+    end
+    if hl.Nvy == 1
+        vy_grid = grid1d(1, 0.0, 0.0)
+    else
+        vy_grid = grid1d(K, -vmax, vmax)
+        push!(dims, :vy)
+    end
+
+    return GyroVGrid(dims, μ_grid, vy_grid, buffer)
+end
+
+size(grid::GyroVGrid) = (grid.μ.N, grid.y.N)
+
 struct XVDiscretization{VDISC}
     x_grid::XGrid
     vdisc::VDISC
@@ -408,6 +496,13 @@ approximate_f!(result, f, x_grid, vdisc::Hermite, dims) = begin
     (; Nvx, Nvy, Nvz, vth) = vdisc
     (; X, Y, Z) = x_grid
     result .= Float64.(bigfloat_weighted_hermite_expansion(f_all, Nvx-1, Nvy-1, Nvz-1, X, Y, Z, vth))
+end
+
+approximate_f!(result, f, x_grid, vdisc::HermiteLaguerre, dims) = begin
+    f_all(args...) = f((args[dim] for dim in dims)...)
+    (; Nμ, Nvy, μ0, vth) = vdisc
+    (; X, Y, Z) = x_grid
+    result .= Float64.(bigfloat_weighted_laguerre_expansion(f_all, Nμ-1, Nvy-1, X, Y, Z, μ0, vth))
 end
 
 expand_f(f, disc::XVDiscretization{WENO5}, vgrid) = begin

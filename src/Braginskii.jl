@@ -21,6 +21,7 @@ using NNlib
 using CUDA.CUSPARSE
 using CUSOLVERRF
 using JLD2
+using SpecialFunctions
 
 import Base.size, Base.getproperty
 
@@ -46,6 +47,7 @@ include("moments.jl")
 include("diagnostics.jl")
 
 include("hermite_utils.jl")
+include("laguerre_utils.jl")
 
 include("helpers.jl")
 
