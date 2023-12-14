@@ -110,6 +110,13 @@ function density(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer)
     return M0
 end
 
+function density(f, disc::XVDiscretization{<:HermiteLaguerre}, v_dims, buffer)
+    Nx, Ny, Nz, Nμ, Nvy = size(f)
+    M0 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    M0 .= @view f[:, :, :, 1, 1]
+    return M0
+end
+
 function moments(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer)
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
 

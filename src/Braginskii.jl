@@ -45,6 +45,7 @@ include("dfp.jl")
 include("fourier.jl")
 include("moments.jl")
 include("diagnostics.jl")
+include("drifts.jl")
 
 include("hermite_utils.jl")
 include("laguerre_utils.jl")

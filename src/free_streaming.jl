@@ -77,10 +77,6 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
         F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
         @timeit "mul" mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁺)')
 
-        #f_with_boundaries = reshape(f_with_boundaries, (Nx, Ny, Nz+6, Nvx*Nvy*Nvz))
-        #@. F⁻ -= 0.5 * α * f_with_boundaries
-        #@. F⁺ += 0.5 * α * f_with_boundaries
-
         right_biased_stencil, left_biased_stencil = xgrid.z_fd_stencils
         convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 

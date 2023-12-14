@@ -101,32 +101,48 @@ function vlasov_fokker_planck_step!(du, u, p, t)
     vlasov_fokker_planck!(du, u, sim, λmax, buffer)
 end
 
-function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
+function vlasov_fokker_planck!(du, fs, sim, λmax, buffer)
     λmax[] = 0.0
 
     no_escape(buffer) do
-        @timeit "poisson" Ex, Ey, Ez = poisson(sim, f, buffer)
+        @timeit "poisson" E = poisson(sim, fs, buffer)
 
-        @timeit "collisional moments" collisional_moments!(sim, f, buffer)
+        if sim.ν_p != 0.0
+            @timeit "collisional moments" collisional_moments!(sim, fs, buffer)
+        end
 
         for i in eachindex(sim.species)
             α = sim.species[i]
 
             df = du.x[i]
             df .= 0
+            f = fs.x[i]
 
-            if sim.free_streaming
-                @timeit "free streaming" free_streaming!(df, f.x[i], α, buffer)
-            end
-            if α.q != 0.0 || sim.gz != 0.0
-                @timeit "electrostatic" electrostatic!(df, f.x[i], Ex, Ey, Ez, sim.By, sim.gz, 
-                    α, buffer, sim.fft_plans)
-            end
-            if sim.ν_p != 0.0
-                @timeit "dfp" dfp!(df, f.x[i], α, sim, buffer)
-            end
+            kinetic_rhs!(df, f, E, sim, α, buffer)
         end
     end
+end
+
+kinetic_rhs!(df, f, E, sim, α::Species{<:HermiteLaguerre}, buffer) = drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)
+kinetic_rhs!(df, f, E, sim, α::Union{Species{<:Hermite}, Species{<:WENO5}}, buffer) = vlasov_species_rhs!(df, f, E, sim, α, buffer)
+
+function vlasov_species_rhs!(df, f, E, sim, α, buffer)
+    if sim.free_streaming
+        @timeit "free streaming" free_streaming!(df, f, α, buffer)
+    end
+    if α.q != 0.0 || sim.gz != 0.0
+        Ex, Ey, Ez = E
+        @timeit "electrostatic" electrostatic!(df, f, Ex, Ey, Ez, sim.By, sim.gz, 
+            α, buffer, sim.fft_plans)
+    end
+    if sim.ν_p != 0.0
+        @timeit "dfp" dfp!(df, f, α, sim, buffer)
+    end
+end
+
+function drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)
+    u_drift = drift_velocity(α, E, sim.By, sim.gz, buffer)
+    @timeit "drifting" drifting!(df, f, u_drift, α, buffer)
 end
 
 function filter!(f, sim, buffer)
@@ -151,6 +167,8 @@ end
 
 # No-op for WENO disc.
 filter_v!(f, species::Species{WENO5}, buffer) = begin end
+
+filter_v!(f, species::Species{<:HermiteLaguerre}, buffer) = begin end
 
 filter_v!(f, species::Species{<:Hermite}, buffer) = begin
     (; discretization) = species

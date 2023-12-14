@@ -293,15 +293,17 @@ function two_species_xz_2d2v((; fe_0, fi_0, By0); Nx, Nz, Nvx, Nvz,
     ϕl = alloc_zeros(Float64, buffer, Nx, 1)
     ϕl .= ϕ_left
     ϕr = alloc_zeros(Float64, buffer, Nx, 1)
-    ϕr = ϕ_right
+    ϕr .= ϕ_right
 
     ve_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth)
+    electron_bcs = make_bcs(x_grid, ve_disc, fe_0, buffer, z_bcs)
     electron_disc = XVDiscretization(x_grid, ve_disc)
     @timeit "approx" fe = approximate_f(fe_0, electron_disc, (1, 3, 4, 6), buffer)
     electrons = Species("electrons", [:x, :z], [:vx, :vz], q, 1.0, 
-        plan_ffts(electron_disc, buffer), electron_disc)
+        plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
 
     vi_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth)
+    ion_bcs = make_bcs(x_grid, vi_disc, fe_0, buffer, z_bcs)
     ion_disc = XVDiscretization(x_grid, vi_disc)
     @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4, 6), buffer)
     ions = Species("ions", [:x, :z], [:vx, :vz], q, 1.0,
@@ -309,6 +311,43 @@ function two_species_xz_2d2v((; fe_0, fi_0, By0); Nx, Nz, Nvx, Nvz,
 
     sim = construct_sim_metadata(
         [:x, :z], x_grid, (ions,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
+    Simulation(sim, ArrayPartition(fe, fi))
+end
+
+function two_species_2d_drift_kinetic((; fe_0, fi_0, By0); Nx, Nz, Nμ,
+    qe=-1.0, qi=1.0,
+    me=0.1, mi=1.0,
+    ν_p=0.0, device=:cpu, vth=1.0, μ0=0.5, gz=0.0,
+    Lx=2π, zmin=-1.0, zmax=1.0,
+    ϕ_left, ϕ_right, z_bcs)
+    buffer = allocator(device)
+    x_grid = xz_grid_2d(Nx, Nz, zmin, zmax, Lx, buffer)
+
+    By = alloc_zeros(Float64, buffer, size(x_grid)...)
+    By .= (By0::Number)
+
+    ϕl = alloc_zeros(Float64, buffer, Nx, 1)
+    ϕl .= ϕ_left
+    ϕr = alloc_zeros(Float64, buffer, Nx, 1)
+    ϕr .= ϕ_right
+
+    ve_disc = hermite_laguerre_disc(; Nμ, Nvy=1, μ0, vth, device)
+    electron_bcs = make_bcs(x_grid, ve_disc, fe_0, buffer, z_bcs)
+    electron_disc = XVDiscretization(x_grid, ve_disc)
+    @timeit "approx" fe = approximate_f(fe_0, electron_disc, (1, 3, 4), buffer)
+    electrons = Species("electrons", [:x, :z], [:μ], qe, me, 
+        plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
+
+    vi_disc = hermite_laguerre_disc(; Nμ, Nvy=1, μ0, vth, device)
+    ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    ion_disc = XVDiscretization(x_grid, vi_disc)
+    @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4), buffer)
+    ions = Species("ions", [:x, :z], [:μ], qi, mi,
+        plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
+
+    free_streaming = true
+    sim = construct_sim_metadata(
+        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 

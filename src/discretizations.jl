@@ -170,6 +170,8 @@ function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, b
     T = arraytype(buffer)
     ST = sparsearraytype(buffer)
 
+    @show size(ϕ_left)
+    @show size(ϕ_right)
     @assert ϕ_left ≈ ϕ_left[1] * T(ones(size(ϕ_left)))
     @assert ϕ_right ≈ ϕ_right[1] * T(ones(size(ϕ_right)))
 
