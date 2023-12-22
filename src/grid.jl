@@ -1,5 +1,6 @@
-export as_xvx, as_yvy, as_zvz, as_vxvy, as_xyvxvy, as_vxvz
+export as_xz, as_xvx, as_yvy, as_zvz, as_vxvy, as_xyvxvy, as_vxvz
 
+as_xz(f) = f[:, 1, :, 1, 1, 1] |> Array |> copy
 as_xvx(f) = f[:, 1, 1, :, 1, 1] |> Array |> copy
 as_yvy(f) = f[1, :, 1, 1, :, 1] |> Array |> copy
 as_zvz(f) = f[1, 1, :, 1, 1, :] |> Array |> copy

@@ -1,15 +1,14 @@
 import LinearAlgebra: mul!, ldiv!
 import Base: eltype, size, *
 
-function poisson(sim, f, buffer)
-    grid = sim.x_grid
-    Nx, Ny, Nz = size(grid)
-
+function charge_density(sim, f, buffer)
+    Nx, Ny, Nz = size(sim.x_grid)
     ρ_c = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
     @timeit "charge density" for i in eachindex(sim.species)
         α = sim.species[i]
         fi = f.x[i]
-        ρ_c .+= density(fi, α.discretization, α.v_dims, buffer) .* α.q
+        species_density = density(fi, α, sim.By, buffer)
+        ρ_c .+= density(fi, α, sim.By, buffer) .* α.q
     end
 
     @timeit "ρ_c" if length(sim.species) == 1
@@ -17,7 +16,13 @@ function poisson(sim, f, buffer)
         #ρ0 = ρ_sum / (Nx*Ny*Nz)
         @. ρ_c -= ρ_sum / (Nx*Ny*Nz)
     end
-    #@timeit "assert" @assert sum(ρ_c) < sqrt(eps())
+    ρ_c
+end
+
+function poisson(sim, f, buffer)
+    grid = sim.x_grid
+
+    ρ_c = charge_density(sim, f, buffer)
 
     @timeit "direct" poisson_direct(ρ_c, sim.Δ_lu, sim.ϕ_left, sim.ϕ_right, grid, 
         sim.x_dims, buffer, sim.ϕ, sim.fft_plans, grid.poisson_helper)
@@ -61,18 +66,25 @@ function poisson_direct!(ϕ, (Ex, Ey, Ez), ρ_c, Δ_lu, ϕ_left, ϕ_right,
         grid, x_dims, buffer, fft_plans, helper)
     Nx, Ny, Nz = size(grid) 
 
-    ϕ = do_poisson_solve(Δ_lu, ρ_c, grid, x_dims, fft_plans, buffer)
+    ϕ .= do_poisson_solve(Δ_lu, ρ_c, grid, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
 
     @timeit "potential gradient" potential_gradient!(Ex, Ey, Ez, ϕ, 
         ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper) 
 end
 
-function prepare_poisson_rhs(ρ, grid, x_dims, fft_plans, buffer)
+function prepare_poisson_rhs(ρ, grid, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
     Nx, Ny, Nz = size(grid) 
+
+    ρ_modified = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    ρ_modified .= ρ
+    if :z ∈ x_dims
+        ρ_modified[:, :, 1] .-= ϕ_left * helper.centered_second_derivative_stencil[1] 
+        ρ_modified[:, :, end] .-= ϕ_right * helper.centered_second_derivative_stencil[3]
+    end
 
     Kx = Nx ÷ 2 + 1
     rhs = alloc_array(Complex{Float64}, buffer, Kx, Ny, Nz)
-    mul!(rhs, fft_plans.kxy_rfft, ρ)
+    mul!(rhs, fft_plans.kxy_rfft, ρ_modified)
     if :z ∈ x_dims
         return rhs |> vec
     else
@@ -128,9 +140,11 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
 
     no_escape(buffer) do
         @timeit "z" if :z ∈ x_dims
-            ϕ_with_z_bdy = alloc_array(Float64, buffer, Nx, Ny, Nz+6)
-            ϕ_with_z_bdy[:, :, 4:Nz+3] .= ϕ
-            @timeit "bcs" apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, helper)
+            ϕ_with_z_bdy = alloc_array(Float64, buffer, Nx, Ny, Nz+2)
+            ϕ_with_z_bdy[:, :, 2:Nz+1] .= ϕ
+            ϕ_with_z_bdy[:, :, 1] .= ϕ_left
+            ϕ_with_z_bdy[:, :, end] .= ϕ_right
+            #@timeit "bcs" apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, helper)
 
             stencil = helper.centered_second_derivative_stencil
             @timeit "conv" convolve_z!(dest, ϕ_with_z_bdy, stencil, true, buffer)
@@ -166,14 +180,15 @@ end
 
 function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper)
     Nx, Ny, Nz = size(grid)
-    dz = grid.z.dx
 
     no_escape(buffer) do
         if :z ∈ x_dims
-            ϕ_with_z_bdy = alloc_array(Float64, buffer, Nx, Ny, Nz+6)
-            ϕ_with_z_bdy[:, :, 4:Nz+3] .= ϕ
-            apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, helper)
-
+            ϕ_with_z_bdy = alloc_array(Float64, buffer, Nx, Ny, Nz+2)
+            ϕ_with_z_bdy[:, :, 2:Nz+1] .= ϕ
+            ϕ_with_z_bdy[:, :, 1] .= ϕ_left
+            ϕ_with_z_bdy[:, :, end] .= ϕ_right
+            #apply_poisson_bcs!(ϕ_with_z_bdy, ϕ_left, ϕ_right, helper)
+            
             stencil = helper.centered_first_derivative_stencil
             ϕ_z = alloc_array(Float64, buffer, Nx, Ny, Nz)
             convolve_z!(ϕ_z, ϕ_with_z_bdy, stencil, true, buffer)
@@ -254,12 +269,14 @@ function factorize_poisson_operator(Δ::CuSparseMatrixCSR)
     return CUSOLVERRF.RFLU(Δ)
 end
 
-function do_poisson_solve(Δ_lu, ρ_c, grid, x_dims, fft_plans, buffer)
-    @timeit "prepare rhs" ρ̂ = prepare_poisson_rhs(-ρ_c, grid, x_dims, fft_plans, buffer)
+function do_poisson_solve(Δ_lu, ρ_c, grid, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
+    @timeit "prepare rhs" ρ̂ = prepare_poisson_rhs(-ρ_c, grid, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
     ρ̂_re = alloc_array(Float64, buffer, size(ρ̂)...)
     ρ̂_re .= real.(ρ̂)
     ρ̂_im = alloc_array(Float64, buffer, size(ρ̂)...)
     ρ̂_im .= imag.(ρ̂)
+
+    Nx, Ny, Nz = size(grid)
 
     # Do in-place solves
     @timeit "ldiv" ldiv!(Δ_lu, ρ̂_re)

@@ -10,19 +10,20 @@ function make_sim(device=:cpu)
 
     problem = "rayleigh_taylor_drift_kinetic"
     Nx = 32
-    Nz = 120
-    Nμ = 10
+    Nz = 160
+    Nμ = 3
 
-    q = 1.0
+    q = 1000.0
 
     mi = 1.0
-    me = 0.1
+    me = 0.5
 
-    k = 0.5
-    By0 = 1.0
+    By0 = 50.0
 
-    Lx = 0.75
+    Lx = 0.375 / 4
     Ly = 1.5
+
+    k = π / Lx
 
     n_ref = 0.5
     T_ref = 5.0
@@ -39,7 +40,6 @@ function make_sim(device=:cpu)
     # Define initial condition functions
     ==============================================#
     
-    k = π / Lx
     yr = Ly / 8
 
     # Density perturbation
@@ -49,24 +49,29 @@ function make_sim(device=:cpu)
 
     # Density
     n0(x, z) = begin
-        return n_ref/2 * tanh(α*z / Ly) + 1.5*n_ref
+        return n_ref/2 * tanh(α*(z - 0.1cos(k*x)) / Ly) + 1.5*n_ref
     end
+    @show n0(0.0, 1.0)
     # Pressure
     p0(x, z) = begin
         return -gz * n_ref/2 * (-log(cosh(α*z / Ly))/α*Ly - 3*z) + 1.5*n_ref * T_ref
     end
     T0(x, z) = p0(x, z) / n0(x, z)
 
+    μ0 = T_ref / (2By0)
+
     # Velocity perturbation
     uz0(x, z) = -δ*cos(k*x)*exp(-z^2/(2*yr^2))
 
     # Putting it all together in the distribution function
-    f_0(x, z, μ) = begin
-        return (n0(x, z) + n1(x, z)) / (2π*T0(x, z)) * exp(-μ / T0(x, z))
+    f_0(m, x, z, μ) = begin
+        return (n0(x, z)) / (2π*T0(x, z)/m) * exp(-By0 * (μ / μ0) / T0(x, z))
     end
+    fe_0(args...) = f_0(me, args...)
+    fi_0(args...) = f_0(mi, args...)
 
-    sim = Helpers.two_species_2d_drift_kinetic((; fe_0=f_0, fi_0=f_0, By0);
-        Nx, Nz, Nμ, μ0=T_ref/(2By0),
+    sim = Helpers.two_species_2d_drift_kinetic((; fe_0, fi_0, By0);
+        Nx, Nz, Nμ, μ0,
         zmin=-Ly, zmax=Ly, Lx=2Lx,
         ϕ_left=1.0, ϕ_right=1.0, vth=sqrt(T_ref),
         ν_p=0.0, qe=-q, qi=q, me, mi, gz, device, z_bcs=:reservoir);

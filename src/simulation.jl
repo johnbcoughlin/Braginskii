@@ -36,6 +36,9 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CPUFFTPLANS, CM_D
     free_streaming::Bool
 
     ν_p::Float64
+
+    ωpτ::Float64
+    ωcτ::Float64
     collisional_moments::CM_DICT
 
     species::SP
@@ -66,17 +69,17 @@ function collisional_moments(xgrid, species, buffer)
 end
 
 function construct_sim_metadata(
-    x_dims, x_grid, species::Tuple, free_streaming, By, ϕl, ϕr, ν_p, gz,
+    x_dims, x_grid, species::Tuple, free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz,
     device, buffer)
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
     cms = collisional_moments(x_grid, [α.name for α in species], buffer)
 
     poisson_operator = CUDA.@allowscalar form_fourier_domain_poisson_operator(
-        ϕl, ϕr, x_grid, x_dims, buffer)
+        x_grid, x_dims, buffer)
     SimulationMetadata(
         x_dims, x_grid, By, ϕl, ϕr, ϕ, gz, free_streaming,
-        ν_p, cms, species,
+        ν_p, ωpτ, ωcτ, cms, species,
         plan_ffts(x_grid, buffer),
         plan_ffts(x_grid, allocator(:cpu)),
         factorize_poisson_operator(poisson_operator),
@@ -89,7 +92,7 @@ struct Simulation{SM<:SimulationMetadata, U}
 end
 
 getproperty(sim::Simulation, sym::Symbol) = begin
-    if sym ∈ (:u, :metadata, :By)
+    if sym ∈ (:u, :metadata)
         getfield(sim, sym)
     else
         getproperty(sim.metadata, sym)
@@ -141,8 +144,8 @@ function vlasov_species_rhs!(df, f, E, sim, α, buffer)
 end
 
 function drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)
-    u_drift = drift_velocity(α, E, sim.By, sim.gz, buffer)
-    @timeit "drifting" drifting!(df, f, u_drift, α, buffer)
+    @timeit "drifting" drifting!(df, f, α, E, sim, buffer)
+    #@info "" as_xvx(df)
 end
 
 function filter!(f, sim, buffer)
@@ -245,6 +248,17 @@ end
 
 function frame_writeout(sim::Simulation, t)
     result = Dict{String, Any}("t" => t)
+    fs = sim.u
+    no_escape(sim.buffer) do
+        result["ρ_c"] = charge_density(sim, fs, sim.buffer) |> copy
+        Ex, Ey, Ez = poisson(sim, fs, sim.buffer)
+        result["ϕ"] = do_poisson_solve(sim.Δ_lu, result["ρ_c"], sim.x_grid, 
+            sim.ϕ_left, sim.ϕ_right, sim.x_grid.poisson_helper,
+        sim.x_dims, sim.fft_plans, sim.buffer) |> copy
+        result["Ex"] = Ex |> copy
+        result["Ey"] = Ey |> copy
+        result["Ez"] = Ez |> copy
+    end
     for (i, α) in enumerate(sim.species)
         result[α.name] = Dict("f" => hostarray(sim.u.x[i]))
     end

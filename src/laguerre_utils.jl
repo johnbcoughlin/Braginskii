@@ -1,6 +1,6 @@
 export bigfloat_weighted_laguerre_expansion, expand_bigfloat_laguerre_f
 
-# All Laguerre polynomials here are unnormalized, from the family α = 1/2.
+# All Laguerre polynomials here are unnormalized, from the family α = 0.
 
 function L_up_to_n(Mμ, μ::AbstractVector) 
     result = zeros(BigFloat, Mμ+1, length(μ))
@@ -14,7 +14,7 @@ end
 function L_up_to_n!(L, n, μ::BigFloat)
     @assert n >= 2
     @assert length(L) == n+1
-    α = 0.5
+    α = 0.0
     # k = 0
     L[1] = 1.0
     # k = 1
@@ -35,7 +35,7 @@ function bigfloat_weighted_laguerre_expansion(f::Function, Mμ::Int, Mvy::Int, X
     Nμ = Mμ == 0 ? 1 : k*Mμ+1
     Nvy = Mvy == 0 ? 1 : k*Mvy+1
 
-    μ_nodes, weighted_μ_w = FastGaussQuadrature.gausslaguerre(Nμ, 0.5)
+    μ_nodes, weighted_μ_w = FastGaussQuadrature.gausslaguerre(Nμ, 0.0)
     μ_w = weighted_μ_w
     vy_nodes, vy_w = FastGaussQuadrature.unweightedgausshermite(Nvy)
 
@@ -73,7 +73,7 @@ function bigfloat_weighted_laguerre_expansion(f::Function, Mμ::Int, Mvy::Int, X
 end
 
 function expand_bigfloat_laguerre_f(coefs::AbstractArray{Float64, 5}, vgrid::GyroVGrid, μ0, vth)
-    α = 0.5
+    α = 0.0
     Nx, Ny, Nz, Nμ, Nvy = size(coefs)
     Mμ = Nμ - 1
     Mvy = Nvy - 1

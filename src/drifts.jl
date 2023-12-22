@@ -12,19 +12,20 @@ function drift_velocity(α, E, By, gz, buffer)
     # Gravitational drift
     @. ux -= α.m * gz * By / (α.q * By^2)
 
+    #@show norm(ux)
+    #@show norm(uz)
+
     # TODO other guiding center drifts
     
     return (ux, uy, uz)
 end
 
-function drifting!(df, f, u, α, buffer)
-    ux, uy, uz = u
-
+function drifting!(df, f, α, E, sim, buffer)
     no_escape(buffer) do
         df_drifts = alloc_zeros(Float64, buffer, size(df)...)
         if :x ∈ α.x_dims
             df_x = alloc_zeros(Float64, buffer, size(α.discretization)...)
-            @timeit "x" drifting_x!(df_x, f, ux, α, buffer)
+            @timeit "x" drifting_x!(df_x, f, α, E, sim, buffer)
             df_drifts .+= df_x
         end
         if :y ∈ α.x_dims
@@ -34,7 +35,7 @@ function drifting!(df, f, u, α, buffer)
         end
         if :z ∈ α.x_dims
             df_z = alloc_zeros(Float64, buffer, size(α.discretization)...)
-            @timeit "z" drifting_z!(df_z, f, uz, α, buffer)
+            @timeit "z" drifting_z!(df_z, f, α, E, sim, buffer)
             df_drifts .+= df_z
         end
 
@@ -43,91 +44,112 @@ function drifting!(df, f, u, α, buffer)
     end
 end
 
-function drifting_x!(df, f, ux, α, buffer)
+function drift_ux_F(F, α, E, sim, buffer)
+    (; discretization) = α
+
+    Nx, Ny, Nz, Nμ, Nvy = size(F)
+
+    Ξμ = discretization.vdisc.Ξμ
+
+    Ex, _, Ez = E
+    (; By, ωpτ, ωcτ, gz) = sim
+
+    ux = alloc_zeros(Float64, buffer, size(By)...)
+
+    # ExB drifts
+    @. ux -= Ez*By / By^2
+
+    # Gravitational drift
+    @. ux -= α.m * gz * By / (α.q * By^2)
+
+    ux_F = alloc_array(Float64, buffer, size(F)...)
+    @. ux_F = ux * F
+    
+    # Grad-B drift
+    μ_F = alloc_array(Float64, buffer, size(F)...)
+    mul!(reshape(μ_F, (:, Nμ*Nvy)), reshape(F, (:, Nμ*Nvy)), Ξμ')
+
+    grad_By_z = alloc_array(Float64, buffer, size(By)...)
+    mul!(vec(grad_By_z), sim.x_grid.Dz, vec(By))
+
+    @. ux_F -= μ_F / α.q * grad_By_z * By / By^2
+
+    @show maximum(abs, ux_F ./ F)
+
+    return ux_F
+end
+
+function drifting_x!(dF, F, α, E, sim, buffer)
     (; discretization) = α
 
     Nx, Ny, Nz, Nμ, Nvy = size(discretization)
     xgrid = discretization.x_grid
 
-    f = reshape(f, (Nx, Ny, :))
-    df_size = size(df)
-    df = reshape(df, (Nx, Ny, :))
-    F = α.fft_plans.kxy_rfft
+    dF = reshape(dF, (Nx, Ny, :))
+    transform = α.fft_plans.kxy_rfft
 
     no_escape(buffer) do
         Kx = (Nx ÷ 2 + 1)
+        ux_F = drift_ux_F(F, α, E, sim, buffer)
         xy_modes = alloc_array(Complex{Float64}, buffer, Kx, Ny, Nz*Nμ*Nvy)
-        mul!(xy_modes, F, f)
+        mul!(xy_modes, transform, reshape(ux_F, (Nx, Ny, :)))
         kxs = alloc_array(Complex{Float64}, buffer, Kx, 1, 1)
         kxs .= (-im * 2π / xgrid.x.L) * ((0:Kx-1))
         xy_modes .*= kxs
-        df2 = alloc_array(Float64, buffer, size(df)...)
-        mul!(df2, α.fft_plans.kxy_irfft, xy_modes)
-        df = reshape(df, df_size)
-        df2 = reshape(df2, df_size)
-        @. df = ux * df2
+        mul!(dF, α.fft_plans.kxy_irfft, xy_modes)
         nothing
     end
 end
 
-function drifting_y!(df, f, uy, α, buffer)
+function drifting_y!(dF, F, α, sim, buffer)
+    error("Not yet implemented")
+end
+
+function drift_uz_F(F, α, E, sim, buffer)
+    Ex, _, _ = E
+
+    (; By, ωpτ, ωcτ, gz) = sim
+
+    uz = alloc_zeros(Float64, buffer, size(By)...)
+
+    # ExB drift
+    @. uz += Ex * By / By^2
+
+    F_with_bcs, uz_with_bcs = z_drifting_bcs(F, uz, α, buffer)
+
+    uz_F⁺ = alloc_array(Float64, buffer, size(F_with_bcs)...)
+    uz_F⁻ = alloc_array(Float64, buffer, size(F_with_bcs)...)
+
+    uz⁺ = alloc_array(Float64, buffer, size(uz_with_bcs)...)
+    uz⁻ = alloc_array(Float64, buffer, size(uz_with_bcs)...)
+    @. uz⁺ = max(uz_with_bcs, 0)
+    @. uz⁻ = min(uz_with_bcs, 0)
+
+    @show maximum(abs, uz⁺)
+    @show maximum(abs, uz⁻)
+
+    @. uz_F⁺ = uz⁺ * F_with_bcs
+    @. uz_F⁻ = uz⁻ * F_with_bcs
+
+    return uz_F⁺, uz_F⁻
+end
+
+function drifting_z!(dF, F, α::Species{<:HermiteLaguerre}, E, sim, buffer)
     (; discretization) = α
 
     Nx, Ny, Nz, Nμ, Nvy = size(discretization)
     xgrid = discretization.x_grid
 
-    f = reshape(f, (Nx, Ny, :))
-    df_size = size(df)
-    df = reshape(df, (Nx, Ny, :))
-    F = α.fft_plans.kxy_rfft
-
     no_escape(buffer) do
-        Kx = (Nx ÷ 2 + 1)
-        Ky = Ny
-        xy_modes = alloc_zeros(Complex{Float64}, buffer, Kx, Ny, Nz*Nμ*Nvy)
-        mul!(xy_modes, F, f)
-        xy_modes = reshape(xy_modes, Kx, Ny, Nz, Nμ, Nvy)
-        kys = alloc_array(Complex{Float64}, buffer, 1, Ky)
-        kys .= (-im * 2π / xgrid.y.L) * arraytype(buffer)(mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))')
-        xy_modes .*= kys
-        xy_modes = reshape(xy_modes, (Kx, Ny, :))
-        df2 = alloc_array(Float64, buffer, size(df)...)
-        mul!(df2, α.fft_plans.kxy_irfft, xy_modes)
-        df = reshape(df, df_size)
-        df2 = reshape(df2, df_size)
-        @. df = uy * df2
-        nothing
-    end
-end
-
-function drifting_z!(df, f, uz, α::Species{<:HermiteLaguerre}, buffer)
-    (; discretization) = α
-
-    Nx, Ny, Nz, Nμ, Nvy = size(discretization)
-    xgrid = discretization.x_grid
-
-
-    no_escape(buffer) do
-        f_with_boundaries, uz_with_boundaries = z_drifting_bcs(f, uz, α, buffer)
-
-        uz⁺ = alloc_array(Float64, buffer, size(uz_with_boundaries)...)
-        uz⁻ = alloc_array(Float64, buffer, size(uz_with_boundaries)...)
-        @. uz⁺ = max(uz_with_boundaries, 0)
-        @. uz⁻ = min(uz_with_boundaries, 0)
-
-        F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nμ, Nvy)
-        @. F⁻ = f_with_boundaries * uz⁻
-
-        F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nμ, Nvy)
-        @. F⁺ = f_with_boundaries * uz⁺
+        uz_F⁺, uz_F⁻ = drift_uz_F(F, α, E, sim, buffer)
 
         right_biased_stencil, left_biased_stencil = xgrid.z_fd_stencils
         convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nμ, Nvy)
 
-        @timeit "conv" convolve_z!(convolved, reshape(F⁻, (Nx, Ny, Nz+6, Nμ, Nvy)), right_biased_stencil, true, buffer)
-        df .+= convolved
-        @timeit "conv" convolve_z!(convolved, reshape(F⁺, (Nx, Ny, Nz+6, Nμ, Nvy)), left_biased_stencil, true, buffer)
-        df .+= convolved
+        @timeit "conv" convolve_z!(convolved, reshape(uz_F⁻, (Nx, Ny, Nz+6, Nμ, Nvy)), right_biased_stencil, true, buffer)
+        dF .+= convolved
+        @timeit "conv" convolve_z!(convolved, reshape(uz_F⁺, (Nx, Ny, Nz+6, Nμ, Nvy)), left_biased_stencil, true, buffer)
+        dF .+= convolved
     end
 end
 
@@ -145,5 +167,6 @@ function z_drifting_bcs(f, uz, α, buffer)
     end
     f_with_boundaries[:, :, 4:Nz+3, :, :] .= f
     uz_with_boundaries[:, :, 4:Nz+3] .= uz
-    return f_with_boundaries
+    return f_with_boundaries, uz_with_boundaries
 end
+

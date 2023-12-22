@@ -72,8 +72,10 @@ end
 function poisson_helper(dz, buffer)
     T = arraytype(buffer)
 
-    centered_first_derivative_stencil = T([-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz)
-    centered_second_derivative_stencil = T([1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2)
+    #centered_first_derivative_stencil = T([-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz)
+    #centered_second_derivative_stencil = T([1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2)
+    centered_first_derivative_stencil = T([-1/2, 0, 1/2] / dz)
+    centered_second_derivative_stencil = T([1, -2, 1] / dz^2)
 
     M_inv_left = T([3  -20  90;
                     0   -5  60;
@@ -102,7 +104,7 @@ function poisson_helper(dz, buffer)
     )
 end
 
-struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
+struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE}
     x::PeriodicGrid1D
     y::PeriodicGrid1D
     z::Grid1D
@@ -110,6 +112,8 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
     X::XA
     Y::YA
     Z::ZA
+
+    Dz::SPARSE
 
     xy_hou_li_filters::FILTERS
     z_fd_stencils::STENCILS
@@ -126,6 +130,23 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
         copyto!(Z, reshape(zgrid.nodes, (1, 1, :)))
 
         dz = zgrid.dx
+
+        Nx = length(xgrid.nodes)
+        Ny = length(ygrid.nodes)
+        Nz = length(zgrid.nodes)
+
+        if Nz >= 3
+            Dz = spdiagm(-1 => -ones(Nz-1), 1 => ones(Nz-1))
+            Dz[1, 1:3] .= [-3, 4, -1]
+            Dz[end, end-2:end] .= [1, -4, 3]
+            Dz = Dz ./ (2dz)
+        elseif Nz == 1
+            Dz = I(1)
+        else
+            error("Nz must be at least 3 for z discretization")
+        end
+        Dz = kron(Dz, I(Ny), I(Nx)) |> sparsearraytype(buffer)
+
         right_biased_stencil = arraytype(buffer)([0, 1/20, -1/2, -1/3, 1, -1/4, 1/30]) * (-1 / dz)
         left_biased_stencil =  arraytype(buffer)([-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]) * (-1 / dz)
         stencils = (right_biased_stencil, left_biased_stencil)
@@ -143,8 +164,8 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
 
         filters = (σx, σy)
 
-        new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils), typeof(helper)}(
-            xgrid, ygrid, zgrid, X, Y, Z, filters, stencils, helper)
+        new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils), typeof(helper), typeof(Dz)}(
+            xgrid, ygrid, zgrid, X, Y, Z, Dz, filters, stencils, helper)
     end
 end
 
@@ -162,18 +183,13 @@ function min_dx(grid::XGrid)
     return result
 end
 
-function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, buffer)
+function form_fourier_domain_poisson_operator(grid, x_dims, buffer)
     Nx, Ny, Nz = size(grid)
 
     helper = grid.poisson_helper
 
     T = arraytype(buffer)
     ST = sparsearraytype(buffer)
-
-    @show size(ϕ_left)
-    @show size(ϕ_right)
-    @assert ϕ_left ≈ ϕ_left[1] * T(ones(size(ϕ_left)))
-    @assert ϕ_right ≈ ϕ_right[1] * T(ones(size(ϕ_right)))
 
     if :z ∈ x_dims
         Dzz = spzeros(Nz, Nz)
@@ -183,7 +199,7 @@ function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, b
         for i in 1:Nz
             u .= 0.0
             u[i] = 1.0
-            apply_laplacian!(b, u, T([ϕ_left[1]]), T([ϕ_right[1]]), z_grid, [:z], buffer, plan_ffts(z_grid, buffer), helper)
+            apply_laplacian!(b, u, T([0.]), T([0.]), z_grid, [:z], buffer, plan_ffts(z_grid, buffer), helper)
             Dzz[:, i] .= sparse(vec(b))
         end
     else
@@ -215,7 +231,8 @@ function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, b
         return sparse(I(1))
     end
 
-    return ST(sparse(kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Kx)) + kron(Dzz, I(Ny), I(Kx))))
+    result = ST(sparse(kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Kx)) + kron(Dzz, I(Ny), I(Kx))))
+    result
 end
 
 size(grid::XGrid) = (grid.x.N, grid.y.N, grid.z.N)
@@ -399,17 +416,22 @@ struct HermiteLaguerre{SPARSE, DENSE, FILTERS}
     Dμ::DENSE
     ΞμDμ::DENSE
 
+    Ξμ::DENSE
+
     filters::FILTERS
 end
 
 HermiteLaguerre(Nμ, Nvy, μ0, vth, device, buffer) = begin
     # Notation from Olver et al.
     R = spdiagm(0 => ones(Nμ), 1 => -ones(Nμ-1)) |> Array
-    L = spdiagm(0 => 0.5 .+ (1:Nμ), -1 => -(1:Nμ-1)) |> Array
+    L = spdiagm(0 => 0.0 .+ (1:Nμ), -1 => -(1:Nμ-1)) |> Array
     W = spdiagm(-1 => (1:Nμ-1)) |> Array
 
     Dμ = L \ (W - 0.5 * inv(R)) / μ0 |> arraytype(buffer)
     ΞμDμ = R*W - 0.5*I(Nμ) |> arraytype(buffer)
+
+    L_minus_1 = spdiagm(0 => -1.0 .+ (1:Nμ), -1 => -(1:Nμ-1)) |> Array
+    Ξμ = kron(I(Nvy), R * L_minus_1 * μ0)
 
     cx = if device == :cpu
         identity
@@ -425,7 +447,7 @@ HermiteLaguerre(Nμ, Nvy, μ0, vth, device, buffer) = begin
 
     filters = (σμ, σvy)
 
-    HermiteLaguerre(Nμ, Nvy, μ0, vth, cx(Ξy), cx(Dvy), Dμ, ΞμDμ, filters)
+    HermiteLaguerre(Nμ, Nvy, μ0, vth, cx(Ξy), cx(Dvy), Dμ, ΞμDμ, Ξμ, filters)
 end
 
 size(hl::HermiteLaguerre) = (hl.Nμ, hl.Nvy)
