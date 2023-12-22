@@ -1,4 +1,6 @@
-function drift_velocity(α, E, By, gz, buffer)
+function max_drift_eigenvalue(α, E, By, gz, buffer)
+    xgrid = α.discretization.x_grid
+
     Ex, Ey, Ez = E
 
     ux = alloc_zeros(Float64, buffer, size(By)...)
@@ -6,18 +8,38 @@ function drift_velocity(α, E, By, gz, buffer)
     uz = alloc_zeros(Float64, buffer, size(By)...)
 
     # ExB drifts
-    @. ux -= Ez*By / By^2
-    @. uz += Ex*By / By^2
+    @. ux += abs(Ez*By / By^2)
+    @. uz += abs(Ex*By / By^2)
 
     # Gravitational drift
-    @. ux -= α.m * gz * By / (α.q * By^2)
+    @. ux += abs(α.m * gz * By / (α.q * By^2))
+
+    # Grad-B drift
+    grad_By_z = alloc_array(Float64, buffer, size(By)...)
+    mul!(vec(grad_By_z), xgrid.Dz, vec(By))
+    μ0 = α.discretization.vdisc.μ0
+    @. ux += 3μ0 * max(grad_By_z / By)
 
     #@show norm(ux)
     #@show norm(uz)
 
     # TODO other guiding center drifts
+
+    λmax = 0.0
+    if :x ∈ α.x_dims
+        λx = maximum(abs, ux) / xgrid.x.dx 
+        λmax = max(λx, λmax)
+    end
+    if :y ∈ α.x_dims
+        λy = maximum(abs, uy) / xgrid.y.dx 
+        λmax = max(λy, λmax)
+    end
+    if :z ∈ α.x_dims
+        λz = maximum(abs, uz) / xgrid.z.dx 
+        λmax = max(λz, λmax)
+    end
     
-    return (ux, uy, uz)
+    return λmax
 end
 
 function drifting!(df, f, α, E, sim, buffer)
@@ -42,6 +64,8 @@ function drifting!(df, f, α, E, sim, buffer)
         df .+= df_drifts
         nothing
     end
+
+    return max_drift_eigenvalue(α, E, sim.By, sim.gz, buffer)
 end
 
 function drift_ux_F(F, α, E, sim, buffer)
@@ -72,9 +96,9 @@ function drift_ux_F(F, α, E, sim, buffer)
     grad_By_z = alloc_array(Float64, buffer, size(By)...)
     mul!(vec(grad_By_z), sim.x_grid.Dz, vec(By))
 
-    @. ux_F -= μ_F / α.q * grad_By_z * By / By^2
+    @. ux_F += μ_F / α.q * grad_By_z * By / By^2
 
-    @show maximum(abs, ux_F ./ F)
+    #@show maximum(abs, ux_F ./ F)
 
     return ux_F
 end
@@ -125,8 +149,8 @@ function drift_uz_F(F, α, E, sim, buffer)
     @. uz⁺ = max(uz_with_bcs, 0)
     @. uz⁻ = min(uz_with_bcs, 0)
 
-    @show maximum(abs, uz⁺)
-    @show maximum(abs, uz⁻)
+    #@show maximum(abs, uz⁺)
+    #@show maximum(abs, uz⁻)
 
     @. uz_F⁺ = uz⁺ * F_with_bcs
     @. uz_F⁻ = uz⁻ * F_with_bcs

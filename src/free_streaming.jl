@@ -22,6 +22,26 @@ function free_streaming!(df, f, species, buffer)
         df .+= df_fs
         nothing
     end
+
+    return estimate_max_freestreaming_eigenvalue(f, species)
+end
+
+function estimate_max_freestreaming_eigenvalue(f, α::Species{<:Hermite})
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
+    (; vth) = α.discretization.vdisc
+    x_grid = α.discretization.x_grid
+
+    λ = 0.0
+    if :x ∈ α.x_dims
+        λ += vth * sqrt(Nvx) / x_grid.x.dx
+    end
+    if :y ∈ α.x_dims
+        λ += vth * sqrt(Nvy) / x_grid.y.dx
+    end
+    if :z ∈ α.x_dims
+        λ += vth * sqrt(Nvz) / x_grid.z.dx
+    end
+    return λ
 end
 
 function free_streaming_z!(df, f, species::Species{WENO5}, buffer)

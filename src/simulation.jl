@@ -121,31 +121,37 @@ function vlasov_fokker_planck!(du, fs, sim, λmax, buffer)
             df .= 0
             f = fs.x[i]
 
-            kinetic_rhs!(df, f, E, sim, α, buffer)
+            λ = kinetic_rhs!(df, f, E, sim, α, buffer)
+            λmax[] = max(λ, λmax[])
         end
     end
+    @show λmax[]
 end
 
 kinetic_rhs!(df, f, E, sim, α::Species{<:HermiteLaguerre}, buffer) = drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)
 kinetic_rhs!(df, f, E, sim, α::Union{Species{<:Hermite}, Species{<:WENO5}}, buffer) = vlasov_species_rhs!(df, f, E, sim, α, buffer)
 
 function vlasov_species_rhs!(df, f, E, sim, α, buffer)
+    λmax = 0.0
+    λ_fs = λ_es = 0.0
     if sim.free_streaming
-        @timeit "free streaming" free_streaming!(df, f, α, buffer)
+        @timeit "free streaming" λ_fs = free_streaming!(df, f, α, buffer)
     end
     if α.q != 0.0 || sim.gz != 0.0
         Ex, Ey, Ez = E
-        @timeit "electrostatic" electrostatic!(df, f, Ex, Ey, Ez, sim.By, sim.gz, 
+        @timeit "electrostatic" λ_es = electrostatic!(df, f, Ex, Ey, Ez, sim.By, sim.gz, 
             α, buffer, sim.fft_plans)
     end
     if sim.ν_p != 0.0
         @timeit "dfp" dfp!(df, f, α, sim, buffer)
     end
+
+    return λ_es + λ_fs
 end
 
 function drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)
-    @timeit "drifting" drifting!(df, f, α, E, sim, buffer)
-    #@info "" as_xvx(df)
+    @timeit "drifting" λ = drifting!(df, f, α, E, sim, buffer)
+    return λ
 end
 
 function filter!(f, sim, buffer)

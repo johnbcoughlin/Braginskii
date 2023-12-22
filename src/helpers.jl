@@ -374,7 +374,7 @@ function two_species_2d_vlasov_dk_hybrid((; Fe_0, fi_0, By0); Nx, Nz, Nμ, Nvx, 
         plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
 
     vi_disc = hermite_disc(; Nvx, Nvy=1, Nvz, vth, device)
-    ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, :reflecting)
     ion_disc = XVDiscretization(x_grid, vi_disc)
     @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4, 6), buffer)
     ions = Species("ions", [:x, :z], [:vx, :vz], qi, mi,

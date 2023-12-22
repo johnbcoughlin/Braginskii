@@ -222,6 +222,9 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
             Ey .= 0
         end
 
+        #@warn "zeroing out E field"
+        #Ex .= Ey .= Ez .= 0
+
         nothing
     end
 end
@@ -287,5 +290,6 @@ function do_poisson_solve(Δ_lu, ρ_c, grid, ϕ_left, ϕ_right, helper, x_dims, 
     ϕ̂ = alloc_array(ComplexF64, buffer, size(ρ̂)...)
     @. ϕ̂ = ϕ̂_re + im * ϕ̂_im
     @timeit "postprocess" ϕ = postprocess_poisson_soln(ϕ̂, grid, fft_plans, buffer)
+    #@warn "zeroing out electric potential"
     return ϕ
 end

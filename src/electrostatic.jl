@@ -15,6 +15,20 @@ function electrostatic!(df, f, Ex, Ey, Ez, By, gz, species, buffer, xgrid_fft_pl
         df .+= df_es
         nothing
     end
+
+    return estimate_max_eigenvalue(Ex, Ey, Ez, By, species)
+end
+
+function estimate_max_eigenvalue(Ex, Ey, Ez, By, α)
+    (; vth, Nvx, Nvy, Nvz) = α.discretization.vdisc
+    dvx = 1 / (vth * sqrt(Nvx))
+    dvy = 1 / (vth * sqrt(Nvy))
+    dvz = 1 / (vth * sqrt(Nvz))
+    λx = maximum(abs, Ex) / dvx + maximum(abs, By)
+    λy = maximum(abs, Ey) / dvy
+    λz = maximum(abs, Ez) / dvz + maximum(abs, By)
+
+    return (λx + λy + λz) * α.q / α.m
 end
 
 function electrostatic_x!(df, f, Ex, By, species::Species{WENO5}, buffer, xgrid_fft_plans)
