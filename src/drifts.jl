@@ -81,10 +81,13 @@ function drift_ux_F(F, α, E, sim, buffer)
     ux = alloc_zeros(Float64, buffer, size(By)...)
 
     # ExB drifts
-    @. ux -= Ez*By / By^2
+    @. ux -= (ωpτ/ωcτ) * Ez*By / By^2
 
     # Gravitational drift
-    @. ux -= α.m * gz * By / (α.q * By^2)
+    if gz != 0
+        error("Figure out scaling correctly")
+        @. ux -= (1/ωcτ) * α.m * gz * By / (α.q * By^2)
+    end
 
     ux_F = alloc_array(Float64, buffer, size(F)...)
     @. ux_F = ux * F
@@ -96,7 +99,7 @@ function drift_ux_F(F, α, E, sim, buffer)
     grad_By_z = alloc_array(Float64, buffer, size(By)...)
     mul!(vec(grad_By_z), sim.x_grid.Dz, vec(By))
 
-    @. ux_F += μ_F / α.q * grad_By_z * By / By^2
+    @. ux_F += (1 / ωcτ) * μ_F / α.q * grad_By_z * By / By^2
 
     #@show maximum(abs, ux_F ./ F)
 
@@ -137,7 +140,7 @@ function drift_uz_F(F, α, E, sim, buffer)
     uz = alloc_zeros(Float64, buffer, size(By)...)
 
     # ExB drift
-    @. uz += Ex * By / By^2
+    @. uz += (ωpτ/ωcτ) * Ex * By / By^2
 
     F_with_bcs, uz_with_bcs = z_drifting_bcs(F, uz, α, buffer)
 

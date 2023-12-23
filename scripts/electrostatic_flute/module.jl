@@ -200,7 +200,7 @@ function make_sim_equilibrium_2d(device=:cpu)
 
     Ai = 1.0
     Ae = 1/20
-    Zi = 1.0 * 100
+    Zi = 1.0
     Ze = -Zi
 
     vti = sqrt(T_ref / Ai)
@@ -208,8 +208,8 @@ function make_sim_equilibrium_2d(device=:cpu)
     μ0 = T_ref / B_ref
     @show μ0
 
-    ωcτ = 1.0
-    ωpτ = 1.0
+    ωcτ = 10.0
+    ωpτ = 10.0
 
     δ = 1e-4
 
@@ -227,10 +227,10 @@ function make_sim_equilibrium_2d(device=:cpu)
     end
 
     Py(z, vx) = begin
-        Ax = r0 * B_ref * log(z + r0)
+        Ax = ωcτ * r0 * B_ref * log(z + r0)
         return Ai * vx + Zi * Ax
     end
-    ni_eq(z, vx) = g(exp(Py(z, vx) / (Zi * r0 * B_ref)) - r0)
+    ni_eq(z, vx) = g(exp(Py(z, vx) / (Zi * ωcτ * r0 * B_ref)) - r0)
     fi_eq(z, vx, vz) = Ai * ni_eq(z, vx) / (2pi * T_ref) * exp(-Ai*(vx^2 + vz^2)/(2T_ref))
 
     # Now calculate the zeroth moment of fi_eq to obtain ne_eq

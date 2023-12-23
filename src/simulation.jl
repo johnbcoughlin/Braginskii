@@ -139,7 +139,7 @@ function vlasov_species_rhs!(df, f, E, sim, α, buffer)
     end
     if α.q != 0.0 || sim.gz != 0.0
         Ex, Ey, Ez = E
-        @timeit "electrostatic" λ_es = electrostatic!(df, f, Ex, Ey, Ez, sim.By, sim.gz, 
+        @timeit "electrostatic" λ_es = electrostatic!(df, f, Ex, Ey, Ez, sim,
             α, buffer, sim.fft_plans)
     end
     if sim.ν_p != 0.0

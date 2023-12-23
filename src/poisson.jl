@@ -16,6 +16,7 @@ function charge_density(sim, f, buffer)
         #ρ0 = ρ_sum / (Nx*Ny*Nz)
         @. ρ_c -= ρ_sum / (Nx*Ny*Nz)
     end
+    @. ρ_c *= sim.ωpτ
     ρ_c
 end
 
