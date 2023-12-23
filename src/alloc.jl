@@ -51,6 +51,8 @@ alloc_array(::Type{T}, ::Type{<:CuArray}, s...) where {T} = begin
 end
 
 alloc_array(::Type{T}, buffer::Bumper.AllocBuffer, s...) where {T} = begin
+    nbytes = prod(s) * sizeof(T)
+    #@info "Allocating bytes" nbytes Int(buffer.offset)
     ptr = Bumper.Internals.alloc_ptr(buffer, prod(s) * sizeof(T))
     buffer.offset = next_greatest_multiple(buffer.offset, 16)
     unsafe_wrap(Array, convert(Ptr{T}, ptr), s)

@@ -192,15 +192,18 @@ function form_fourier_domain_poisson_operator(grid, x_dims, buffer)
     ST = sparsearraytype(buffer)
 
     if :z ∈ x_dims
-        Dzz = spzeros(Nz, Nz)
-        u = T(zeros(1, 1, Nz))
-        b = T(zeros(1, 1, Nz))
-        z_grid = Helpers.z_grid_1d(Nz, grid.z.min, grid.z.max, buffer)
-        for i in 1:Nz
-            u .= 0.0
-            u[i] = 1.0
-            apply_laplacian!(b, u, T([0.]), T([0.]), z_grid, [:z], buffer, plan_ffts(z_grid, buffer), helper)
-            Dzz[:, i] .= sparse(vec(b))
+        no_escape(buffer) do
+            Dzz = spzeros(Nz, Nz)
+            u = T(zeros(1, 1, Nz))
+            b = T(zeros(1, 1, Nz))
+            z_grid = Helpers.z_grid_1d(Nz, grid.z.min, grid.z.max, buffer)
+            ffts = plan_ffts(z_grid, buffer)
+            for i in 1:Nz
+                u .= 0.0
+                u[i] = 1.0
+                apply_laplacian!(b, u, T([0.]), T([0.]), z_grid, [:z], buffer, ffts, helper)
+                Dzz[:, i] .= sparse(vec(b))
+            end
         end
     else
         Dzz = 0*I(1)

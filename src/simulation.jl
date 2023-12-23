@@ -239,6 +239,7 @@ function runsim!(sim, d, t_end; kwargs...)
         end
     end
 
+    @info "All set up and ready to integrate"
     integrate_stably(rk_step!, sim, t_end, d; run_diagnostics=core_diagnostics, kwargs...)
 end
 
@@ -258,11 +259,11 @@ function frame_writeout(sim::Simulation, t)
     no_escape(sim.buffer) do
         result["ρ_c"] = charge_density(sim, fs, sim.buffer) |> copy
         Ex, Ey, Ez = poisson(sim, fs, sim.buffer)
-        result["ϕ"] = do_poisson_solve(sim.Δ_lu, result["ρ_c"], sim.x_grid, 
-            sim.ϕ_left, sim.ϕ_right, sim.x_grid.poisson_helper,
-        sim.x_dims, sim.fft_plans, sim.buffer) |> copy
+        #result["ϕ"] = do_poisson_solve(sim.Δ_lu, result["ρ_c"], sim.x_grid, 
+            #sim.ϕ_left, sim.ϕ_right, sim.x_grid.poisson_helper,
+        #sim.x_dims, sim.fft_plans, sim.buffer) |> copy
         result["Ex"] = Ex |> copy
-        result["Ey"] = Ey |> copy
+        #result["Ey"] = Ey |> copy
         result["Ez"] = Ez |> copy
     end
     for (i, α) in enumerate(sim.species)
@@ -279,9 +280,12 @@ function make_snapshot_takers(sim, d; snapshot_interval_dt=Inf, kwargs...)
 
     for i in 1:length(sim.species)
         α = sim.species[i]
+        if isa(α.discretization.vdisc, HermiteLaguerre)
+            continue
+        end
 
         # Δx / vth
-        halfwidth = min_dx(sim.x_grid) / (1*average_vth(α.discretization))
+        halfwidth = min(0.5*snapshot_interval_dt, min_dx(sim.x_grid) / (1*average_vth(α.discretization)))
 
         # 3D arrays of the buffer type
         arraytype = typeof(alloc_array(Float64, sim.buffer, 1, 1, 1))

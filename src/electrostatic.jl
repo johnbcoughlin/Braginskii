@@ -155,9 +155,6 @@ function electrostatic_z!(df, f, Ez, By, gz, species::Species{WENO5}, buffer, xg
 
         @. C = q / m * (Ez + vgrid.VX * By) + gz / m
 
-        F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
-        F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
-
         F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
         F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
