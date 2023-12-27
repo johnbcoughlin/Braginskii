@@ -79,8 +79,8 @@ function prepare_poisson_rhs(ρ, grid, ϕ_left, ϕ_right, helper, x_dims, fft_pl
     ρ_modified = alloc_array(Float64, buffer, Nx, Ny, Nz)
     ρ_modified .= ρ
     if :z ∈ x_dims
-        ρ_modified[:, :, 1] .-= -ϕ_left * helper.centered_second_derivative_stencil[1] 
-        ρ_modified[:, :, end] .-= -ϕ_right * helper.centered_second_derivative_stencil[3]
+        ρ_modified[:, :, 1] .-= ϕ_left * helper.centered_second_derivative_stencil[1] 
+        ρ_modified[:, :, end] .-= ϕ_right * helper.centered_second_derivative_stencil[3]
     end
 
     Kx = Nx ÷ 2 + 1

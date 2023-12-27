@@ -125,7 +125,6 @@ function vlasov_fokker_planck!(du, fs, sim, λmax, buffer)
             λmax[] = max(λ, λmax[])
         end
     end
-    @show λmax[]
 end
 
 kinetic_rhs!(df, f, E, sim, α::Species{<:HermiteLaguerre}, buffer) = drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)
@@ -146,7 +145,7 @@ function vlasov_species_rhs!(df, f, E, sim, α, buffer)
         @timeit "dfp" dfp!(df, f, α, sim, buffer)
     end
 
-    return λ_es + λ_fs
+    return 5 * (λ_es + λ_fs)
 end
 
 function drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)

@@ -20,9 +20,6 @@ function max_drift_eigenvalue(α, E, By, gz, buffer)
     μ0 = α.discretization.vdisc.μ0
     @. ux += 3μ0 * max(grad_By_z / By)
 
-    #@show norm(ux)
-    #@show norm(uz)
-
     # TODO other guiding center drifts
 
     λmax = 0.0
@@ -38,6 +35,8 @@ function max_drift_eigenvalue(α, E, By, gz, buffer)
         λz = maximum(abs, uz) / xgrid.z.dx 
         λmax = max(λz, λmax)
     end
+
+    #@show max_drift_eigenvalue = λmax
     
     return λmax
 end
@@ -85,7 +84,7 @@ function drift_ux_F(F, α, E, sim, buffer)
 
     # Gravitational drift
     if gz != 0
-        error("Figure out scaling correctly")
+        #error("Figure out scaling correctly")
         @. ux -= (1/ωcτ) * α.m * gz * By / (α.q * By^2)
     end
 
@@ -120,6 +119,7 @@ function drifting_x!(dF, F, α, E, sim, buffer)
         ux_F = drift_ux_F(F, α, E, sim, buffer)
         xy_modes = alloc_array(Complex{Float64}, buffer, Kx, Ny, Nz*Nμ*Nvy)
         mul!(xy_modes, transform, reshape(ux_F, (Nx, Ny, :)))
+
         kxs = alloc_array(Complex{Float64}, buffer, Kx, 1, 1)
         kxs .= (-im * 2π / xgrid.x.L) * ((0:Kx-1))
         xy_modes .*= kxs
@@ -151,9 +151,6 @@ function drift_uz_F(F, α, E, sim, buffer)
     uz⁻ = alloc_array(Float64, buffer, size(uz_with_bcs)...)
     @. uz⁺ = max(uz_with_bcs, 0)
     @. uz⁻ = min(uz_with_bcs, 0)
-
-    #@show maximum(abs, uz⁺)
-    #@show maximum(abs, uz⁻)
 
     @. uz_F⁺ = uz⁺ * F_with_bcs
     @. uz_F⁻ = uz⁻ * F_with_bcs
