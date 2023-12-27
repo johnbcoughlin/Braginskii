@@ -1,4 +1,4 @@
-function dfp!(df, f, α::Species, sim, buffer)
+NVTX.@annotate function dfp!(df, f, α::Species, sim, buffer)
     for β in sim.species
         cm = sim.collisional_moments[(α.name, β.name)]
         dfp!(df, f, cm, α, buffer)

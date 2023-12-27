@@ -7,14 +7,13 @@ using TOML
 
 include("module.jl")
 
-knudsens() = 10.0 .^ (-3:0.2:-1)
+knudsens() = 10.0 .^ (-2.4:0.2:-1)
 
 """
 This function's job is to setup the working directories for every
 simulation in the campaign.
 """
 function setup_campaign()
-    # Use Knudsen numbers ranging from 0.001 to 0.1
     Kns = knudsens()
 
     f_ic = get_or_save_ic()
@@ -66,13 +65,15 @@ function run_sim(; id)
     set_simpath(id, d)
     d = PDEHarness.normalize!(d)
     t_end = tau * 10.0
-    frames = 50
+    nframes = 50
+    @show nsnapshots = min(2000, t_end/(.1))
     Braginskii.runsim!(
         sim, d, t_end, 
         restart_from_latest=true, 
         adaptive_dt=false,
         diagnostics_dt=(t_end / 100),
-        writeout_dt=(t_end /frames),
+        writeout_dt=(t_end / nframes),
+        snapshot_interval_dt=(t_end / nsnapshots),
         initial_dt=dt,
         log=true)
 end

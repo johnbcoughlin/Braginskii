@@ -1,7 +1,7 @@
 import LinearAlgebra: mul!, ldiv!
 import Base: eltype, size, *
 
-function poisson(sim, f, buffer)
+NVTX.@annotate function poisson(sim, f, buffer)
     grid = sim.x_grid
     Nx, Ny, Nz = size(grid)
 
@@ -35,7 +35,7 @@ function poisson(ρ_c, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, h
     return (Ex, Ey, Ez)
 end
 
-function poisson_direct(ρ_c, Δ_lu, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, helper)
+NVTX.@annotate function poisson_direct(ρ_c, Δ_lu, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, helper)
     Nx, Ny, Nz = size(grid)
 
     Ex = alloc_array(Float64, buffer, Nx, Ny, Nz)
@@ -164,7 +164,7 @@ function apply_laplacian!(dest, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft
     end
 end
 
-function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper)
+NVTX.@annotate function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper)
     Nx, Ny, Nz = size(grid)
     dz = grid.z.dx
 
@@ -254,7 +254,7 @@ function factorize_poisson_operator(Δ::CuSparseMatrixCSR)
     return CUSOLVERRF.RFLU(Δ)
 end
 
-function do_poisson_solve(Δ_lu, ρ_c, grid, x_dims, fft_plans, buffer)
+NVTX.@annotate function do_poisson_solve(Δ_lu, ρ_c, grid, x_dims, fft_plans, buffer)
     @timeit "prepare rhs" ρ̂ = prepare_poisson_rhs(-ρ_c, grid, x_dims, fft_plans, buffer)
     ρ̂_re = alloc_array(Float64, buffer, size(ρ̂)...)
     ρ̂_re .= real.(ρ̂)

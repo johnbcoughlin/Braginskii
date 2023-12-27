@@ -1,6 +1,6 @@
 include("free_streaming_kernels.jl")
 
-function free_streaming!(df, f, species, buffer)
+NVTX.@annotate function free_streaming!(df, f, species, buffer)
     no_escape(buffer) do
         df_fs = alloc_zeros(Float64, buffer, size(df)...)
         if :x ∈ species.x_dims

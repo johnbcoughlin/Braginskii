@@ -81,6 +81,10 @@ new_snapshot(::Type{A}, sz, center::Float64) where A = Snapshot{A}(center,
 new_snapshot(s::Snapshot{A}, center) where {A} = new_snapshot(A, size(s.sample_sum.T), center)
 
 (st::SnapshotTaker)(sim, t) = begin
+    if st.halfwidth > st.interval_dt
+        @show st.halfwidth
+        @show st.interval_dt
+    end
     @assert st.halfwidth <= st.interval_dt
 
     if t - st.last_called_at > st.interval_dt / 2

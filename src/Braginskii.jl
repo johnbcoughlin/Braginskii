@@ -21,6 +21,7 @@ using NNlib
 using CUDA.CUSPARSE
 using CUSOLVERRF
 using JLD2
+using NVTX
 
 import Base.size, Base.getproperty
 

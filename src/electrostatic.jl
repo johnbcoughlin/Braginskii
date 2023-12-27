@@ -1,4 +1,4 @@
-function electrostatic!(df, f, Ex, Ey, Ez, By, gz, species, buffer, xgrid_fft_plans)
+NVTX.@annotate function electrostatic!(df, f, Ex, Ey, Ez, By, gz, species, buffer, xgrid_fft_plans)
     no_escape(buffer) do
         df_es = alloc_zeros(Float64, buffer, size(df)...)
 

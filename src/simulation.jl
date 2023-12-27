@@ -104,6 +104,8 @@ end
 function vlasov_fokker_planck!(du, f, sim, λmax, buffer)
     λmax[] = 0.0
 
+    CUDA.@sync begin end
+
     no_escape(buffer) do
         @timeit "poisson" Ex, Ey, Ez = poisson(sim, f, buffer)
 
