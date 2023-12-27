@@ -124,7 +124,7 @@ function make_sim_equilibrium_2d(device=:cpu)
     ωpτ = 1.0
 
     kx = 1
-    gz = -1e-4
+    gz = -1e-3
 
     δ = 1e-4
     
