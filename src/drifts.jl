@@ -94,7 +94,7 @@ function check_divergence_of_ExB(E, sim, buffer)
     div_ExB = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
     div_ExB += dx_ExB_x + dz_ExB_z
 
-    @show norm(div_ExB) / sum(norm(dx_ExB_x) + norm(dz_ExB_z))
+    #@show norm(div_ExB) / sum(norm(dx_ExB_x) + norm(dz_ExB_z))
 end
 
 function drift_ux_F(F, α, E, sim, buffer)

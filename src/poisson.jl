@@ -184,6 +184,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
 
     no_escape(buffer) do
         if :z ∈ x_dims
+            #=
             ϕ_with_z_bdy = alloc_array(Float64, buffer, Nx, Ny, Nz+2)
             ϕ_with_z_bdy[:, :, 2:Nz+1] .= ϕ
             ϕ_with_z_bdy[:, :, 1] .= ϕ_left
@@ -193,6 +194,10 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
             stencil = helper.centered_first_derivative_stencil
             ϕ_z = alloc_array(Float64, buffer, Nx, Ny, Nz)
             convolve_z!(ϕ_z, ϕ_with_z_bdy, stencil, true, buffer)
+            Ez .= -arraytype(Ez)(ϕ_z)
+            =#
+            ϕ_z = alloc_array(Float64, buffer, Nx, Ny, Nz)
+            mul!(vec(ϕ_z), grid.Dz_3rd_order, vec(ϕ))
             Ez .= -arraytype(Ez)(ϕ_z)
         else
             Ez .= 0
@@ -228,6 +233,37 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
 
         nothing
     end
+end
+
+function eliminate_curl!(E, sim, buffer)
+    Nx, Ny, Nz = size(sim.x_grid)
+
+    Ex, Ey, Ez = E
+
+    high_wave_number = norm(Ex[:, :, 1:2:end] .- Ex[:, :, 2:2:end])
+    #@show high_wave_number
+
+    # y component
+    # (∇ × E)_y = ∂x Ez - ∂z Ex.
+    # We'll fix the defect by modifying Ex.
+    ∂x_Ez = ∂x(Ez, sim, buffer)
+    ∂z_Ex = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    mul!(vec(∂z_Ex), sim.x_grid.Dz, vec(Ex)) 
+    
+    defect = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    @. defect = ∂x_Ez - ∂z_Ex
+    #display(as_xz(defect))
+    #Ex .+= ∂z_inv(defect, sim, buffer)
+
+    ∂z_Ex = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    mul!(vec(∂z_Ex), sim.x_grid.Dz, vec(Ex)) 
+    
+    defect = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    @. defect = ∂x_Ez - ∂z_Ex
+    #@show norm(defect)
+    #println()
+
+    #error()
 end
 
 function apply_poisson_bcs!(ϕ, ϕ_left, ϕ_right, helper)

@@ -60,6 +60,9 @@ struct PoissonHelper{A1, A2}
     centered_first_derivative_stencil::A1
     centered_second_derivative_stencil::A1
 
+    centered_second_derivative_stencil_sixth_order::A1
+    centered_fourth_derivative_stencil_fourth_order::A1
+
     M_inv_left::A2
     M_inv_right::A2
 
@@ -73,7 +76,8 @@ function poisson_helper(dz, buffer)
     T = arraytype(buffer)
 
     #centered_first_derivative_stencil = T([-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz)
-    #centered_second_derivative_stencil = T([1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2)
+    centered_fourth_derivative_stencil_fourth_order = T([-1/6, 2, -13/2, 28/3, -13/2, 2, -1/6] / dz^4)
+    centered_second_derivative_stencil_sixth_order = T([1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2)
     centered_first_derivative_stencil = T([-1/2, 0, 1/2] / dz)
     centered_second_derivative_stencil = T([1, -2, 1] / dz^2)
 
@@ -96,6 +100,8 @@ function poisson_helper(dz, buffer)
     return PoissonHelper(
         centered_first_derivative_stencil,
         centered_second_derivative_stencil,
+        centered_second_derivative_stencil_sixth_order,
+        centered_fourth_derivative_stencil_fourth_order,
         M_inv_left,
         M_inv_right,
         Q_left,
@@ -104,7 +110,7 @@ function poisson_helper(dz, buffer)
     )
 end
 
-struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE}
+struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
     x::PeriodicGrid1D
     y::PeriodicGrid1D
     z::Grid1D
@@ -114,6 +120,8 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE}
     Z::ZA
 
     Dz::SPARSE
+    Dz_3rd_order::SPARSE
+    Dz_inv::DENSE
 
     xy_hou_li_filters::FILTERS
     z_fd_stencils::STENCILS
@@ -135,17 +143,30 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE}
         Ny = length(ygrid.nodes)
         Nz = length(zgrid.nodes)
 
-        if Nz >= 3
+        if Nz >= 4
             Dz = spdiagm(-1 => -ones(Nz-1), 1 => ones(Nz-1))
             Dz[1, 1:3] .= [-3, 4, -1]
             Dz[end, end-2:end] .= [1, -4, 3]
             Dz = Dz ./ (2dz)
-        elseif Nz == 1
-            Dz = spdiagm(0 => ones(1))
+
+            Dz_invertible = copy(Dz)
+            Dz_invertible[2, :] .+= Dz_invertible[1, :]
+            Dz_invertible[1, :] .= 1 / dz
+            Dz_inv = inv(Array(Dz_invertible))
+
+            Dz_3rd_order = spdiagm(-1 => -2*ones(Nz-1), 0 => -3*ones(Nz), 
+                1 => 6*ones(Nz-1), 2=>-1*ones(Nz-2)) / (6dz)
+            Dz_3rd_order[1, 1:4] .= [-11, 18, -9, 2] / (6dz)
+            Dz_3rd_order[Nz-1, Nz-3:Nz] .= [1, -6, 3, 2] / (6dz)
+            Dz_3rd_order[Nz, Nz-3:Nz] .= [-2, 9, -18, 11] / (6dz)
         else
-            error("Nz must be at least 3 for z discretization")
+            Dz = spdiagm(0 => ones(1))
+            Dz_3rd_order = spdiagm(0 => ones(1))
+            Dz_inv = ones(1, 1)
         end
         Dz = kron(Dz, I(Ny), I(Nx)) |> sparsearraytype(buffer)
+        Dz_3rd_order = kron(Dz_3rd_order, I(Ny), I(Nx)) |> sparsearraytype(buffer)
+        Dz_inv = Dz_inv |> arraytype(buffer)
 
         right_biased_stencil = arraytype(buffer)([0, 1/20, -1/2, -1/3, 1, -1/4, 1/30]) * (-1 / dz)
         left_biased_stencil =  arraytype(buffer)([-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]) * (-1 / dz)
@@ -164,8 +185,8 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE}
 
         filters = (σx, σy)
 
-        new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils), typeof(helper), typeof(Dz)}(
-            xgrid, ygrid, zgrid, X, Y, Z, Dz, filters, stencils, helper)
+        new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils), typeof(helper), typeof(Dz), typeof(Dz_inv)}(
+            xgrid, ygrid, zgrid, X, Y, Z, Dz, Dz_3rd_order, Dz_inv, filters, stencils, helper)
     end
 end
 

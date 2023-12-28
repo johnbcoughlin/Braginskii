@@ -5,7 +5,6 @@ using DrWatson
 using Braginskii.Helpers
 using PDEHarness
 using Interpolations
-using Cthulhu
 
 function make_sim_equilibrium(::Val{device}) where device
     d = Dict{String, Any}()
@@ -95,9 +94,9 @@ function make_sim_equilibrium_2d(::Val{device}) where {device}
     d = Dict{String, Any}()
 
     problem = "hybrid_rayleigh_taylor"
-    Nz = 200
-    Nx = 48
-    Nμ = 10
+    Nz = 120
+    Nx = 32
+    Nμ = 3
     Nvx = 10
     Nvz = 10
 
