@@ -16,7 +16,8 @@ function electrostatic!(df, f, Ex, Ey, Ez, sim, species, buffer, xgrid_fft_plans
         nothing
     end
 
-    return estimate_max_eigenvalue(Ex, Ey, Ez, sim, species)
+    #return estimate_max_eigenvalue(Ex, Ey, Ez, sim, species)
+    return 0.0
 end
 
 function estimate_max_eigenvalue(Ex, Ey, Ez, sim, α)

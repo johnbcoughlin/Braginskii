@@ -64,7 +64,37 @@ function drifting!(df, f, α, E, sim, buffer)
         nothing
     end
 
-    return max_drift_eigenvalue(α, E, sim.By, sim.gz, buffer)
+    check_divergence_of_ExB(E, sim, buffer)
+
+    #return max_drift_eigenvalue(α, E, sim.By, sim.gz, buffer)
+    return 0.0
+end
+
+function check_divergence_of_ExB(E, sim, buffer)
+    xgrid = sim.x_grid
+    Nx, Ny, Nz = size(xgrid)
+
+    Ex, _, Ez = E
+
+    ExB_x = -Ez
+    ExB_z = Ex
+
+    Kx = Nx÷2+1
+    dx_ExB_x = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    xy_modes = alloc_zeros(Complex{Float64}, buffer, Kx, Ny, Nz)
+    mul!(xy_modes, sim.fft_plans.kxy_rfft, ExB_x)
+    kxs = alloc_array(Complex{Float64}, buffer, Kx, 1, 1)
+    kxs .= (im * 2π / xgrid.x.L) * ((0:Kx-1))
+    xy_modes .*= kxs
+    mul!(dx_ExB_x, sim.fft_plans.kxy_irfft, xy_modes)
+
+    dz_ExB_z = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    mul!(vec(dz_ExB_z), xgrid.Dz, vec(ExB_z))
+
+    div_ExB = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    div_ExB += dx_ExB_x + dz_ExB_z
+
+    @show norm(div_ExB) / sum(norm(dx_ExB_x) + norm(dz_ExB_z))
 end
 
 function drift_ux_F(F, α, E, sim, buffer)
@@ -85,7 +115,7 @@ function drift_ux_F(F, α, E, sim, buffer)
     # Gravitational drift
     if gz != 0
         #error("Figure out scaling correctly")
-        @. ux -= (1/ωcτ) * α.m * gz * By / (α.q * By^2)
+        #@. ux -= (1/ωcτ) * α.m * gz * By / (α.q * By^2)
     end
 
     ux_F = alloc_array(Float64, buffer, size(F)...)

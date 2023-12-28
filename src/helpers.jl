@@ -386,16 +386,22 @@ function two_species_1d2v_vlasov_dk_hybrid((; Fe_0, fi_0, By0); Nz, Nμ, Nvx, Nv
     Simulation(sim, ArrayPartition(fe, fi))
 end
 
-function two_species_2d_vlasov_dk_hybrid((; Fe_0, fi_0, By0); Nx, Nz, Nμ, Nvx, Nvz,
+function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx, Nz, Nμ, Nvx, Nvz,
     qe=-1.0, qi=1.0,
     me=0.1, mi=1.0,
-    ν_p=0.0, ωpτ, ωcτ, device=:cpu, vth=1.0, μ0=0.5, gz=0.0,
+    ν_p=0.0, ωpτ, ωcτ, vth=1.0, μ0=0.5, gz=0.0,
     Lx=2π, zmin=-1.0, zmax=1.0,
-    ϕ_left, ϕ_right, z_bcs)
+    ϕ_left, ϕ_right, z_bcs) where {device}
     buffer = allocator(device)
     x_grid = xz_grid_2d(Nx, Nz, zmin, zmax, Lx, buffer)
+    @info "created x grid"
 
-    By = By0.(x_grid.X, x_grid.Z)
+    @info "allocated By"
+    s = By0(0.0)
+    ss = By0(0.0, 0.0)::Float64
+    By = alloc_zeros(Float64, buffer, Nx, 1, Nz)
+    By .= By0.(x_grid.X, x_grid.Z)
+    @info "Calculated By"
 
     ϕl = alloc_zeros(Float64, buffer, Nx, 1)
     ϕl .= ϕ_left

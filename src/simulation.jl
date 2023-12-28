@@ -131,6 +131,9 @@ kinetic_rhs!(df, f, E, sim, α::Species{<:HermiteLaguerre}, buffer) = drift_kine
 kinetic_rhs!(df, f, E, sim, α::Union{Species{<:Hermite}, Species{<:WENO5}}, buffer) = vlasov_species_rhs!(df, f, E, sim, α, buffer)
 
 function vlasov_species_rhs!(df, f, E, sim, α, buffer)
+    #REMOVE
+    return 0.0
+
     λmax = 0.0
     λ_fs = λ_es = 0.0
     if sim.free_streaming
@@ -256,14 +259,14 @@ function frame_writeout(sim::Simulation, t)
     result = Dict{String, Any}("t" => t)
     fs = sim.u
     no_escape(sim.buffer) do
-        result["ρ_c"] = charge_density(sim, fs, sim.buffer) |> copy
+        result["ρ_c"] = charge_density(sim, fs, sim.buffer) |> hostarray
         Ex, Ey, Ez = poisson(sim, fs, sim.buffer)
         #result["ϕ"] = do_poisson_solve(sim.Δ_lu, result["ρ_c"], sim.x_grid, 
             #sim.ϕ_left, sim.ϕ_right, sim.x_grid.poisson_helper,
         #sim.x_dims, sim.fft_plans, sim.buffer) |> copy
-        result["Ex"] = Ex |> copy
+        result["Ex"] = Ex |> hostarray
         #result["Ey"] = Ey |> copy
-        result["Ez"] = Ez |> copy
+        result["Ez"] = Ez |> hostarray
     end
     for (i, α) in enumerate(sim.species)
         result[α.name] = Dict("f" => hostarray(sim.u.x[i]))

@@ -79,8 +79,8 @@ function prepare_poisson_rhs(ρ, grid, ϕ_left, ϕ_right, helper, x_dims, fft_pl
     ρ_modified = alloc_array(Float64, buffer, Nx, Ny, Nz)
     ρ_modified .= ρ
     if :z ∈ x_dims
-        ρ_modified[:, :, 1] .-= ϕ_left * helper.centered_second_derivative_stencil[1] 
-        ρ_modified[:, :, end] .-= ϕ_right * helper.centered_second_derivative_stencil[3]
+        ρ_modified[:, :, 1] .-= ϕ_left * helper.centered_second_derivative_stencil[1, :] 
+        ρ_modified[:, :, end] .-= ϕ_right * helper.centered_second_derivative_stencil[3, :]
     end
 
     Kx = Nx ÷ 2 + 1
@@ -227,23 +227,6 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
         #Ex .= Ey .= Ez .= 0
 
         nothing
-    end
-end
-
-function apply_ik!(ϕ̂, factor=1.0, dim=1)
-    N1, N2 = size(ϕ̂)
-    for i in axes(ϕ̂, 1), k in axes(ϕ̂, 2), j in axes(ϕ̂, 3)
-        c = dim == 1 ? i : k
-        ϕ̂[i, k, j] *= im * (c-1) * factor
-    end
-end
-
-function apply_k²!(ϕ̂, factor=1.0, dim=1)
-    N1, N2 = size(ϕ̂)
-    ϕ̂ = reshape(reinterpret(reshape, Float64, ϕ̂), (2N1, N2, :))
-    for i in axes(ϕ̂, 1), k in axes(ϕ̂, 2), j in axes(ϕ̂, 3)
-        c = dim == 1 ? i : k
-        ϕ̂[i, k, j] *= -(c-1)^2 * factor
     end
 end
 

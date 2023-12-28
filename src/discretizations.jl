@@ -141,7 +141,7 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE}
             Dz[end, end-2:end] .= [1, -4, 3]
             Dz = Dz ./ (2dz)
         elseif Nz == 1
-            Dz = I(1)
+            Dz = spdiagm(0 => ones(1))
         else
             error("Nz must be at least 3 for z discretization")
         end
@@ -434,7 +434,7 @@ HermiteLaguerre(Nμ, Nvy, μ0, vth, device, buffer) = begin
     ΞμDμ = R*W - 0.5*I(Nμ) |> arraytype(buffer)
 
     L_minus_1 = spdiagm(0 => -1.0 .+ (1:Nμ), -1 => -(1:Nμ-1)) |> Array
-    Ξμ = kron(I(Nvy), R * L_minus_1 * μ0)
+    Ξμ = kron(I(Nvy), R * L_minus_1 * μ0) |> arraytype(buffer)
 
     cx = if device == :cpu
         identity

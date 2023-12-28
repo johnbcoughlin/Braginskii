@@ -5,8 +5,9 @@ using DrWatson
 using Braginskii.Helpers
 using PDEHarness
 using Interpolations
+using Cthulhu
 
-function make_sim_equilibrium(device=:cpu)
+function make_sim_equilibrium(::Val{device}) where device
     d = Dict{String, Any}()
 
     problem = "hybrid_rayleigh_taylor"
@@ -90,13 +91,13 @@ function make_sim_equilibrium(device=:cpu)
     return (; d, sim)
 end
 
-function make_sim_equilibrium_2d(device=:cpu)
+function make_sim_equilibrium_2d(::Val{device}) where {device}
     d = Dict{String, Any}()
 
     problem = "hybrid_rayleigh_taylor"
-    Nz = 120
-    Nx = 32
-    Nμ = 20
+    Nz = 200
+    Nx = 48
+    Nμ = 10
     Nvx = 10
     Nvz = 10
 
@@ -131,8 +132,7 @@ function make_sim_equilibrium_2d(device=:cpu)
     merge!(d, @strdict problem Nz Nμ B_ref α Lx Lz n_ref T_ref kx δ gz)
 
     # Magnetic field profile
-    By0(z) = B_ref
-    By0(x, z) = By0(z)
+    By0(args...) = B_ref
     
     # Desired density profile
     g(z) = begin
@@ -150,6 +150,8 @@ function make_sim_equilibrium_2d(device=:cpu)
     ni_eq(z, vx) = g(Px(z, vx) / (Zi * B_ref))
     fi_eq(z, vx, vz) = Ai * ni_eq(z, vx) / (2pi * T_ref) * exp(-E(z, vx, vz))
 
+    # Defined all functions
+
     # Now calculate the zeroth moment of fi_eq to obtain ne_eq
     dv = vti/20
     vxs = -8vti:dv:8vti
@@ -160,7 +162,9 @@ function make_sim_equilibrium_2d(device=:cpu)
         sum(fi_eq.(z, vxs, vys')) * dv^2
     end
     ne_points = ne.(zs)
+    @info "calcualted ne_points"
     ne_interp = cubic_spline_interpolation(zs, ne_points, extrapolation_bc=Line())
+    @info "created interpolation"
 
     Fe_eq(Rz, μ) = begin
         ne_interp(Rz) * Ae / (2pi * T_ref) * exp(-By0(Rz) * μ / T_ref)
@@ -173,12 +177,15 @@ function make_sim_equilibrium_2d(device=:cpu)
     end
     fi_0(x, z, vx, vz) = fi_eq(z, vx, vz)
 
-    sim = Helpers.two_species_2d_vlasov_dk_hybrid((; Fe_0, fi_0, By0);
+    @info "Setting up sim"
+    sim = Helpers.two_species_2d_vlasov_dk_hybrid(Val(device), 
+        (; Fe_0, fi_0, By0);
         Nx, Nz, Nμ, Nvx, Nvz, μ0,
         zmin=-Lz/2, zmax=Lz/2, Lx,
         ϕ_left=0.0, ϕ_right=0.0, vth=vti,
         ν_p=0.0, ωpτ, ωcτ, qe=Ze, qi=Zi, me=Ae, mi=Ai, 
-        gz, device, z_bcs=:reservoir);
+        gz, z_bcs=:reservoir);
+    @info "Done setting up sim"
 
     d = PDEHarness.normalize!(d)
     return (; d, sim)
