@@ -109,7 +109,7 @@ function vlasov_fokker_planck!(du, fs, sim, λmax, buffer)
 
     no_escape(buffer) do
         @timeit "poisson" E = poisson(sim, fs, buffer)
-        eliminate_curl!(E, sim, buffer)
+        #eliminate_curl!(E, sim, buffer)
 
         if sim.ν_p != 0.0
             @timeit "collisional moments" collisional_moments!(sim, fs, buffer)
@@ -150,7 +150,7 @@ end
 
 function drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)
     @timeit "drifting" λ = drifting!(df, f, α, E, sim, buffer)
-    apply_hyperdiffusion!(df, f, sim, α, buffer)
+    @timeit "hyperdiffusion" apply_hyperdiffusion!(df, f, sim, α, buffer)
     return λ
 end
 

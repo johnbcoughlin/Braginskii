@@ -94,11 +94,11 @@ function make_sim_equilibrium_2d(::Val{device}) where {device}
     d = Dict{String, Any}()
 
     problem = "hybrid_rayleigh_taylor"
-    Nz = 120
-    Nx = 32
+    Nz = 200
+    Nx = 64
     Nμ = 3
-    Nvx = 10
-    Nvz = 10
+    Nvx = 20
+    Nvz = 20
 
     Lz = 1.0
     Lx = 1.0

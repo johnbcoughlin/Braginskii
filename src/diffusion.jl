@@ -30,7 +30,7 @@ function apply_hyperdiffusion!(dF, F, sim, α, buffer)
 
     #@show norm(hyperdiffusion_df)
 
-    dF .+= 1e-9 * hyperdiffusion_df
+    dF .+= 1e-10 * hyperdiffusion_df
 end
 
 function z_diffusion_bcs(F, α)
