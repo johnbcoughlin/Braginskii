@@ -18,6 +18,26 @@
         @test as_xvx(actual) ≈ f.(xgrid.x.nodes, test_grid.x.nodes')
     end
 
+    @testset "Calculates density correctly" begin
+        for vth in [1.0, 0.3, 0.1]
+            xgrid = x_grid_3d(10, 1, 1)
+            vdisc = hermite_disc(; Nvx=40, Nvz=40, device=:cpu, vth)
+
+            disc = Braginskii.XVDiscretization(xgrid, vdisc)
+
+            p(x) = 1.0 * vth^2
+            n(x) = 2 + sin(x)
+            T(x) = p(x) / n(x)
+            
+            # Trivial Maxwellian example
+            f(x, vx, vz) = n(x) / (2π*T(x)) * exp(-((vx-sin(x))^2 + vz^2)/(2T(x)))
+            coefs = approximate_f(f, disc, (1, 4, 6), allocator(:cpu))
+            n_actual = Braginskii.density(coefs, disc.vdisc, [:vx, :vz], allocator(:cpu))
+
+            @test as_xz(n_actual) ≈ n.(xgrid.X) |> as_xz
+        end
+    end
+
     @testset "Calculates pressure" begin
         for vth in [1.0]
             xgrid = x_grid_3d(10, 1, 1)

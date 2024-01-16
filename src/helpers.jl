@@ -3,15 +3,15 @@ module Helpers
 using TimerOutputs
 
 import ..make_bcs
-import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Species, ..Simulation, 
-..SimulationMetadata, ..CollisionalMoments, ..Hermite, ..WENO5, ..XVDiscretization, ..approximate_f, ..allocator, ..alloc_zeros, ..construct_sim_metadata
+import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Species, ..Simulation, ..GyroVGrid,
+..SimulationMetadata, ..CollisionalMoments, ..Hermite, ..HermiteLaguerre, ..WENO5, ..XVDiscretization, ..approximate_f, ..allocator, ..alloc_zeros, ..construct_sim_metadata
 import ..plan_ffts
 import ..arraytype
 using RecursiveArrayTools
 using TimerOutputs
 
-export y_grid_1d, vy_grid_1v, single_species_1d1v_x, single_species_1d1v_y, single_species_1d1v_z, single_species_0d2v, single_species_z_xz_1d2v,
-    x_grid_3d, hermite_disc
+export x_grid_1d, y_grid_1d, vy_grid_1v, single_species_1d1v_x, single_species_1d1v_y, single_species_1d1v_z, single_species_0d2v, single_species_z_xz_1d2v,
+    x_grid_3d, hermite_disc, hermite_laguerre_disc
 
 #=
 
@@ -64,6 +64,12 @@ vy_grid_1v(Nvy, vymax, buffer) = begin
     VGrid([:vy], vx_grid, vy_grid, vz_grid, buffer)
 end
 
+μ_grid_1v(Nμ, μmax, buffer) = begin
+    μ_grid = grid1d(Nμ, 0.0, μmax)
+    vy_grid = grid1d(1, 0.0, 0.0)
+    GyroVGrid([:μ], μ_grid, vy_grid, buffer)
+end
+
 hermite_disc(; Nvx=1, Nvy=1, Nvz=1, vth=1.0, device, kwargs...) = begin
     Hermite(Nvx, Nvy, Nvz, vth, device)
 end
@@ -85,6 +91,10 @@ v_discretization(method, dims; kwargs...) = begin
     else
         error("Unknown v discretization $method")
     end
+end
+
+hermite_laguerre_disc(; Nμ=1, Nvy=1, μ0=1.0, vth=1.0, device, kwargs...) = begin
+    HermiteLaguerre(Nμ, Nvy, μ0, vth, device, allocator(device))
 end
 
 function single_species_1d1v_z(f; Nz, Nvz,
@@ -172,7 +182,7 @@ vxvy_grid_2v(Nvx, Nvy, vxmax, vymax, buffer) = begin
 end
 
 function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0, 
-    q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu, 
+    q=1.0, ν_p=0.0, ωpτ=1.0, ωcτ=1.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu, 
     z_bcs=:reflecting, f_ic=nothing)
     buffer = allocator(device)
     x_grid = x_grid_0d(buffer)
@@ -190,7 +200,7 @@ function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0,
 
     electrons = Species("electrons", Symbol[], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
     sim = construct_sim_metadata(
-        Symbol[], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
+        Symbol[], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -283,15 +293,17 @@ function two_species_xz_2d2v((; fe_0, fi_0, By0); Nx, Nz, Nvx, Nvz,
     ϕl = alloc_zeros(Float64, buffer, Nx, 1)
     ϕl .= ϕ_left
     ϕr = alloc_zeros(Float64, buffer, Nx, 1)
-    ϕr = ϕ_right
+    ϕr .= ϕ_right
 
     ve_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth)
+    electron_bcs = make_bcs(x_grid, ve_disc, fe_0, buffer, z_bcs)
     electron_disc = XVDiscretization(x_grid, ve_disc)
     @timeit "approx" fe = approximate_f(fe_0, electron_disc, (1, 3, 4, 6), buffer)
     electrons = Species("electrons", [:x, :z], [:vx, :vz], q, 1.0, 
-        plan_ffts(electron_disc, buffer), electron_disc)
+        plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
 
     vi_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth)
+    ion_bcs = make_bcs(x_grid, vi_disc, fe_0, buffer, z_bcs)
     ion_disc = XVDiscretization(x_grid, vi_disc)
     @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4, 6), buffer)
     ions = Species("ions", [:x, :z], [:vx, :vz], q, 1.0,
@@ -302,4 +314,117 @@ function two_species_xz_2d2v((; fe_0, fi_0, By0); Nx, Nz, Nvx, Nvz,
     Simulation(sim, ArrayPartition(fe, fi))
 end
 
+function two_species_2d_drift_kinetic((; fe_0, fi_0, By0); Nx, Nz, Nμ,
+    qe=-1.0, qi=1.0,
+    me=0.1, mi=1.0,
+    ν_p=0.0, ωpτ=1.0, ωcτ=1.0, device=:cpu, vth=1.0, μ0=0.5, gz=0.0,
+    Lx=2π, zmin=-1.0, zmax=1.0,
+    ϕ_left, ϕ_right, z_bcs)
+    buffer = allocator(device)
+    x_grid = xz_grid_2d(Nx, Nz, zmin, zmax, Lx, buffer)
+
+    By = By0.(x_grid.X, x_grid.Z)
+
+    ϕl = alloc_zeros(Float64, buffer, Nx, 1)
+    ϕl .= ϕ_left
+    ϕr = alloc_zeros(Float64, buffer, Nx, 1)
+    ϕr .= ϕ_right
+
+    ve_disc = hermite_laguerre_disc(; Nμ, Nvy=1, μ0, vth, device)
+    electron_bcs = make_bcs(x_grid, ve_disc, fe_0, buffer, z_bcs)
+    electron_disc = XVDiscretization(x_grid, ve_disc)
+    @timeit "approx" fe = approximate_f(fe_0, electron_disc, (1, 3, 4), buffer)
+    electrons = Species("electrons", [:x, :z], [:μ], qe, me, 
+        plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
+
+    vi_disc = hermite_laguerre_disc(; Nμ, Nvy=1, μ0, vth, device)
+    ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    ion_disc = XVDiscretization(x_grid, vi_disc)
+    @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4), buffer)
+    ions = Species("ions", [:x, :z], [:μ], qi, mi,
+        plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
+
+    free_streaming = true
+    sim = construct_sim_metadata(
+        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, device, buffer)
+    Simulation(sim, ArrayPartition(fe, fi))
+end
+
+function two_species_1d2v_vlasov_dk_hybrid((; Fe_0, fi_0, By0); Nz, Nμ, Nvx, Nvz,
+    qe=-1.0, qi=1.0,
+    me=0.1, mi=1.0,
+    ν_p=0.0, ωpτ, ωcτ, device=:cpu, vth=1.0, μ0=0.5, gz=0.0,
+    zmin=-1.0, zmax=1.0,
+    ϕ_left, ϕ_right, z_bcs)
+    buffer = allocator(device)
+    x_grid = z_grid_1d(Nz, zmin, zmax, buffer)
+
+    By = By0.(x_grid.Z)
+
+    ϕl = alloc_zeros(Float64, buffer, 1, 1)
+    ϕl .= ϕ_left
+    ϕr = alloc_zeros(Float64, buffer, 1, 1)
+    ϕr .= ϕ_right
+
+    ve_disc = hermite_laguerre_disc(; Nμ, Nvy=1, μ0, vth, device)
+    electron_bcs = make_bcs(x_grid, ve_disc, Fe_0, buffer, z_bcs)
+    electron_disc = XVDiscretization(x_grid, ve_disc)
+    @timeit "approx" fe = approximate_f(Fe_0, electron_disc, (3, 4), buffer)
+    electrons = Species("electrons", [:z], [:μ], qe, me, 
+        plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
+
+    vi_disc = hermite_disc(; Nvx, Nvy=1, Nvz, vth, device)
+    ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    ion_disc = XVDiscretization(x_grid, vi_disc)
+    @timeit "approx" fi = approximate_f(fi_0, ion_disc, (3, 4, 6), buffer)
+    ions = Species("ions", [:z], [:vx, :vz], qi, mi,
+        plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
+
+    free_streaming = true
+    sim = construct_sim_metadata(
+        [:z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, device, buffer)
+    Simulation(sim, ArrayPartition(fe, fi))
+end
+
+function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx, Nz, Nμ, Nvx, Nvz,
+    qe=-1.0, qi=1.0,
+    me=0.1, mi=1.0,
+    ν_p=0.0, ωpτ, ωcτ, vth=1.0, μ0=0.5, gz=0.0,
+    Lx=2π, zmin=-1.0, zmax=1.0,
+    ϕ_left, ϕ_right, z_bcs) where {device}
+    buffer = allocator(device)
+    x_grid = xz_grid_2d(Nx, Nz, zmin, zmax, Lx, buffer)
+    @info "created x grid"
+
+    @info "allocated By"
+    s = By0(0.0)
+    ss = By0(0.0, 0.0)::Float64
+    By = alloc_zeros(Float64, buffer, Nx, 1, Nz)
+    By .= By0.(x_grid.X, x_grid.Z)
+    @info "Calculated By"
+
+    ϕl = alloc_zeros(Float64, buffer, Nx, 1)
+    ϕl .= ϕ_left
+    ϕr = alloc_zeros(Float64, buffer, Nx, 1)
+    ϕr .= ϕ_right
+
+    ve_disc = hermite_laguerre_disc(; Nμ, Nvy=1, μ0, vth, device)
+    electron_bcs = make_bcs(x_grid, ve_disc, Fe_0, buffer, z_bcs)
+    electron_disc = XVDiscretization(x_grid, ve_disc)
+    @timeit "approx" fe = approximate_f(Fe_0, electron_disc, (1, 3, 4), buffer)
+    electrons = Species("electrons", [:x, :z], [:μ], qe, me, 
+        plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
+
+    vi_disc = hermite_disc(; Nvx, Nvy=1, Nvz, vth, device)
+    ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    ion_disc = XVDiscretization(x_grid, vi_disc)
+    @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4, 6), buffer)
+    ions = Species("ions", [:x, :z], [:vx, :vz], qi, mi,
+        plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
+
+    free_streaming = true
+    sim = construct_sim_metadata(
+        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, device, buffer)
+    Simulation(sim, ArrayPartition(fe, fi))
+end
 end

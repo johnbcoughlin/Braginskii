@@ -1,20 +1,36 @@
-function electrostatic!(df, f, Ex, Ey, Ez, By, gz, species, buffer, xgrid_fft_plans)
+function electrostatic!(df, f, Ex, Ey, Ez, sim, species, buffer, xgrid_fft_plans)
     no_escape(buffer) do
         df_es = alloc_zeros(Float64, buffer, size(df)...)
 
         if :vx ∈ species.v_dims
-            @timeit "x" electrostatic_x!(df_es, f, Ex, By, species, buffer, xgrid_fft_plans)
+            @timeit "x" electrostatic_x!(df_es, f, Ex, sim, species, buffer, xgrid_fft_plans)
         end
         if :vy ∈ species.v_dims
-            electrostatic_y!(df_es, f, Ey, By, species, buffer, xgrid_fft_plans)
+            electrostatic_y!(df_es, f, Ey, sim, species, buffer, xgrid_fft_plans)
         end
         if :vz ∈ species.v_dims
-            @timeit "z" electrostatic_z!(df_es, f, Ez, By, gz, species, buffer, xgrid_fft_plans)
+            @timeit "z" electrostatic_z!(df_es, f, Ez, sim, species, buffer, xgrid_fft_plans)
         end
 
         df .+= df_es
         nothing
     end
+
+    #return estimate_max_eigenvalue(Ex, Ey, Ez, sim, species)
+    return 0.0
+end
+
+function estimate_max_eigenvalue(Ex, Ey, Ez, sim, α)
+    (; By, ωpτ, ωcτ) = sim
+    (; vth, Nvx, Nvy, Nvz) = α.discretization.vdisc
+    dvx = 1 / (vth * sqrt(Nvx))
+    dvy = 1 / (vth * sqrt(Nvy))
+    dvz = 1 / (vth * sqrt(Nvz))
+    λx = ωpτ*maximum(abs, Ex) / dvx + ωcτ*maximum(abs, By)
+    λy = ωpτ*maximum(abs, Ey) / dvy
+    λz = ωpτ*maximum(abs, Ez) / dvz + ωcτ*maximum(abs, By)
+
+    return (λx + λy + λz) * α.q / α.m
 end
 
 function electrostatic_x!(df, f, Ex, By, species::Species{WENO5}, buffer, xgrid_fft_plans)
@@ -49,9 +65,10 @@ function electrostatic_x!(df, f, Ex, By, species::Species{WENO5}, buffer, xgrid_
     end
 end
 
-function electrostatic_x!(df, f, Ex, By, species::Species{<:Hermite}, buffer, xgrid_fft_plans)
+function electrostatic_x!(df, f, Ex, sim, species::Species{<:Hermite}, buffer, xgrid_fft_plans)
     (; discretization, q, m) = species
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+    (; ωpτ, ωcτ, By) = sim
 
     no_escape(buffer) do
         vzf = alloc_array(Float64, buffer, size(f)...)
@@ -59,7 +76,7 @@ function electrostatic_x!(df, f, Ex, By, species::Species{<:Hermite}, buffer, xg
 
         F = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
-        @. F = q / m * (Ex * f - vzf * By)
+        @. F = q / m * (ωpτ * Ex * f - ωcτ * vzf * By)
 
         df = reshape(df, (:, Nvx*Nvy*Nvz))
         F = reshape(F, (:, Nvx*Nvy*Nvz))
@@ -128,8 +145,9 @@ function electrostatic_y!(df, f, Ey, By, species::Species{<:Hermite}, buffer, xg
     end
 end
 
-function electrostatic_z!(df, f, Ez, By, gz, species::Species{WENO5}, buffer, xgrid_fft_plans)
+function electrostatic_z!(df, f, Ez, sim, species::Species{WENO5}, buffer, xgrid_fft_plans)
     (; discretization, q, m) = species
+    (; ωpτ, ωcτ, By, gz) = sim
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
@@ -139,10 +157,7 @@ function electrostatic_z!(df, f, Ez, By, gz, species::Species{WENO5}, buffer, xg
     no_escape(buffer) do
         C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx)
 
-        @. C = q / m * (Ez + vgrid.VX * By) + gz / m
-
-        F⁺ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
-        F⁻ = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx)
+        @. C = q / m * (ωpτ*Ez + ωcτ * vgrid.VX * By) + gz / m
 
         F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
         F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
@@ -164,8 +179,9 @@ function electrostatic_z!(df, f, Ez, By, gz, species::Species{WENO5}, buffer, xg
     end
 end
 
-function electrostatic_z!(df, f, Ez, By, gz, species::Species{<:Hermite}, buffer, xgrid_fft_plans)
+function electrostatic_z!(df, f, Ez, sim, species::Species{<:Hermite}, buffer, xgrid_fft_plans)
     (; discretization, q, m) = species
+    (; ωpτ, ωcτ, By, gz) = sim
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
 
@@ -176,7 +192,7 @@ function electrostatic_z!(df, f, Ez, By, gz, species::Species{<:Hermite}, buffer
         F = alloc_zeros(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
         if q != 0.0
-            @. F += q / m * (Ez * f + vxf * By)
+            @. F += q / m * (ωpτ * Ez * f + ωcτ * vxf * By)
         end
         if gz != 0.0
             @. F += gz / m * f

@@ -60,6 +60,9 @@ struct PoissonHelper{A1, A2}
     centered_first_derivative_stencil::A1
     centered_second_derivative_stencil::A1
 
+    centered_second_derivative_stencil_sixth_order::A1
+    centered_fourth_derivative_stencil_fourth_order::A1
+
     M_inv_left::A2
     M_inv_right::A2
 
@@ -72,8 +75,11 @@ end
 function poisson_helper(dz, buffer)
     T = arraytype(buffer)
 
-    centered_first_derivative_stencil = T([-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz)
-    centered_second_derivative_stencil = T([1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2)
+    #centered_first_derivative_stencil = T([-1/60, 3/20, -3/4, 0, 3/4, -3/20, 1/60] / dz)
+    centered_fourth_derivative_stencil_fourth_order = T([-1/6, 2, -13/2, 28/3, -13/2, 2, -1/6] / dz^4)
+    centered_second_derivative_stencil_sixth_order = T([1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90] / dz^2)
+    centered_first_derivative_stencil = T([-1/2, 0, 1/2] / dz)
+    centered_second_derivative_stencil = T([1, -2, 1] / dz^2)
 
     M_inv_left = T([3  -20  90;
                     0   -5  60;
@@ -94,6 +100,8 @@ function poisson_helper(dz, buffer)
     return PoissonHelper(
         centered_first_derivative_stencil,
         centered_second_derivative_stencil,
+        centered_second_derivative_stencil_sixth_order,
+        centered_fourth_derivative_stencil_fourth_order,
         M_inv_left,
         M_inv_right,
         Q_left,
@@ -102,7 +110,7 @@ function poisson_helper(dz, buffer)
     )
 end
 
-struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
+struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
     x::PeriodicGrid1D
     y::PeriodicGrid1D
     z::Grid1D
@@ -110,6 +118,10 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
     X::XA
     Y::YA
     Z::ZA
+
+    Dz::SPARSE
+    Dz_3rd_order::SPARSE
+    Dz_inv::DENSE
 
     xy_hou_li_filters::FILTERS
     z_fd_stencils::STENCILS
@@ -126,6 +138,36 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
         copyto!(Z, reshape(zgrid.nodes, (1, 1, :)))
 
         dz = zgrid.dx
+
+        Nx = length(xgrid.nodes)
+        Ny = length(ygrid.nodes)
+        Nz = length(zgrid.nodes)
+
+        if Nz >= 4
+            Dz = spdiagm(-1 => -ones(Nz-1), 1 => ones(Nz-1))
+            Dz[1, 1:3] .= [-3, 4, -1]
+            Dz[end, end-2:end] .= [1, -4, 3]
+            Dz = Dz ./ (2dz)
+
+            Dz_invertible = copy(Dz)
+            Dz_invertible[2, :] .+= Dz_invertible[1, :]
+            Dz_invertible[1, :] .= 1 / dz
+            Dz_inv = inv(Array(Dz_invertible))
+
+            Dz_3rd_order = spdiagm(-1 => -2*ones(Nz-1), 0 => -3*ones(Nz), 
+                1 => 6*ones(Nz-1), 2=>-1*ones(Nz-2)) / (6dz)
+            Dz_3rd_order[1, 1:4] .= [-11, 18, -9, 2] / (6dz)
+            Dz_3rd_order[Nz-1, Nz-3:Nz] .= [1, -6, 3, 2] / (6dz)
+            Dz_3rd_order[Nz, Nz-3:Nz] .= [-2, 9, -18, 11] / (6dz)
+        else
+            Dz = spdiagm(0 => ones(1))
+            Dz_3rd_order = spdiagm(0 => ones(1))
+            Dz_inv = ones(1, 1)
+        end
+        Dz = kron(Dz, I(Ny), I(Nx)) |> sparsearraytype(buffer)
+        Dz_3rd_order = kron(Dz_3rd_order, I(Ny), I(Nx)) |> sparsearraytype(buffer)
+        Dz_inv = Dz_inv |> arraytype(buffer)
+
         right_biased_stencil = arraytype(buffer)([0, 1/20, -1/2, -1/3, 1, -1/4, 1/30]) * (-1 / dz)
         left_biased_stencil =  arraytype(buffer)([-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]) * (-1 / dz)
         stencils = (right_biased_stencil, left_biased_stencil)
@@ -143,8 +185,8 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON}
 
         filters = (σx, σy)
 
-        new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils), typeof(helper)}(
-            xgrid, ygrid, zgrid, X, Y, Z, filters, stencils, helper)
+        new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils), typeof(helper), typeof(Dz), typeof(Dz_inv)}(
+            xgrid, ygrid, zgrid, X, Y, Z, Dz, Dz_3rd_order, Dz_inv, filters, stencils, helper)
     end
 end
 
@@ -162,7 +204,7 @@ function min_dx(grid::XGrid)
     return result
 end
 
-function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, buffer)
+function form_fourier_domain_poisson_operator(grid, x_dims, buffer)
     Nx, Ny, Nz = size(grid)
 
     helper = grid.poisson_helper
@@ -170,19 +212,19 @@ function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, b
     T = arraytype(buffer)
     ST = sparsearraytype(buffer)
 
-    @assert ϕ_left ≈ ϕ_left[1] * T(ones(size(ϕ_left)))
-    @assert ϕ_right ≈ ϕ_right[1] * T(ones(size(ϕ_right)))
-
     if :z ∈ x_dims
-        Dzz = spzeros(Nz, Nz)
-        u = T(zeros(1, 1, Nz))
-        b = T(zeros(1, 1, Nz))
-        z_grid = Helpers.z_grid_1d(Nz, grid.z.min, grid.z.max, buffer)
-        for i in 1:Nz
-            u .= 0.0
-            u[i] = 1.0
-            apply_laplacian!(b, u, T([ϕ_left[1]]), T([ϕ_right[1]]), z_grid, [:z], buffer, plan_ffts(z_grid, buffer), helper)
-            Dzz[:, i] .= sparse(vec(b))
+        no_escape(buffer) do
+            Dzz = spzeros(Nz, Nz)
+            u = T(zeros(1, 1, Nz))
+            b = T(zeros(1, 1, Nz))
+            z_grid = Helpers.z_grid_1d(Nz, grid.z.min, grid.z.max, buffer)
+            ffts = plan_ffts(z_grid, buffer)
+            for i in 1:Nz
+                u .= 0.0
+                u[i] = 1.0
+                apply_laplacian!(b, u, T([0.]), T([0.]), z_grid, [:z], buffer, ffts, helper)
+                Dzz[:, i] .= sparse(vec(b))
+            end
         end
     else
         Dzz = 0*I(1)
@@ -213,7 +255,8 @@ function form_fourier_domain_poisson_operator(ϕ_left, ϕ_right, grid, x_dims, b
         return sparse(I(1))
     end
 
-    return ST(sparse(kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Kx)) + kron(Dzz, I(Ny), I(Kx))))
+    result = ST(sparse(kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Kx)) + kron(Dzz, I(Ny), I(Kx))))
+    result
 end
 
 size(grid::XGrid) = (grid.x.N, grid.y.N, grid.z.N)
@@ -382,6 +425,99 @@ function vgrid_of(hd::Hermite, K=50, vmax=5.0, buffer=default_buffer())
     return VGrid(dims, vx_grid, vy_grid, vz_grid, buffer)
 end
 
+struct HermiteLaguerre{SPARSE, DENSE, FILTERS}
+    Nμ::Int
+    Nvy::Int
+
+    μ0::Float64
+    vth::Float64
+
+    # Parallel direction
+    Ξy::SPARSE
+    Dvy::SPARSE
+
+    # Perpendicular direction
+    Dμ::DENSE
+    ΞμDμ::DENSE
+
+    Ξμ::DENSE
+
+    filters::FILTERS
+end
+
+HermiteLaguerre(Nμ, Nvy, μ0, vth, device, buffer) = begin
+    # Notation from Olver et al.
+    R = spdiagm(0 => ones(Nμ), 1 => -ones(Nμ-1)) |> Array
+    L = spdiagm(0 => 0.0 .+ (1:Nμ), -1 => -(1:Nμ-1)) |> Array
+    W = spdiagm(-1 => (1:Nμ-1)) |> Array
+
+    Dμ = L \ (W - 0.5 * inv(R)) / μ0 |> arraytype(buffer)
+    ΞμDμ = R*W - 0.5*I(Nμ) |> arraytype(buffer)
+
+    L_minus_1 = spdiagm(0 => -1.0 .+ (1:Nμ), -1 => -(1:Nμ-1)) |> Array
+    Ξμ = kron(I(Nvy), R * L_minus_1 * μ0) |> arraytype(buffer)
+
+    cx = if device == :cpu
+        identity
+    elseif device == :gpu
+        CuSparseMatrixCSC
+    end
+
+    Ξy = spdiagm(-1 => sqrt.(1:Nvy-1), 1 => sqrt.(1:Nvy-1)) * vth |> cx
+    Dvy = spdiagm(-1 => -sqrt.(1:Nvy-1)) |> cx
+
+    σμ = reshape(hou_li_filter(Nμ, buffer), (1, 1, 1, :))
+    σvy = reshape(hou_li_filter(Nvy, buffer), (1, 1, 1, 1, :))
+
+    filters = (σμ, σvy)
+
+    HermiteLaguerre(Nμ, Nvy, μ0, vth, cx(Ξy), cx(Dvy), Dμ, ΞμDμ, Ξμ, filters)
+end
+
+size(hl::HermiteLaguerre) = (hl.Nμ, hl.Nvy)
+
+struct GyroVGrid{μA, YA}
+    μ::Grid1D
+    y::Grid1D
+
+    Vμ::μA
+    VY::YA
+
+    GyroVGrid(dims, μ, y, buffer) = begin
+        @assert dims ⊆ [:μ, :vy]
+        Vμ = alloc_zeros(Float64, buffer, 1, 1, 1, length(μ.nodes), 1)
+        copyto!(Vμ, reshape(μ.nodes, (1, 1, 1, :, 1)))
+
+        Y = alloc_zeros(Float64, buffer, 1, 1, 1, 1, length(y.nodes))
+        copyto!(Y, reshape(y.nodes, (1, 1, 1, 1, :)))
+
+        new{typeof(Vμ), typeof(Y)}(μ, y, Vμ, Y)
+    end
+end
+
+function vgrid_of(hl::HermiteLaguerre; K=50, vmax=5.0, μmax=vmax^2/2, buffer=default_buffer())
+    vmax = vmax*hl.vth
+    μmax = μmax*hl.μ0
+
+    dims = Symbol[]
+    if hl.Nμ == 1
+        μ_grid = grid1d(1, 0.0, 0.0)
+    else
+        μ_grid = grid1d(K, 0.0, μmax)
+        push!(dims, :μ)
+    end
+    if hl.Nvy == 1
+        vy_grid = grid1d(1, 0.0, 0.0)
+    else
+        vy_grid = grid1d(K, -vmax, vmax)
+        push!(dims, :vy)
+    end
+
+    return GyroVGrid(dims, μ_grid, vy_grid, buffer)
+end
+
+size(grid::GyroVGrid) = (grid.μ.N, grid.y.N)
+
 struct XVDiscretization{VDISC}
     x_grid::XGrid
     vdisc::VDISC
@@ -408,6 +544,13 @@ approximate_f!(result, f, x_grid, vdisc::Hermite, dims) = begin
     (; Nvx, Nvy, Nvz, vth) = vdisc
     (; X, Y, Z) = x_grid
     result .= Float64.(bigfloat_weighted_hermite_expansion(f_all, Nvx-1, Nvy-1, Nvz-1, X, Y, Z, vth))
+end
+
+approximate_f!(result, f, x_grid, vdisc::HermiteLaguerre, dims) = begin
+    f_all(args...) = f((args[dim] for dim in dims)...)
+    (; Nμ, Nvy, μ0, vth) = vdisc
+    (; X, Y, Z) = x_grid
+    result .= Float64.(bigfloat_weighted_laguerre_expansion(f_all, Nμ-1, Nvy-1, X, Y, Z, μ0, vth))
 end
 
 expand_f(f, disc::XVDiscretization{WENO5}, vgrid) = begin

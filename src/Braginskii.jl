@@ -21,6 +21,7 @@ using NNlib
 using CUDA.CUSPARSE
 using CUSOLVERRF
 using JLD2
+using SpecialFunctions
 
 import Base.size, Base.getproperty
 
@@ -32,9 +33,10 @@ include("alloc.jl")
 
 include("rk.jl")
 
-include("bc.jl")
 include("discretizations.jl")
+include("bc.jl")
 
+include("derivatives.jl")
 include("simulation.jl")
 include("convolve.jl")
 include("free_streaming.jl")
@@ -44,8 +46,11 @@ include("dfp.jl")
 include("fourier.jl")
 include("moments.jl")
 include("diagnostics.jl")
+include("drifts.jl")
+include("diffusion.jl")
 
 include("hermite_utils.jl")
+include("laguerre_utils.jl")
 
 include("helpers.jl")
 

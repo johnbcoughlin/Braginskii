@@ -22,6 +22,26 @@ function free_streaming!(df, f, species, buffer)
         df .+= df_fs
         nothing
     end
+
+    return estimate_max_freestreaming_eigenvalue(f, species)
+end
+
+function estimate_max_freestreaming_eigenvalue(f, α::Species{<:Hermite})
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
+    (; vth) = α.discretization.vdisc
+    x_grid = α.discretization.x_grid
+
+    λ = 0.0
+    if :x ∈ α.x_dims
+        λ += vth * sqrt(Nvx) / x_grid.x.dx
+    end
+    if :y ∈ α.x_dims
+        λ += vth * sqrt(Nvy) / x_grid.y.dx
+    end
+    if :z ∈ α.x_dims
+        λ += vth * sqrt(Nvz) / x_grid.z.dx
+    end
+    return λ
 end
 
 function free_streaming_z!(df, f, species::Species{WENO5}, buffer)
@@ -76,10 +96,6 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
 
         F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
         @timeit "mul" mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁺)')
-
-        #f_with_boundaries = reshape(f_with_boundaries, (Nx, Ny, Nz+6, Nvx*Nvy*Nvz))
-        #@. F⁻ -= 0.5 * α * f_with_boundaries
-        #@. F⁺ += 0.5 * α * f_with_boundaries
 
         right_biased_stencil, left_biased_stencil = xgrid.z_fd_stencils
         convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)

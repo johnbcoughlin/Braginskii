@@ -102,11 +102,21 @@ function collisional_moments_single_species(α, f, x_grid, ν_p, buffer)
     return (ux, uy, uz), T, ν
 end
 
-function density(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer)
+function density(f, vdisc::Hermite, _, buffer)
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
-
     M0 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
-    M0 .= @view f[:, :, :, 1, 1, 1]
+    M0 .= (@view f[:, :, :, 1, 1, 1]) * vdisc.vth
+    return M0
+end
+
+function density(f, α::Species{<:Hermite}, args...)
+    density(f, α.discretization.vdisc, args...)
+end
+
+function density(f, α::Species{<:HermiteLaguerre}, B, buffer)
+    Nx, Ny, Nz, Nμ, Nvy = size(f)
+    M0 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    @. M0 = (@view f[:, :, :, 1, 1]) * B / α.m * 2π * α.discretization.vdisc.μ0
     return M0
 end
 
