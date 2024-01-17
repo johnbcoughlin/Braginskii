@@ -170,7 +170,7 @@ function make_sim_vlasov(::Val{device}) where {device}
     end
 
     theta(Rx) = 2pi*kx*Rx/Lx
-    perturbation(x, z) = 1 + δ*exp(-(z - cos(theta(x)))^2/0.01) * cos(theta(x))
+    perturbation(x, z) = 1 + δ*exp(-(z - 0.0cos(theta(x)))^2/0.01) * cos(theta(x))
     fi_0(x, z, vx, vz) = fi_eq(z, vx, vz)
     fe_0(x, z, vx, vz) = fe_eq(z, vx, vz) * perturbation(x, z)
 
