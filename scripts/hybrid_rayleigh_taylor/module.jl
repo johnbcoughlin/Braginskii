@@ -93,7 +93,7 @@ end
 function make_sim_equilibrium_2d(::Val{device}) where {device}
     d = Dict{String, Any}()
 
-    problem = "hybrid_rayleigh_taylor"
+    problem = "hybrid_rayleigh_taylor_2"
     Nz = 200
     Nx = 64
     Nμ = 3
