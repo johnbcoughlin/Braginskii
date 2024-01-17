@@ -297,15 +297,15 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
     ϕr = alloc_zeros(Float64, buffer, Nx, 1)
     ϕr .= ϕ_right
 
-    ve_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth_e, device)
+    ve_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth=vth_e, device)
     electron_bcs = make_bcs(x_grid, ve_disc, fe_0, buffer, z_bcs)
     electron_disc = XVDiscretization(x_grid, ve_disc)
     @timeit "approx" fe = approximate_f(fe_0, electron_disc, (1, 3, 4, 6), buffer)
     electrons = Species("electrons", [:x, :z], [:vx, :vz], Ze, Ae, 
         plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
 
-    vi_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth_i, device)
-    ion_bcs = make_bcs(x_grid, vi_disc, fe_0, buffer, z_bcs)
+    vi_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth=vth_i, device)
+    ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
     ion_disc = XVDiscretization(x_grid, vi_disc)
     @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4, 6), buffer)
     ions = Species("ions", [:x, :z], [:vx, :vz], Zi, Ai,

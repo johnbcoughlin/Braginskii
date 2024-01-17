@@ -147,11 +147,9 @@ function make_sim_vlasov(::Val{device}) where {device}
         kx, gz, δ,
         By0, g, Px, Pe, E,
         ni_eq, fi_eq) = params()
-    Nμ = 3
-    μ0 = T_ref / B_ref
     @show ωcτ
     
-    merge!(d, @strdict problem Nz Nμ B_ref α Lx Lz n_ref T_ref kx δ gz Ae)
+    merge!(d, @strdict problem Nz B_ref α Lx Lz n_ref T_ref kx δ gz Ae)
 
     # Defined all functions
 
@@ -168,11 +166,11 @@ function make_sim_vlasov(::Val{device}) where {device}
     ne_interp = cubic_spline_interpolation(zs, ne_points, extrapolation_bc=Line())
 
     fe_eq(z, vx, vz) = begin
-        ne_interp(Pe(z, vx) / (Ze * B_ref)) * Ae / (2pi * T_ref) * exp(-Ae*(vx^2 + vz^2) / T_ref)
+        ne_interp(Pe(z, vx) / (Ze * B_ref)) * Ae / (2pi * T_ref) * exp(-Ae*(vx^2 + vz^2) / 2T_ref)
     end
 
     theta(Rx) = 2pi*kx*Rx/Lx
-    perturbation(x, z) = 1 + δ*exp(-(z - 0.0cos(theta(x)))^2/0.01) * cos(theta(x))
+    perturbation(x, z) = 1 + δ*exp(-(z - cos(theta(x)))^2/0.01) * cos(theta(x))
     fi_0(x, z, vx, vz) = fi_eq(z, vx, vz)
     fe_0(x, z, vx, vz) = fe_eq(z, vx, vz) * perturbation(x, z)
 
