@@ -25,7 +25,7 @@ function poisson(sim, f, buffer)
 
     ρ_c = charge_density(sim, f, buffer)
 
-    @timeit "direct" poisson_fft(ρ_c, sim.Δ_lu, sim.ϕ_left, sim.ϕ_right, grid, 
+    @timeit "direct" poisson_direct(ρ_c, sim.Δ_lu, sim.ϕ_left, sim.ϕ_right, grid, 
         sim.x_dims, buffer, sim.ϕ, sim.fft_plans, grid.poisson_helper)
 end
 
