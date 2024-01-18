@@ -292,11 +292,6 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
 
     By = By0.(x_grid.X, x_grid.Z)
 
-    ϕl = alloc_zeros(Float64, buffer, Nx, 1)
-    ϕl .= ϕ_left
-    ϕr = alloc_zeros(Float64, buffer, Nx, 1)
-    ϕr .= ϕ_right
-
     ve_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth=vth_e, device)
     electron_bcs = make_bcs(x_grid, ve_disc, fe_0, buffer, z_bcs)
     electron_disc = XVDiscretization(x_grid, ve_disc)
@@ -312,7 +307,7 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
         plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
 
     sim = construct_sim_metadata(
-        [:x, :z], x_grid, (electrons, ions), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, device, buffer)
+        [:x, :z], x_grid, (electrons, ions), free_streaming, By, ϕ_left, ϕ_right, ν_p, ωpτ, ωcτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 
@@ -400,11 +395,6 @@ function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx,
 
     By = By0.(x_grid.X, x_grid.Z)
 
-    ϕl = alloc_zeros(Float64, buffer, Nx, 1)
-    ϕl .= ϕ_left
-    ϕr = alloc_zeros(Float64, buffer, Nx, 1)
-    ϕr .= ϕ_right
-
     ve_disc = hermite_laguerre_disc(; Nμ, Nvy=1, μ0, vth, device)
     electron_bcs = make_bcs(x_grid, ve_disc, Fe_0, buffer, z_bcs)
     electron_disc = XVDiscretization(x_grid, ve_disc)
@@ -421,7 +411,7 @@ function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx,
 
     free_streaming = true
     sim = construct_sim_metadata(
-        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, device, buffer)
+        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕ_left, ϕ_right, ν_p, ωpτ, ωcτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 end
