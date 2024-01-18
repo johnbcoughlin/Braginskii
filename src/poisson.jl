@@ -25,7 +25,7 @@ function poisson(sim, f, buffer)
 
     ρ_c = charge_density(sim, f, buffer)
 
-    @timeit "direct" poisson_direct(ρ_c, sim.Δ_lu, sim.ϕ_left, sim.ϕ_right, grid, 
+    @timeit "direct" poisson_fft(ρ_c, sim.Δ_lu, sim.ϕ_left, sim.ϕ_right, grid, 
         sim.x_dims, buffer, sim.ϕ, sim.fft_plans, grid.poisson_helper)
 end
 
@@ -79,8 +79,8 @@ function prepare_poisson_rhs(ρ, grid, ϕ_left, ϕ_right, helper, x_dims, fft_pl
     ρ_modified = alloc_array(Float64, buffer, Nx, Ny, Nz)
     ρ_modified .= ρ
     if :z ∈ x_dims
-        ρ_modified[:, :, 1] .-= ϕ_left * helper.centered_second_derivative_stencil[1, :] 
-        ρ_modified[:, :, end] .-= ϕ_right * helper.centered_second_derivative_stencil[3, :]
+        ρ_modified[:, :, 1] .-= ϕ_left .* helper.centered_second_derivative_stencil[1, :] 
+        ρ_modified[:, :, end] .-= ϕ_right .* helper.centered_second_derivative_stencil[3, :]
     end
 
     Kx = Nx ÷ 2 + 1
@@ -312,4 +312,52 @@ function do_poisson_solve(Δ_lu, ρ_c, grid, ϕ_left, ϕ_right, helper, x_dims, 
     @timeit "postprocess" ϕ = postprocess_poisson_soln(ϕ̂, grid, fft_plans, buffer)
     #@warn "zeroing out electric potential"
     return ϕ
+end
+
+function poisson_fft(ρ_c, Δ_lu, ϕ_left, ϕ_right, grid, x_dims, buffer, ϕ, fft_plans, helper)
+    Nx, Ny, Nz = size(grid)
+
+    Ex = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    Ey = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    Ez = alloc_array(Float64, buffer, Nx, Ny, Nz)
+
+    poisson_fft!(ϕ, (Ex, Ey, Ez), ρ_c, Δ_lu, ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper)
+
+    return (Ex, Ey, Ez)
+end
+
+function poisson_fft!(ϕ, (Ex, Ey, Ez), ρ_c, Δ_lu, ϕ_left::Float64, ϕ_right::Float64,
+        grid, x_dims, buffer, fft_plans, helper)
+    # Do a homogeneous Dirichlet solve first
+    Nx, Ny, Nz = size(grid)
+    
+    ρ̂_c = alloc_array(Complex{Float64}, buffer, Nx÷2+1, Ny, Nz)
+    mul!(ρ̂_c, fft_plans.kxyz_rfft, ρ_c)
+
+    xfac = Nx == 1 ? 1.0 : (2π / grid.x.L)
+    kxs = (0:Nx÷2) * xfac
+    kys = alloc_array(Float64, buffer, 1, Ny)
+    yfac = Ny == 1 ? 1.0 : (2π / grid.y.L)
+    vec(kys) .= mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2)) * yfac
+    kzs = alloc_array(Float64, buffer, 1, 1, Nz)
+    zfac = Nz == 1 ? 1.0 : (2π / (grid.z.max - grid.z.min))
+    vec(kzs) .= mod.(0:Nz-1, Ref(-Nz÷2:(Nz-1)÷2)) * zfac
+
+    K = alloc_array(Float64, buffer, Nx÷2+1, Ny, Nz)
+    K .= -kxs.^2 .- kys.^2 .- kzs.^2
+    K[1, 1, 1, :] .= 1.0
+
+    ϕ̂ = ρ̂_c ./ K
+    ϕ̂[1, 1, 1, :] .= 0.0
+
+    Ex̂ = @. ϕ̂ * im * kxs
+    Eŷ = @. ϕ̂ * im * kys
+    Eẑ = @. ϕ̂ * im * kzs
+
+    mul!(Ex, fft_plans.kxyz_irfft, Ex̂)
+    mul!(Ey, fft_plans.kxyz_irfft, Eŷ)
+    mul!(Ez, fft_plans.kxyz_irfft, Eẑ)
+
+    # Add linear correction to account for constant ϕ_left, ϕ_right
+    Ez .-= (ϕ_right - ϕ_left) 
 end

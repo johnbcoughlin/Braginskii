@@ -1,9 +1,12 @@
-struct FFTPlans{A, B, C, D}
+struct FFTPlans{A, B, C, D, E, F}
     kxy_rfft::A
     kxy_irfft::B
 
     kxy_double_irfft::C
     kxy_double_rfft::D
+
+    kxyz_rfft::E
+    kxyz_irfft::F
 end
 
 function plan_ffts(grid, buffer)
@@ -27,7 +30,18 @@ function plan_ffts(Nx, Ny, Nz, rest, buffer)
     U = kxy_double_irfft * double_modes
     kxy_double_rfft = plan_rfft(U, (1, 2))
 
-    return FFTPlans(kxy_rfft, kxy_irfft, kxy_double_irfft, kxy_double_rfft)
+    if rest == 1
+        arr = reshape(arr, (Nx, Ny, Nz))
+        kxyz_rfft = plan_rfft(arr, (1, 2, 3))
+        modes = kxyz_rfft * arr
+        kxyz_irfft = plan_irfft(modes, Nx, (1, 2, 3))
+    else
+        kxyz_rfft = nothing
+        kxyz_irfft = nothing
+    end
+
+    return FFTPlans(kxy_rfft, kxy_irfft, kxy_double_irfft, kxy_double_rfft,
+        kxyz_rfft, kxyz_irfft)
 end
 
 function in_kxy_domain!(g!, arr, buffer, plans)
