@@ -157,7 +157,7 @@ function electrostatic_z!(df, f, Ez, sim, species::Species{WENO5}, buffer, xgrid
     no_escape(buffer) do
         C = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx)
 
-        @. C = q / m * (ωpτ*Ez + ωcτ * vgrid.VX * By) + gz / m
+        @. C = q / m * (ωpτ*Ez + ωcτ * vgrid.VX * By) + gz
 
         F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
         F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
@@ -195,7 +195,7 @@ function electrostatic_z!(df, f, Ez, sim, species::Species{<:Hermite}, buffer, x
             @. F += q / m * (ωpτ * Ez * f + ωcτ * vxf * By)
         end
         if gz != 0.0
-            @. F += gz / m * f
+            @. F += gz * f
         end
 
         df = reshape(df, (:, Nvx*Nvy*Nvz))
