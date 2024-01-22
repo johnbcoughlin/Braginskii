@@ -1,0 +1,13 @@
+SYMLINK_FILES(
+caseA0_phi_fit.csv
+caseA0_ni_aux_fit.csv
+caseA0_Ex_fit.csv
+caseA0_Bz_fit.csv
+caseA0_Ay_fit.csv
+caseA0_ni_fit.csv
+caseA0_ne_fit.csv
+caseA0_vyi_fit.csv
+caseA0_vye_fit.csv
+caseA0_Tyi_fit.csv
+caseA0_Tye_fit.csv
+)
