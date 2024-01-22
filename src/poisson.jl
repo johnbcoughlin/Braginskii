@@ -25,7 +25,7 @@ function poisson(sim, f, buffer)
 
     ρ_c = charge_density(sim, f, buffer)
 
-    @timeit "direct" poisson_fft(ρ_c, sim.Δ_lu, sim.ϕ_left, sim.ϕ_right, grid, 
+    @timeit "direct" poisson_direct(ρ_c, sim.Δ_lu, sim.ϕ_left, sim.ϕ_right, grid, 
         sim.x_dims, buffer, sim.ϕ, sim.fft_plans, grid.poisson_helper)
 end
 
@@ -338,13 +338,13 @@ function poisson_fft!(ϕ, (Ex, Ey, Ez), ρ_c, Δ_lu, ϕ_left::Float64, ϕ_right:
     kxs = (0:Nx÷2) * xfac
     kys = alloc_array(Float64, buffer, 1, Ny)
     yfac = Ny == 1 ? 1.0 : (2π / grid.y.L)
-    vec(kys) .= mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2)) * yfac
+    vec(kys) .= mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2)) .* yfac
     kzs = alloc_array(Float64, buffer, 1, 1, Nz)
     zfac = Nz == 1 ? 1.0 : (2π / (grid.z.max - grid.z.min))
-    vec(kzs) .= mod.(0:Nz-1, Ref(-Nz÷2:(Nz-1)÷2)) * zfac
+    vec(kzs) .= mod.(0:Nz-1, Ref(-Nz÷2:(Nz-1)÷2)) .* zfac
 
     K = alloc_array(Float64, buffer, Nx÷2+1, Ny, Nz)
-    K .= -kxs.^2 .- kys.^2 .- kzs.^2
+    @. K = -kxs^2 - kys^2 - kzs^2
     K[1, 1, 1, :] .= 1.0
 
     ϕ̂ = ρ̂_c ./ K

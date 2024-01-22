@@ -114,8 +114,7 @@ function drift_ux_F(F, α, E, sim, buffer)
 
     # Gravitational drift
     if gz != 0
-        #error("Figure out scaling correctly")
-        #@. ux -= (1/ωcτ) * α.m * gz * By / (α.q * By^2)
+        @. ux -= (1/ωcτ) * α.m * gz * By / (α.q * By^2)
     end
 
     ux_F = alloc_array(Float64, buffer, size(F)...)

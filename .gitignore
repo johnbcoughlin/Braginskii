@@ -420,3 +420,8 @@ statprof
 
 Manifest.toml
 notes
+
+*.jld2
+*.err
+*.log
+campaigns/**/sims
