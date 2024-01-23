@@ -52,7 +52,7 @@ mutable struct SnapshotTaker{A, F}
     # The width of the sample window of each snapshot
     halfwidth::Float64
 
-    last_called_at::Float64
+    last_called_at::Union{Nothing, Float64}
 
     prior_snapshot::Snapshot{A}
     next_snapshot::Snapshot{A}
@@ -62,16 +62,17 @@ mutable struct SnapshotTaker{A, F}
     snapshot_index::Int64
 end
 
-SnapshotTaker(species_index, interval_dt, halfwidth, arraytype::Type{A}, sz, process_snapshot::F) where {A, F} = begin
+SnapshotTaker(species_index, interval_dt, halfwidth, arraytype::Type{A}, 
+    sz, process_snapshot::F, starting_index, latest_snap_t) where {A, F} = begin
     SnapshotTaker{A, F}(
         species_index,
         interval_dt,
         halfwidth,
-        0.0,
-        new_snapshot(arraytype, sz, 0.0),
-        new_snapshot(arraytype, sz, interval_dt),
+        nothing,
+        new_snapshot(arraytype, sz, latest_snap_t),
+        new_snapshot(arraytype, sz, latest_snap_t + interval_dt),
         process_snapshot,
-        1
+        starting_index
     )
 end
 
@@ -83,7 +84,9 @@ new_snapshot(s::Snapshot{A}, center) where {A} = new_snapshot(A, size(s.sample_s
 (st::SnapshotTaker)(sim, t) = begin
     @assert st.halfwidth <= st.interval_dt
 
-    if t - st.last_called_at > st.interval_dt / 2
+    if isnothing(st.last_called_at)
+        st.last_called_at = t
+    elseif t - st.last_called_at > st.interval_dt / 2
         error("The snapshot interval must be at least twice the interval between timesteps.")
     end
     st.last_called_at = t
@@ -91,7 +94,8 @@ new_snapshot(s::Snapshot{A}, center) where {A} = new_snapshot(A, size(s.sample_s
     # If we step past the end of the prior snapshot, immediately process the
     # prior snapshot, and shift the snapshots up by one.
     if t > st.prior_snapshot.center + st.halfwidth
-        st.process_snapshot(average_out(st.prior_snapshot), st.snapshot_index)
+        st.process_snapshot(st.prior_snapshot.center, 
+            average_out(st.prior_snapshot), st.snapshot_index)
         st.snapshot_index += 1
 
         st.prior_snapshot = st.next_snapshot

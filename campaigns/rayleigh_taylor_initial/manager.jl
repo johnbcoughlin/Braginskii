@@ -65,14 +65,16 @@ function run_sim(; id)
     (; d, sim, tau, dt) = RayleighTaylor2D2V.make_sim(; Kn, f_ic)
     set_simpath(id, d)
     d = PDEHarness.normalize!(d)
-    t_end = tau * 10.0
+    t_end = tau * 1.0
     frames = 50
+    snapshots = 200
     Braginskii.runsim!(
         sim, d, t_end, 
         restart_from_latest=true, 
         adaptive_dt=false,
         diagnostics_dt=(t_end / 100),
         writeout_dt=(t_end /frames),
+        snapshot_interval_dt=(t_end / snapshots),
         initial_dt=dt,
         log=true)
 end

@@ -290,13 +290,17 @@ function make_snapshot_takers(sim, d; snapshot_interval_dt=Inf, kwargs...)
         # 3D arrays of the buffer type
         arraytype = typeof(alloc_array(Float64, sim.buffer, 1, 1, 1))
 
+        latest_snap_index, latest_snap_t = existing_snapshots_count(d, α)
+
         snapshot_taker = SnapshotTaker(
             i,
             snapshot_interval_dt,
             halfwidth,
             arraytype,
             size(sim.x_grid),
-            (snapshot, index) -> process_snapshot(snapshot, index, α, d)
+            (args...) -> process_snapshot(args..., α, d),
+            latest_snap_index + 1,
+            latest_snap_t
         )
         push!(result, snapshot_taker)
     end
@@ -320,11 +324,30 @@ function initialize_snapshot_file(sim, d)
     end
 end
 
-function process_snapshot(snapshot, snapshot_index, α::Species, d)
+function existing_snapshots_count(d, α::Species)
+    snapshot_file = joinpath(PDEHarness.mksimpath(d), "snapshots.jld2")
+    if isfile(snapshot_file)
+        return jldopen(snapshot_file, "r") do file
+            all_keys = collect(keys(file))
+            r = Regex("snapshot_(\\d+)_$(α.name)")
+            maxsnap = maximum(all_keys) do k
+                m = match(r, k)
+                return isnothing(m) ? 0 : parse(Int, m[1])
+            end
+            t = file["snapshot_$(maxsnap)_$(α.name)"]["t"]
+            return maxsnap, t
+        end
+    else
+        return 0, 0.0
+    end
+end
+
+function process_snapshot(t, snapshot, snapshot_index, α::Species, d)
     snapshot_file = joinpath(PDEHarness.mksimpath(d), "snapshots.jld2")
     jldopen(snapshot_file, "a") do file
-        @info "Writing snapshot" 
+        @info "Writing snapshot" snapshot_index
         file["snapshot_$(snapshot_index)_$(α.name)"] = Dict{String, Any}(
+            "t" => t,
             "n" => hostarray(snapshot.n),
             "u_x" => hostarray(snapshot.u_x),
             "u_y" => hostarray(snapshot.u_y),
