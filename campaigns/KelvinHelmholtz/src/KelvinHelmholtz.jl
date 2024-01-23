@@ -8,7 +8,7 @@ using Unitful
 
 include("constants.jl")
 
-export compute_normalization, create_kh_ic, electron_distribution, ion_distribution, Ex_ic, Bz_ic, ϕ_ic, load_spline_fit, KelvinHelmholtzIC, KHPerturbation
+export compute_normalization, create_kh_ic, electron_distribution, ion_distribution, Ex_ic, Bz_ic, ϕ_ic, load_spline_fit, KelvinHelmholtzIC, KHPerturbation, compute_Ne, compute_Ee, compute_Ni, compute_Ei
 
 struct SplineFit
     xvec::Vector{Float64}

@@ -1,6 +1,8 @@
 module KHHybridVlasovComparison
 
 using DrWatson
+@quickactivate :Braginskii
+using Braginskii.Helpers
 
 include("../KelvinHelmholtz/src/KelvinHelmholtz.jl")
 using .KelvinHelmholtz
@@ -44,19 +46,28 @@ function make_sim_vlasov(::Val{device}; Ae=1/25, case) where {device}
         pert=perturbation,
         normalization=Dict{String, Any}()
     )
+    (; Ai, Ae, Zi, Ze, ωpτ, ωcτ) = kh_ic
+    vth_i = sqrt(T / Ai)
+    vth_e = sqrt(T / Ae)
 
     fi(args...) = ion_distribution(kh_ic, args...)
     fe(args...) = electron_distribution(kh_ic, args...)
     By0(args...) = 1.0
+    ϕ_left = KelvinHelmholtz.spline_fit(ϕ_fit, -0.5)
+    ϕ_right = KelvinHelmholtz.spline_fit(ϕ_fit, 0.5)
 
     Nx = 100
     Nz = 32
     Nvx = 20
     Nvz = 20
 
-    sim = Helpers.two_species_xz_2d2v((; fe0=fe, fi0=fi, By0);
+    sim = Helpers.two_species_xz_2d2v(Val(device), (; fe_0=fe, fi_0=fi, By0);
         Nx, Nz, Nvx, Nvz, q=1.0, ν_p=0.0, vdisc=:hermite, free_streaming=true,
-        device=device, vth
+        Lx=Ly, zmin=-0.5, zmax=0.5,
+        ωpτ, ωcτ, Ze, Zi, Ae, Ai,
+        vth_i, vth_e, gz=0.0,
+        z_bcs=:reservoir,
+        ϕ_left, ϕ_right)
 end
 
 function ion_distribution(ic::KelvinHelmholtzIC, x1, y1, vx, vy)
