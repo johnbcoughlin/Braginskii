@@ -1,4 +1,4 @@
-export as_xz, as_xvx, as_yvy, as_zvz, as_vxvy, as_xyvxvy, as_vxvz
+export as_xz, as_xvx, as_yvy, as_zvz, as_vxvy, as_xyvxvy, as_vxvz, BulkFunction
 
 as_xz(f) = f[:, 1, :, 1, 1, 1] |> Array |> copy
 as_xvx(f) = f[:, 1, 1, :, 1, 1] |> Array |> copy
@@ -101,3 +101,9 @@ function weno_interpolate!(g, f, points)
 
     g
 end
+
+struct BulkFunction{F} <: Function
+    f::F
+end
+
+(bf::BulkFunction)(args...) = bf.f(args...)

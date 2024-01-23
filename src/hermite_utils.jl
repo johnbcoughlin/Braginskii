@@ -101,7 +101,12 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     X_array = Array(X)
     Y_array = Array(Y)
     Z_array = Array(Z)
-    fxv = @. f(X_array, Y_array, Z_array, vx_nodes / η, vy_nodes / η, vz_nodes / η)
+
+    if isa(f, BulkFunction)
+        fxv = f(X_array, Y_array, Z_array, vx_nodes / η, vy_nodes / η, vz_nodes / η)
+    else
+        fxv = @. f(X_array, Y_array, Z_array, vx_nodes / η, vy_nodes / η, vz_nodes / η)
+    end
 
     result = zeros(size(fxv)[1:3]..., Mvx+1, Mvy+1, Mvz+1)
 

@@ -61,7 +61,7 @@ function make_sim_vlasov(::Val{device}; Ae=1/25, case) where {device}
     Nvx = 20
     Nvz = 20
 
-    sim = Helpers.two_species_xz_2d2v(Val(device), (; fe_0=fe, fi_0=fi, By0);
+    sim = Helpers.two_species_xz_2d2v(Val(device), (; fe_0=BulkFunction(fe), fi_0=BulkFunction(fi), By0);
         Nx, Nz, Nvx, Nvz, q=1.0, ν_p=0.0, vdisc=:hermite, free_streaming=true,
         Lx=Ly, zmin=-0.5, zmax=0.5,
         ωpτ, ωcτ, Ze, Zi, Ae, Ai,
@@ -70,32 +70,30 @@ function make_sim_vlasov(::Val{device}; Ae=1/25, case) where {device}
         ϕ_left, ϕ_right)
 end
 
-function ion_distribution(ic::KelvinHelmholtzIC, x1, y1, vx, vy)
-    x = x1 - ic.pert.center_x
-    y = y1 - ic.pert.center_y
+function ion_distribution(ic::KelvinHelmholtzIC, X1, Y1, VX, VY)
+    X = X1 .- ic.pert.center_x
+    Y = Y1 .- ic.pert.center_y
 
     @unpack Ay_fit, Ω_c_i, ωcτ, Zi, Ai, T = ic
 
-    Ni = KelvinHelmholtz.compute_Ni(ic, x, vy)
-    @show Ni
-    Ei = KelvinHelmholtz.compute_Ei(ic, x, vx, vy)
-    @show Ei
+    Ni = KelvinHelmholtz.compute_Ni.(Ref(ic), X, VY)
+    Ei = KelvinHelmholtz.compute_Ei.(Ref(ic), X, VX, VY)
 
-    return Ni * Ei
+    return Ni .* Ei
 end
 
-function electron_distribution(ic::KelvinHelmholtzIC, x1, y1, vx, vy)
-    x = x1 - ic.pert.center_x
-    y = y1 - ic.pert.center_y
+function electron_distribution(ic::KelvinHelmholtzIC, X1, Y1, VX, VY)
+    X = X1 .- ic.pert.center_x
+    Y = Y1 .- ic.pert.center_y
 
     @unpack Ay_fit, Ω_c_e, ωcτ, Ze, Ae, T, d = ic
 
-    Ne = compute_Ne(ic, x, vy)
-    Ee = compute_Ee(ic, x, vx, vy)
+    Ne = compute_Ne.(Ref(ic), X, VY)
+    Ee = compute_Ee.(Ref(ic), X, VX, VY)
 
-    pert = (1.0 + ic.pert.amplitude * sin(2π * y / ic.pert.wavelength) * exp(-(x/d)^6))
+    pert = @. (1.0 + ic.pert.amplitude * sin(2π * Y / ic.pert.wavelength) * exp(-(X/d)^6))
 
-    return pert * Ne * Ee
+    return pert .* Ne .* Ee
 end
 
 end

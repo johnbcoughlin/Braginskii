@@ -128,8 +128,6 @@ compute_Ni(ic::KelvinHelmholtzIC, x, vy) = begin
     @unpack Ay_fit, Ω_c_i, ωcτ, Zi, Ai, T = ic
     Ay = spline_fit(Ay_fit, x)
     xshift_i = Ay + vy / Ω_c_i
-    @show ϕ_star(ic, xshift_i)
-    F = exp(ωcτ * Zi / T * ϕ_star(ic, xshift_i))
     Ni = g_i(ic, xshift_i) * exp(ωcτ * Zi / T * ϕ_star(ic, xshift_i))
     return Ni
 end
@@ -138,7 +136,6 @@ compute_Ei(ic::KelvinHelmholtzIC, x, vx, vy) = begin
     @unpack Ay_fit, Ω_c_i, ωcτ, Zi, Ai, T = ic
     maxwellian_2d = ic.Ai / (2π * T) * exp(-Ai * (vx^2 + vy^2) / (2T))
     ϕ = spline_fit(ic.ϕ_fit, x)
-    @show ϕ
     Ei = maxwellian_2d * exp(-ωcτ * Zi / T * ϕ)
     Ei
 end

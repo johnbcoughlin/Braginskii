@@ -527,6 +527,16 @@ average_vth(disc::XVDiscretization{<:Hermite}) = disc.vdisc.vth
 
 size(disc::XVDiscretization) = tuple(size(disc.x_grid)..., size(disc.vdisc)...)
 
+restrict_args(f::BulkFunction, dims) = begin
+    f_all(args...) = f.f((args[dim] for dim in dims)...)
+    BulkFunction(f_all)
+end
+
+restrict_args(f::Function, dims) = begin
+    f_all(args...) = f((args[dim] for dim in dims)...)
+    f_all
+end
+
 approximate_f(f, disc::XVDiscretization, dims, buffer) = begin
     result = alloc_zeros(Float64, buffer, size(disc)...)
     approximate_f!(result, f, disc.x_grid, disc.vdisc, dims)
@@ -540,14 +550,14 @@ approximate_f!(result, f, x_grid, vdisc::WENO5, dims) = begin
 end
 
 approximate_f!(result, f, x_grid, vdisc::Hermite, dims) = begin
-    f_all(args...) = f((args[dim] for dim in dims)...)
+    f_all = restrict_args(f, dims)
     (; Nvx, Nvy, Nvz, vth) = vdisc
     (; X, Y, Z) = x_grid
     result .= Float64.(bigfloat_weighted_hermite_expansion(f_all, Nvx-1, Nvy-1, Nvz-1, X, Y, Z, vth))
 end
 
 approximate_f!(result, f, x_grid, vdisc::HermiteLaguerre, dims) = begin
-    f_all(args...) = f((args[dim] for dim in dims)...)
+    f_all = restrict_args(f, dims)
     (; Nμ, Nvy, μ0, vth) = vdisc
     (; X, Y, Z) = x_grid
     result .= Float64.(bigfloat_weighted_laguerre_expansion(f_all, Nμ-1, Nvy-1, X, Y, Z, μ0, vth))
