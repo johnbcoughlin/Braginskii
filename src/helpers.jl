@@ -10,7 +10,7 @@ import ..arraytype
 using RecursiveArrayTools
 using TimerOutputs
 
-export x_grid_1d, y_grid_1d, vy_grid_1v, single_species_1d1v_x, single_species_1d1v_y, single_species_1d1v_z, single_species_0d2v, single_species_z_xz_1d2v,
+export x_grid_1d, y_grid_1d, vy_grid_1v, single_species_1d1v_x, single_species_1d1v_y, single_species_1d1v_z, single_species_0d2v, two_species_0d2v, single_species_z_xz_1d2v,
     x_grid_3d, hermite_disc, hermite_laguerre_disc
 
 #=
@@ -99,7 +99,7 @@ end
 
 function single_species_1d1v_z(f; Nz, Nvz,
     zmin=-1., zmax=1., vdisc, vzmax=8.0,
-    free_streaming=true, q=1.0, ϕ_left=0., ϕ_right=0., ν_p=0.0,
+    free_streaming=true, q=1.0, ϕ_left=0., ϕ_right=0., νpτ=0.0,
     device=:cpu, vth=1.0, gz=0.0, z_bcs=:reflecting)
     buffer = allocator(device)
 
@@ -120,11 +120,11 @@ function single_species_1d1v_z(f; Nz, Nvz,
     electrons = Species("electrons", [:z], [:vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
 
     sim = construct_sim_metadata(
-        [:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
+        [:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
-function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, gz=0.0, 
+function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, νpτ=0.0, gz=0.0, 
     vdisc, free_streaming=true, device=:cpu, vth=1.0, z_bcs=nothing)
     buffer = allocator(device)
     @timeit "xgrid" x_grid = x_grid_1d(Nx, Lx, buffer)
@@ -140,11 +140,11 @@ function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, ν_p=0.0, g
 
     electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc, buffer), disc, nothing)
     sim = construct_sim_metadata(
-        [:x], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
+        [:x], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
-function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, vdisc, free_streaming=true,
+function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, νpτ=0.0, vdisc, free_streaming=true,
     device=:cpu, vth=1.0, gz=0.0, z_bcs=nothing)
     buffer = allocator(device)
     x_grid = y_grid_1d(Ny, Ly, buffer)
@@ -160,7 +160,7 @@ function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, ν_p=0.0, v
 
     electrons = Species("electrons", [:y], [:vy], q, 1.0, plan_ffts(disc, buffer), disc, nothing)
     sim = construct_sim_metadata(
-        [:y], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
+        [:y], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -182,7 +182,7 @@ vxvy_grid_2v(Nvx, Nvy, vxmax, vymax, buffer) = begin
 end
 
 function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0, 
-    q=1.0, ν_p=0.0, ωpτ=1.0, ωcτ=1.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu, 
+    q=1.0, νpτ=0.0, ωpτ=1.0, ωcτ=1.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu, 
     z_bcs=:reflecting, f_ic=nothing)
     buffer = allocator(device)
     x_grid = x_grid_0d(buffer)
@@ -200,12 +200,43 @@ function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0,
 
     electrons = Species("electrons", Symbol[], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
     sim = construct_sim_metadata(
-        Symbol[], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, device, buffer)
+        Symbol[], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
+function two_species_0d2v((; fi, fe, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0, 
+    νpτ=0.0, ωpτ=1.0, ωcτ=1.0, gz=0.0, vdisc, free_streaming=true, 
+    vth_e, vth_i,
+    Ae, Ai, Ze, Zi,
+    device=:cpu, 
+    z_bcs=:reflecting, f_ic=nothing)
+    buffer = allocator(device)
+    x_grid = x_grid_0d(buffer)
+
+    ve_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax, vzmax, vth=vth_e, buffer, device)
+    electron_bcs = make_bcs(x_grid, vdisc, fe, buffer, z_bcs)
+    electron_disc = XVDiscretization(x_grid, ve_disc)
+    fe = approximate_f(fe, electron_disc, (4, 6), buffer)
+    electrons = Species("electrons", Symbol[], [:vx, :vz], Ze, Ae, plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
+
+    vi_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax, vzmax, vth=vth_i, buffer, device)
+    ion_bcs = make_bcs(x_grid, vdisc, fi, buffer, z_bcs)
+    ion_disc = XVDiscretization(x_grid, vi_disc)
+    fi = approximate_f(fi, ion_disc, (4, 6), buffer)
+    ions = Species("ions", Symbol[], [:vx, :vz], Zi, Ai, plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
+
+    By0 = alloc_zeros(Float64, buffer, size(x_grid)...)
+    By0 .= (By::Number)
+    ϕl = alloc_zeros(Float64, buffer, 1, 1)
+    ϕr = alloc_zeros(Float64, buffer, 1, 1)
+
+    sim = construct_sim_metadata(
+        Symbol[], x_grid, (electrons, ions), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
+    Simulation(sim, ArrayPartition(fe, fi))
+end
+
 function single_species_z_xz_1d2v((; f, By); Nz, Nvx, Nvz, vxmax=5.0, vzmax=5.0,
-    q=1.0, ν_p=0.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu,
+    q=1.0, νpτ=0.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu,
     z_bcs=:reflecting, f_ic=nothing, ϕ_left=0.0, ϕ_right=0.0)
     buffer = allocator(device)
 
@@ -226,7 +257,7 @@ function single_species_z_xz_1d2v((; f, By); Nz, Nvx, Nvz, vxmax=5.0, vzmax=5.0,
 
     electrons = Species("electrons", Symbol[:z], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
     sim = construct_sim_metadata(
-        Symbol[:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, ν_p, gz, device, buffer)
+        Symbol[:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -243,7 +274,7 @@ end
 # 2D2V
 
 function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz, 
-    q=1.0, ν_p=0.0, ωpτ=0.0, ωcτ=0.0, gz=0.0, vdisc, free_streaming=true, 
+    q=1.0, νpτ=0.0, ωpτ=0.0, ωcτ=0.0, gz=0.0, vdisc, free_streaming=true, 
     device=:cpu, vth=1.0, z_bcs=:reflecting,
     Lx=2π, zmin=-1.0, zmax=1.0,
     ϕ_left, ϕ_right,
@@ -273,14 +304,14 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
         plan_ffts(ion_disc, buffer), ion_disc, bcs)
 
     sim = construct_sim_metadata(
-        Symbol[:x, :z], x_grid, (ions,), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, device, buffer)
+        Symbol[:x, :z], x_grid, (ions,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
 
     Simulation(sim, ArrayPartition(fi))
 end
 
 function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0); 
     Nx, Nz, Nvx, Nvz, 
-    q=1.0, ν_p=0.0, vdisc, free_streaming=true, 
+    q=1.0, νpτ=0.0, vdisc, free_streaming=true, 
     Lx=2π, zmin=-1.0, zmax=1.0,
     ωpτ, ωcτ, Ze, Zi, Ae, Ai, 
     vth_i=1.0, vth_e=vth_i/sqrt(Ae/Ai), gz=0.0,
@@ -307,14 +338,14 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
         plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
 
     sim = construct_sim_metadata(
-        [:x, :z], x_grid, (electrons, ions), free_streaming, By, ϕ_left, ϕ_right, ν_p, ωpτ, ωcτ, gz, device, buffer)
+        [:x, :z], x_grid, (electrons, ions), free_streaming, By, ϕ_left, ϕ_right, νpτ, ωpτ, ωcτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 
 function two_species_2d_drift_kinetic((; fe_0, fi_0, By0); Nx, Nz, Nμ,
     qe=-1.0, qi=1.0,
     me=0.1, mi=1.0,
-    ν_p=0.0, ωpτ=1.0, ωcτ=1.0, device=:cpu, vth=1.0, μ0=0.5, gz=0.0,
+    νpτ=0.0, ωpτ=1.0, ωcτ=1.0, device=:cpu, vth=1.0, μ0=0.5, gz=0.0,
     Lx=2π, zmin=-1.0, zmax=1.0,
     ϕ_left, ϕ_right, z_bcs)
     buffer = allocator(device)
@@ -343,7 +374,7 @@ function two_species_2d_drift_kinetic((; fe_0, fi_0, By0); Nx, Nz, Nμ,
 
     free_streaming = true
     sim = construct_sim_metadata(
-        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, device, buffer)
+        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 

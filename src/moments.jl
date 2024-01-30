@@ -65,22 +65,44 @@ function density(f, disc::XVDiscretization{WENO5}, v_dims, buffer)
 end
 
 function collisional_moments!(sim, f, buffer)
-    if length(sim.species) > 1
-        error("Not implemented")
+    if length(sim.species) == 1
+        α = sim.species[1]
+
+        f = f.x[1]
+
+        (ux, uy, uz), T, ν = collisional_moments_single_species(α, f, sim.x_grid, sim.νpτ, buffer)
+
+        cm = sim.collisional_moments[(α.name, α.name)]
+        cm.ux .= ux
+        cm.uy .= uy
+        cm.uz .= uz
+        cm.T .= T
+        cm.ν .= ν
+        return
+    elseif length(sim.species) == 2
+        sp_moments_1 = moments(f.x[1], sim.species[1].discretization, sim.species[1].v_dims, buffer)
+        sp_moments_2 = moments(f.x[2], sim.species[2].discretization, sim.species[2].v_dims, buffer)
+        for i in 1:2
+            for j in 1:2
+                α = sim.species[i]
+                β = sim.species[j]
+                α_moments = i == 1 ? sp_moments_1 : sp_moments_2
+                β_moments = j == 1 ? sp_moments_1 : sp_moments_2
+
+                (ux, uy, uz), T, ν = collisional_moments_two_species(α, β, α_moments, β_moments, sim.x_grid, sim.νpτ, buffer)
+
+                cm = sim.collisional_moments[(α.name, β.name)]
+                cm.ux .= ux
+                cm.uy .= uy
+                cm.uz .= uz
+                cm.T .= T
+                cm.ν .= ν
+
+            end
+        end
+    else
+        error("more than 2 species unsupported")
     end
-
-    α = sim.species[1]
-
-    f = f.x[1]
-
-    (ux, uy, uz), T, ν = collisional_moments_single_species(α, f, sim.x_grid, sim.ν_p, buffer)
-
-    cm = sim.collisional_moments[(α.name, α.name)]
-    cm.ux .= ux
-    cm.uy .= uy
-    cm.uz .= uz
-    cm.T .= T
-    cm.ν .= ν
 end
 
 function collisional_moments_single_species(α, f, x_grid, ν_p, buffer)
@@ -95,17 +117,82 @@ function collisional_moments_single_species(α, f, x_grid, ν_p, buffer)
     d = length(α.v_dims)
 
     T = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
-    @. T = (M2 / M0 - (ux^2 + uy^2 + uz^2)) / d
+    @. T = α.m * (M2 / M0 - (ux^2 + uy^2 + uz^2)) / d
     ν = alloc_zeros(Float64, buffer, size(x_grid)...)
     ν .= ν_p
 
     return (ux, uy, uz), T, ν
 end
 
+function collisional_moments_two_species(α, β, α_moments, β_moments, x_grid, νpτ, buffer)
+    Nx, Ny, Nz = size(x_grid)
+
+    ma = α.m
+    mb = β.m
+
+    M0α, M1α, M2α = α_moments
+    M0β, M1β, M2β = β_moments
+
+    na = M0α
+    nb = M0β
+
+    Ta = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    uxα = M1α[1] ./ M0α
+    uyα = M1α[2] ./ M0α
+    uzα = M1α[3] ./ M0α
+    d = length(α.v_dims)
+    @. Ta = ma * (M2α / M0α - (uxα^2 + uyα^2 + uzα^2)) / d
+
+    Tb = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    uxβ = M1β[1] ./ M0β
+    uyβ = M1β[2] ./ M0β
+    uzβ = M1β[3] ./ M0β
+    d = length(β.v_dims)
+    @. Tb = mb * (M2β / M0β - (uxβ^2 + uyβ^2 + uzβ^2)) / d
+
+    νab = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    νab_fac = sqrt(α.m * β.m) * (α.m + β.m) * (α.q * β.q)^2 / α.m
+    @. νab = νab_fac * nb / (α.m * Tb + β.m * Ta)^(3/2)
+
+    uab(ua, ub) = begin
+        res = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+        @. res = (νab * α.m * na * ua + νab * β.m * nb * ub) / (νab * α.m * na + νab * β.m * nb)
+        res
+    end
+    uab_x = uab(uxα, uxβ)
+    uab_y = uab(uyα, uyβ)
+    uab_z = uab(uzα, uzβ)
+
+
+    u2(ux, uy, uz) = begin
+        res = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+        @. res = ux^2 + uy^2 + uz^2
+        res
+    end
+    uab2 = u2(uab_x, uab_y, uab_z)
+    ua2 = u2(uxα, uyα, uzα)
+    ub2 = u2(uxβ, uyβ, uzβ)
+
+    Tab = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
+    @. Tab = (Ta * νab * na + Tb * νab * nb) / (νab * na + νab * nb)
+    @. Tab -= (νab * na * ma * (uab2 - ua2) + νab * nb * mb * (uab2 - ub2)) / (3*νab * (na + nb))
+
+    #=
+    @show (α.name, β.name)
+    @show Tab
+    @show uab_x
+    @show uab_y
+    @show uab_z
+    @show νab
+    =#
+
+    return (uab_x, uab_y, uab_z), Tab, νab
+end
+
 function density(f, vdisc::Hermite, _, buffer)
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
     M0 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
-    M0 .= (@view f[:, :, :, 1, 1, 1]) * vdisc.vth
+    M0 .= (@view f[:, :, :, 1, 1, 1])
     return M0
 end
 

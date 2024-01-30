@@ -35,8 +35,7 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CPUFFTPLANS, CM_D
 
     free_streaming::Bool
 
-    ν_p::Float64
-
+    νpτ::Float64
     ωpτ::Float64
     ωcτ::Float64
     collisional_moments::CM_DICT
@@ -111,7 +110,7 @@ function vlasov_fokker_planck!(du, fs, sim, λmax, buffer)
         @timeit "poisson" E = poisson(sim, fs, buffer)
         #eliminate_curl!(E, sim, buffer)
 
-        if sim.ν_p != 0.0
+        if sim.νpτ != 0.0
             @timeit "collisional moments" collisional_moments!(sim, fs, buffer)
         end
 
@@ -141,7 +140,7 @@ function vlasov_species_rhs!(df, f, E, sim, α, buffer)
         @timeit "electrostatic" λ_es = electrostatic!(df, f, Ex, Ey, Ez, sim,
             α, buffer, sim.fft_plans)
     end
-    if sim.ν_p != 0.0
+    if sim.νpτ != 0.0
         @timeit "dfp" dfp!(df, f, α, sim, buffer)
     end
 

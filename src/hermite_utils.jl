@@ -70,7 +70,9 @@ end
 
 function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mvz::Int, X, Y, Z, v₀)
     # The factor by which we dilate the integrand to ensure the convergence is fast enough.
-    η = 1 / v₀
+    #η = 1 / v₀
+    η = 1.0 / v₀
+    @show v₀
 
     # Overintegration factor
     k = 3
@@ -94,9 +96,6 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     vx_nodes = reshape(vx_nodes, (1, 1, 1, :, 1, 1))
     vy_nodes = reshape(vy_nodes, (1, 1, 1, 1, :, 1))
     vz_nodes = reshape(vz_nodes, (1, 1, 1, 1, 1, :))
-    vx_exp = @. exp(big(vx_nodes^2))
-    vy_exp = @. exp(big(vy_nodes^2))
-    vz_exp = @. exp(big(vz_nodes^2))
 
     X_array = Array(X)
     Y_array = Array(Y)
@@ -119,7 +118,8 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
             end
         end
     end
-    arraytype(X)(result / η)
+    ndims = sum([Nvx > 1, Nvy > 1, Nvz > 1])
+    arraytype(X)(result / η^ndims)
 end
 
 """
