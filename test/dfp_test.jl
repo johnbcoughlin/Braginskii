@@ -101,4 +101,41 @@
         end
     end
     end
+
+    @testset "Holds multispecies 0D2V Maxwellian equilibrium" begin
+        for device in supported_devices(), vdisc in [:hermite]
+        Nvx = 60
+        Nvz = 60
+        temp = 1.3
+        n = 1.27
+
+        Ai = 1.0
+        Ae = 0.1
+        vth_e = sqrt(temp / Ae)
+        vth_i = sqrt(temp / Ai)
+        ux = 0.88 * vth_i
+        uz = 0.32 * vth_i
+
+        Ze = -1.0
+        Zi = 1.0
+
+        fi(vx, vz) = Ai * n / (2π*temp) * exp(-Ai * ((vx-ux)^2 + (vz-uz)^2)/(2temp))
+        fe(vx, vz) = Ae * n / (2π*temp) * exp(-Ae * ((vx-ux)^2 + (vz-uz)^2)/(2temp))
+        sim = two_species_0d2v((; fe, fi, By=0.0), Nvx, Nvz; vxmax=10.0, free_streaming=false, νpτ=1.0, vdisc, 
+            vth_e, vth_i, Ae, Ai, Ze, Zi)
+
+        disc = sim.species[1].discretization
+        vgrid = vgrid_of(disc.vdisc, 20)
+        actual0 = expand_f(copy(sim.u.x[1]), disc, vgrid) |> as_vxvz
+
+        dt = 0.001
+        T = dt*100
+        df = runsim_lightweight!(sim, T, dt)
+        actual = expand_f(copy(sim.u.x[1]), disc, vgrid) |> as_vxvz
+
+        @show (norm(actual0 - actual) / norm(actual))
+        @test actual0 ≈ actual
+        end
+    end
+
 end
