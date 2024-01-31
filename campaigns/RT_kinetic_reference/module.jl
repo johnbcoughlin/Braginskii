@@ -28,8 +28,8 @@ function make_sim_vlasov(::Val{device}; pt, Ae=1/25) where {device}
     perturbation(x, z) = 1 + δ*exp(-z^4/0.01) * cos(theta(x))
     fe_0(x, z, vx, vz) = fe_eq(z, vx, vz) * perturbation(x, z)
     
-    Nx = 32
-    Nz = 40
+    Nx = 96
+    Nz = 200
     Nvx = 20
     Nvz = 20
 
