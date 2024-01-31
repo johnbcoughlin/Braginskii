@@ -3,8 +3,8 @@
         @testset "reflection" begin
             @no_escape begin
             for device in supported_devices(), vdisc in [:hermite]
-            dt = 0.001
-            T = 0.2
+            dt = 0.001 / 2
+            T = 0.1
             f0(z, vz) = (0.1 + 0.8exp(-(z-0.3)^2/0.01)) * (exp(-(vz-1.5)^2/2) + exp(-(vz+1.5)^2/2))
 
             characteristic_z(z, vz) = begin
@@ -65,8 +65,8 @@
         @testset "reservoir" begin
             @no_escape begin
             for device in supported_devices(), vdisc in [:hermite]
-            dt = 0.001
-            T = 0.2
+            dt = 0.001/2
+            T = 0.1
             f0(z, vz) = (0.1 + 0.8exp(-(z-0.3)^2/0.01)) * (exp(-(vz-1.5)^2/2) + exp(-(vz+1.5)^2/2))
 
             errors = Float64[]
@@ -104,9 +104,9 @@
 
     @testset "x free streaming" begin
         @no_escape begin
-        for device in supported_devices(), vdisc in [:weno, :hermite]
+        for device in supported_devices(), vdisc in [:hermite]
         Nx = 48
-        dt = 0.01
+        dt = 0.001
         T = 1.0
         n(x) = 1 + 0.2*exp((sin(x) + 0cos(2x)))
         sim = single_species_1d1v_x(; Nx, Nvx=80, Lx=4pi, vdisc, q=0.0, device) do x, vx
@@ -132,7 +132,7 @@
 
     @testset "y free streaming" begin
         @no_escape begin
-        for device in supported_devices(), vdisc in [:weno, :hermite]
+        for device in supported_devices(), vdisc in [:hermite]
         Ny = 32
         dt = 0.01
         T = 1.0

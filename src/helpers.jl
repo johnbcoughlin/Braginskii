@@ -100,6 +100,7 @@ end
 function single_species_1d1v_z(f; Nz, Nvz,
     zmin=-1., zmax=1., vdisc, vzmax=8.0,
     free_streaming=true, q=1.0, ϕ_left=0., ϕ_right=0., νpτ=0.0,
+    ωpτ=1.0, ωcτ=1.0,
     device=:cpu, vth=1.0, gz=0.0, z_bcs=:reflecting)
     buffer = allocator(device)
 
@@ -120,11 +121,12 @@ function single_species_1d1v_z(f; Nz, Nvz,
     electrons = Species("electrons", [:z], [:vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
 
     sim = construct_sim_metadata(
-        [:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, gz, device, buffer)
+        [:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
 function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, νpτ=0.0, gz=0.0, 
+    ωpτ=1.0, ωcτ=1.0,
     vdisc, free_streaming=true, device=:cpu, vth=1.0, z_bcs=nothing)
     buffer = allocator(device)
     @timeit "xgrid" x_grid = x_grid_1d(Nx, Lx, buffer)
@@ -140,11 +142,13 @@ function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, νpτ=0.0, 
 
     electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc, buffer), disc, nothing)
     sim = construct_sim_metadata(
-        [:x], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, gz, device, buffer)
+        [:x], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
-function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, νpτ=0.0, vdisc, free_streaming=true,
+function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, νpτ=0.0, 
+    ωpτ=1.0, ωcτ=1.0,
+    vdisc, free_streaming=true,
     device=:cpu, vth=1.0, gz=0.0, z_bcs=nothing)
     buffer = allocator(device)
     x_grid = y_grid_1d(Ny, Ly, buffer)
@@ -160,7 +164,7 @@ function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, νpτ=0.0, 
 
     electrons = Species("electrons", [:y], [:vy], q, 1.0, plan_ffts(disc, buffer), disc, nothing)
     sim = construct_sim_metadata(
-        [:y], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, gz, device, buffer)
+        [:y], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 

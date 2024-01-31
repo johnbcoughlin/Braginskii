@@ -72,7 +72,6 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     # The factor by which we dilate the integrand to ensure the convergence is fast enough.
     #η = 1 / v₀
     η = 1.0 / v₀
-    @show v₀
 
     # Overintegration factor
     k = 3
