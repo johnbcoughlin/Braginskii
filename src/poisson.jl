@@ -7,6 +7,7 @@ function charge_density(sim, f, buffer)
     @timeit "charge density" for i in eachindex(sim.species)
         α = sim.species[i]
         fi = f.x[i]
+        species_density = density(fi, α, sim.By, buffer)
         ρ_c .+= density(fi, α, sim.By, buffer) .* α.q
     end
 

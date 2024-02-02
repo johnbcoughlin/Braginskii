@@ -42,7 +42,7 @@ function make_sim_vlasov(::Val{device}; pt, Ae=1/25) where {device}
         νpτ, ωpτ, ωcτ, Ze, Zi, Ae, Ai,
         gz, z_bcs=:reservoir);
 
-    problem="rayleigh_taylor_kinetic_$id"
+    problem="rayleigh_taylor_kinetic_$pt"
     d = Dict{String, Any}()
     merge!(d, @strdict problem Nx Nz Nvx Nvz Ae gz δ ωpτ ωcτ νpτ ωg)
 

@@ -7,6 +7,8 @@ using PDEHarness
 using Interpolations
 using SparseArrays
 using LinearAlgebra
+using Cubature
+using FastGaussQuadrature
 
 using Unitful
 using PhysicalConstants.CODATA2018: e, μ_0, m_p, ε_0, m_e, c_0
@@ -124,10 +126,10 @@ function construct_vlasov_eq(params)
         gi(Px) * exp(Zi*ωpτ*ϕ_star(Px) / Ti) * Ai / (2pi * Ti) * exp(
             -Ai*(vx^2+vz^2 - 2*z*gz) / (2Ti) - Zi*ωpτ*ϕ_star(z)/Ti)
     end
-    ni_aux(z) = hcubature((v) -> fi_aux(z, v...), (-10vti, -10vti), (10vti, 10vti))[1]
+    ni_aux(z) = HCubature.hcubature((v) -> fi_aux(z, v...), (-10vti, -10vti), (10vti, 10vti))[1]
 
-    dz = 0.01
-    zs = -Lz:dz:Lz
+    dz = Lz / 400
+    zs = -Lz/2:dz:Lz/2
 
     ni_aux_data = ni_aux.(zs)
     ni_aux_fit = cubic_spline_interpolation(zs, ni_aux_data, extrapolation_bc=Line())
@@ -136,7 +138,7 @@ function construct_vlasov_eq(params)
         Ze*ωpτ*ϕ_star(z̃) / Te)
     fe_aux(z, vx, vz) = fe_aux_density(Pxe(z, vx)) * Ae / (2pi*Te) * exp(
         -Ae*(vx^2+vz^2 - 2*z*gz) / (2Te) - Ze*ωpτ*ϕ_star(z)/Ti)
-    ne_aux(z) = hcubature((v) -> fe_aux(z, v...), (-10vte, -10vte), (10vte, 10vte))[1]
+    ne_aux(z) = HCubature.hcubature((v) -> fe_aux(z, v...), (-10vte, -10vte), (10vte, 10vte))[1]
     ne_aux_data = ne_aux.(zs)
     ne_aux_fit = cubic_spline_interpolation(zs, ne_aux_data, extrapolation_bc=Line())
 
@@ -180,6 +182,49 @@ function construct_vlasov_eq(params)
     ni_eq(z) = ni_aux_fit(z) * ϕ_factor_i(z)
 
     return (; fe_eq, fi_eq, ne_eq, ni_eq)
+end
+
+# Computes the Hermite expansion of our perturbed equilibrium,
+# given the perturbation as product of separable factors depending
+# solely on x and z.
+function vlasov_eq_hermite_expansions(fe_eq, fi_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vte, vti)
+    # We can compute the equilibrium moments first
+
+    fe_moments = vlasov_eq_hermite_expansions_species(fe_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vte, 11*vte)
+    fi_moments = vlasov_eq_hermite_expansions_species(fi_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vti, 11*vti)
+
+    return (; fe_moments, fi_moments)
+end
+
+# Computes the Hermite expansion of our perturbed equilibrium,
+# given the perturbation as product of separable factors depending
+# solely on x and z.
+function vlasov_eq_hermite_expansions_species(f_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vt, vmax)
+    # We can compute the equilibrium moments first
+       
+    vx_nodes, vx_w = FastGaussQuadrature.gausslegendre(300)
+
+    He_points_vand = Float64.(Braginskii.He_up_to_n(Nvx-1, vx_nodes * vmax / vt))
+
+    f_at_vx_nodes(z) = f_eq.(Ref(z), vx_nodes * vmax, 0.0) / sqrt(1 / (2pi * vt^2))
+    moments(z) = begin
+        f_vx = f_at_vx_nodes(z) 
+        res = He_points_vand * Diagonal(vx_w) * f_vx * vmax
+        res
+    end
+ 
+    z_vx_moments = zeros(length(Z), Nvx)
+    for i in 1:length(Z)
+        z_vx_moments[i, :] .= moments(Z[i])
+    end
+    result = zeros(length(X), 1, length(Z), Nvx, 1, Nvz)
+
+    result[:, 1, :, :, 1, 1] .= reshape(z_vx_moments, (1, length(Z), Nvx))
+    # Higher vz moments are all zero.
+
+    @. result *= (1 + perturbation_x(X) * perturbation_z(Z))
+
+    result
 end
 
 function opt_oct_values()

@@ -22,7 +22,7 @@ function setup_campaign()
         (; d) = RTKineticReference.make_sim_vlasov(Val(:gpu); pt, Ae)
 
         set_simpath(id, d)
-        prepare_sim_workdir(2, d)
+        prepare_sim_workdir(id, d)
     end
 
     template = read("slurm_template.sh", String)
