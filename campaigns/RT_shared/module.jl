@@ -190,8 +190,10 @@ end
 function vlasov_eq_hermite_expansions(fe_eq, fi_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vte, vti)
     # We can compute the equilibrium moments first
 
-    fe_moments = vlasov_eq_hermite_expansions_species(fe_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vte, 11*vte)
-    fi_moments = vlasov_eq_hermite_expansions_species(fi_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vti, 11*vti)
+    ArrayType = typeof(X).name.wrapper
+
+    fe_moments = vlasov_eq_hermite_expansions_species(fe_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vte, 11*vte) |> ArrayType
+    fi_moments = vlasov_eq_hermite_expansions_species(fi_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vti, 11*vti) |> ArrayType
 
     return (; fe_moments, fi_moments)
 end
@@ -217,12 +219,15 @@ function vlasov_eq_hermite_expansions_species(f_eq, perturbation_x, perturbation
     for i in 1:length(Z)
         z_vx_moments[i, :] .= moments(Z[i])
     end
+    z_vx_moments = z_vx_moments
     result = zeros(length(X), 1, length(Z), Nvx, 1, Nvz)
 
     result[:, 1, :, :, 1, 1] .= reshape(z_vx_moments, (1, length(Z), Nvx))
     # Higher vz moments are all zero.
 
-    @. result *= (1 + perturbation_x(X) * perturbation_z(Z))
+    Xa = Array(X)
+    Za = Array(Z)
+    @. result *= (1 + perturbation_x(Xa) * perturbation_z(Za))
 
     result
 end
