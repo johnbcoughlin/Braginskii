@@ -2,7 +2,7 @@ module Helpers
 
 using TimerOutputs
 
-import ..make_bcs
+import ..make_bcs, ..make_reservoir_bcs
 import ..grid1d, ..periodic_grid1d, ..VGrid, ..XGrid, ..Species, ..Simulation, ..GyroVGrid,
 ..SimulationMetadata, ..CollisionalMoments, ..Hermite, ..HermiteLaguerre, ..WENO5, ..XVDiscretization, ..approximate_f, ..allocator, ..alloc_zeros, ..construct_sim_metadata
 import ..plan_ffts
@@ -323,7 +323,8 @@ function two_species_xz_1d2v(::Val{device}, (; fe_0, fi_0, By0);
     ϕ_left, ϕ_right,
     # Supply these arguments if you want to calculate your own moments
     # rather than using the default routine.
-    fe_ic=nothing, fi_ic=nothing
+    fe_ic=nothing, fi_ic=nothing,
+    ion_bc_lr=nothing, electron_bc_lr=nothing
     ) where {device}
     buffer = allocator(device)
     x_grid = z_grid_1d(Nz, zmin, zmax, buffer)
@@ -331,7 +332,11 @@ function two_species_xz_1d2v(::Val{device}, (; fe_0, fi_0, By0);
     By = By0.(x_grid.Z)
 
     ve_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth=vth_e, device)
-    electron_bcs = make_bcs(x_grid, ve_disc, fe_0, buffer, z_bcs)
+    if isnothing(electron_bc_lr)
+        electron_bcs = make_bcs(x_grid, ve_disc, fe_0, buffer, z_bcs)
+    else
+        electron_bcs = make_reservoir_bcs(x_grid, ve_disc, electron_bc_lr..., buffer)
+    end
     electron_disc = XVDiscretization(x_grid, ve_disc)
     if isnothing(fe_ic)
         @timeit "approx" fe = approximate_f(fe_0, electron_disc, (3, 4, 6), buffer)
@@ -342,7 +347,11 @@ function two_species_xz_1d2v(::Val{device}, (; fe_0, fi_0, By0);
         plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
 
     vi_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth=vth_i, device)
-    ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    if isnothing(ion_bc_lr)
+        ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    else
+        ion_bcs = make_reservoir_bcs(x_grid, vi_disc, ion_bc_lr..., buffer)
+    end
     ion_disc = XVDiscretization(x_grid, vi_disc)
     if isnothing(fi_ic)
         @timeit "approx" fi = approximate_f(fi_0, ion_disc, (3, 4, 6), buffer)

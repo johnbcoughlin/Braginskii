@@ -94,8 +94,6 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     vz_nodes *= (8v₀)
     vz_w *= (8v₀)
 
-    display(vz_nodes)
-
     vx_w = Mvx == 0 ? [1.0] : vx_w 
     vy_w = Mvy == 0 ? [1.0] : vy_w 
     vz_w = Mvz == 0 ? [1.0] : vz_w 

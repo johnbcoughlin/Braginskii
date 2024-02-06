@@ -4,12 +4,14 @@ function electrostatic!(df, f, Ex, Ey, Ez, sim, species, buffer, xgrid_fft_plans
 
         if :vx ∈ species.v_dims
             @timeit "x" electrostatic_x!(df_es, f, Ex, sim, species, buffer, xgrid_fft_plans)
+            #species.name == "electrons" && @info "after electrostatics_x" df_es[1, 1, 1:5, 1, 1, 1:2] df_es[1, 1, 1:5, 1:2, 1, 1] Ez[1, 1, 1:5]
         end
         if :vy ∈ species.v_dims
             electrostatic_y!(df_es, f, Ey, sim, species, buffer, xgrid_fft_plans)
         end
         if :vz ∈ species.v_dims
             @timeit "z" electrostatic_z!(df_es, f, Ez, sim, species, buffer, xgrid_fft_plans)
+            #species.name == "electrons" && @info "after electrostatics_z" df_es[1, 1, 1:5, 1, 1, 1:2] df_es[1, 1, 1:5, 1:2, 1, 1] Ez[1, 1, 1:5]
         end
 
         df .+= df_es
@@ -197,6 +199,11 @@ function electrostatic_z!(df, f, Ez, sim, species::Species{<:Hermite}, buffer, x
         if gz != 0.0
             @. F += gz * f
         end
+        #@info "" ωcτ
+        #@info "" (gz * f)[1, 1, 1:5, 1, 1, 1:3]
+        #@info "" (@. q / m * ωcτ * vxf * By)[1, 1, 1:5, 1, 1, 1:3]
+        #@info "" (@. q / m * ωpτ * Ez * f)[1, 1, 1:5, 1, 1, 1:3]
+        #@info "" F[1, 1, 1:5, 1, 1, 1:3]
 
         df = reshape(df, (:, Nvx*Nvy*Nvz))
         F = reshape(F, (:, Nvx*Nvy*Nvz))

@@ -12,11 +12,8 @@ function make_sim_vlasov(::Val{device}; ωpτ, ωcτ, Ae=1/25) where {device}
     
     params = RTShared.params(; n0, ωpτ, ωcτ, Ae)
     (; norm, Lx, Lz, Ai, Ae, Zi, Ze, vti, α, vte, gz, kx, δ, By0, ωg) = params
-    δ = 0.0
     @assert gz < 0
     νpτ = norm["νpτ"]
-    @show νpτ
-
     display(norm)
 
     (; fe_eq, fi_eq, ne_eq, ni_eq) = RTShared.construct_vlasov_eq(params)
@@ -27,7 +24,7 @@ function make_sim_vlasov(::Val{device}; ωpτ, ωcτ, Ae=1/25) where {device}
     fe_0 = fe_eq
     
     Nx = 96
-    Nz = 100
+    Nz = 120
     Nvx = 10
     Nvz = 10
     zmin = -Lz/2
@@ -37,11 +34,15 @@ function make_sim_vlasov(::Val{device}; ωpτ, ωcτ, Ae=1/25) where {device}
         fe_eq, fi_eq, perturbation_x, perturbation_z,
         x_grid.X, x_grid.Z, Nvx, Nvz, vte, vti)
 
-    # Temporary fixes here
-    # REMOVE LATER!!
-    Zi = 10.0
-    Ze = -Zi
-    νpτ = 0.0
+    dz = x_grid.z.dx
+    left_grid = Helpers.z_grid_1d(3, zmin-3dz, zmin, allocator(device))
+    fe_left, fi_left = RTShared.vlasov_eq_hermite_expansions(
+        fe_eq, fi_eq, perturbation_x, perturbation_z,
+        left_grid.X, left_grid.Z, Nvx, Nvz, vte, vti) |> values
+    right_grid = Helpers.z_grid_1d(3, zmax, zmax+3dz, allocator(device))
+    fe_right, fi_right = RTShared.vlasov_eq_hermite_expansions(
+        fe_eq, fi_eq, perturbation_x, perturbation_z,
+        right_grid.X, right_grid.Z, Nvx, Nvz, vte, vti) |> values
 
     sim = Helpers.two_species_xz_1d2v(Val(device),
         (; fe_0, fi_0, By0);
@@ -51,7 +52,10 @@ function make_sim_vlasov(::Val{device}; ωpτ, ωcτ, Ae=1/25) where {device}
         ϕ_left=0.0, ϕ_right=0.0, vth_i=vti, vth_e=vte,
         νpτ=0.0, ωpτ, ωcτ, Ze, Zi, Ae, Ai,
         fe_ic=fe_moments, fi_ic=fi_moments,
-        gz, z_bcs=:reservoir);
+        gz, 
+        z_bcs=:reservoir,
+        ion_bc_lr=(fi_left, fi_right), electron_bc_lr=(fe_left, fe_right)
+        );
 
     problem="rayleigh_taylor_kinetic_debugging"
     d = Dict{String, Any}()

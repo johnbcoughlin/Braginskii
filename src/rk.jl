@@ -36,7 +36,6 @@ function ssp_rk43(F!, uⁿ, p, t, dt,  CFL_max, buffer)
 
         u′ .= uⁿ
         F!(k¹, u′, p, t)
-
         #error("exiting early")
 
         sf = safety_factor(dt, p, CFL_max)
@@ -62,6 +61,7 @@ function ssp_rk43(F!, uⁿ, p, t, dt,  CFL_max, buffer)
         # @. u′ = uⁿ + (dt/6) * (k¹ + k² + k³)
         rk_update_3(u′, uⁿ, k¹, k², k³, dt)
         F!(k⁴, u′, p, t + dt/2)
+
 
         sf = safety_factor(dt, p, CFL_max)
         sf < 1 || return false, sf
