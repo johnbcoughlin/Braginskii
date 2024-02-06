@@ -373,7 +373,11 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
     ωpτ, ωcτ, Ze, Zi, Ae, Ai, 
     vth_i=1.0, vth_e=vth_i/sqrt(Ae/Ai), gz=0.0,
     z_bcs,
-    ϕ_left, ϕ_right
+    ϕ_left, ϕ_right,
+    # Supply these arguments if you want to calculate your own moments
+    # rather than using the default routine.
+    fe_ic=nothing, fi_ic=nothing,
+    ion_bc_lr=nothing, electron_bc_lr=nothing
     ) where {device}
     buffer = allocator(device)
     x_grid = xz_grid_2d(Nx, Nz, zmin, zmax, Lx, buffer)
@@ -381,16 +385,32 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
     By = By0.(x_grid.X, x_grid.Z)
 
     ve_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth=vth_e, device)
-    electron_bcs = make_bcs(x_grid, ve_disc, fe_0, buffer, z_bcs)
+    if isnothing(electron_bc_lr)
+        electron_bcs = make_bcs(x_grid, ve_disc, fe_0, buffer, z_bcs)
+    else
+        electron_bcs = make_reservoir_bcs(x_grid, ve_disc, electron_bc_lr..., buffer)
+    end
     electron_disc = XVDiscretization(x_grid, ve_disc)
-    @timeit "approx" fe = approximate_f(fe_0, electron_disc, (1, 3, 4, 6), buffer)
+    if isnothing(fe_ic)
+        @timeit "approx" fe = approximate_f(fe_0, electron_disc, (3, 4, 6), buffer)
+    else
+        fe = fe_ic
+    end
     electrons = Species("electrons", [:x, :z], [:vx, :vz], Ze, Ae, 
         plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
 
     vi_disc = v_discretization(vdisc, [:vx, :vz]; Nvx, Nvz, vxmax=8.0, vzmax=8.0, buffer, vth=vth_i, device)
-    ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    if isnothing(ion_bc_lr)
+        ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    else
+        ion_bcs = make_reservoir_bcs(x_grid, vi_disc, ion_bc_lr..., buffer)
+    end
     ion_disc = XVDiscretization(x_grid, vi_disc)
-    @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4, 6), buffer)
+    if isnothing(fi_ic)
+        @timeit "approx" fi = approximate_f(fi_0, ion_disc, (3, 4, 6), buffer)
+    else
+        fi = fi_ic
+    end
     ions = Species("ions", [:x, :z], [:vx, :vz], Zi, Ai,
         plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
 

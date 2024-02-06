@@ -15,32 +15,51 @@ function make_sim_vlasov(::Val{device}; pt, Ae=1/25) where {device}
     n0 = 1e22u"m^-3"
     
     params = RTShared.params(; n0, ωpτ, ωcτ, Ae)
-    (; norm, Lx, Lz, Ai, Ae, Zi, Ze, vti, vte, gz, kx, δ, By0, ωg) = params
+    (; norm, Lx, Lz, Ai, Ae, Zi, Ze, vti, vte, gz, kx, δ, By0, ωg, α) = params
     @assert gz < 0
     νpτ = norm["νpτ"]
-    @show νpτ
-
     display(norm)
 
     (; fe_eq, fi_eq, ne_eq, ni_eq) = RTShared.construct_vlasov_eq(params)
-    fi_0(_, z, vx, vz) = fi_eq(z, vx, vz)
     theta(x) = 2pi*kx*x/Lx
-    perturbation(x, z) = 1 + δ*exp(-z^4/0.01) * cos(theta(x))
-    fe_0(x, z, vx, vz) = fe_eq(z, vx, vz) * perturbation(x, z)
+    perturbation_x(x) = α^2*z*exp(-(z/(α/2))^2)
+    perturbation_z(z) = δ * cos(theta(x))
     
     Nx = 96
     Nz = 200
-    Nvx = 20
-    Nvz = 20
+    Nvx = 16
+    Nvz = 16
+    zmin = -Lz/2
+    zmax = Lz/2
+    x_grid = Helpers.z_grid_1d(Nz, zmin, zmax, allocator(device))
+    (; fe_moments, fi_moments) = RTShared.vlasov_eq_hermite_expansions(
+        fe_eq, fi_eq, perturbation_x, perturbation_z,
+        x_grid.X, x_grid.Z, Nvx, Nvz, vte, vti)
+
+    dz = x_grid.z.dx
+    left_grid = Helpers.z_grid_1d(3, zmin-3dz, zmin, allocator(device))
+    fe_left, fi_left = RTShared.vlasov_eq_hermite_expansions(
+        fe_eq, fi_eq, perturbation_x, perturbation_z,
+        left_grid.X, left_grid.Z, Nvx, Nvz, vte, vti) |> values
+    right_grid = Helpers.z_grid_1d(3, zmax, zmax+3dz, allocator(device))
+    fe_right, fi_right = RTShared.vlasov_eq_hermite_expansions(
+        fe_eq, fi_eq, perturbation_x, perturbation_z,
+        right_grid.X, right_grid.Z, Nvx, Nvz, vte, vti) |> values
 
     sim = Helpers.two_species_xz_2d2v(Val(device),
-        (; fe_0, fi_0, By0);
-        Nx, Nz, Nvx, Nvz,
+        (; fe_0=nothing, fi_0=nothing, By0);
+        Nz, Nvx, Nvz,
         vdisc=:hermite,
-        zmin=-Lz/2, zmax=Lz/2, Lx,
+        zmin, zmax,
         ϕ_left=0.0, ϕ_right=0.0, vth_i=vti, vth_e=vte,
-        νpτ, ωpτ, ωcτ, Ze, Zi, Ae, Ai,
-        gz, z_bcs=:reservoir);
+        νpτ=0.0, ωpτ, ωcτ, Ze, Zi, Ae, Ai,
+        fe_ic=fe_moments, fi_ic=fi_moments,
+        gz, 
+        z_bcs=:reservoir,
+        ion_bc_lr=(fi_left, fi_right), electron_bc_lr=(fe_left, fe_right)
+        );
+
+
 
     problem="rayleigh_taylor_kinetic_$pt"
     d = Dict{String, Any}()

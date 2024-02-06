@@ -16,7 +16,7 @@ This function's job is to setup the working directories for every
 simulation in the campaign.
 """
 function setup_campaign()
-    sims = campaign_sims
+    sims = campaign_sims()
     for (id, ps) in enumerate(sims)
         pt, Ae = ps
         (; d) = RTKineticReference.make_sim_vlasov(Val(:gpu); pt, Ae)
@@ -53,9 +53,15 @@ function run_sim(; id)
     (; d, sim) = RTKineticReference.make_sim_vlasov(Val(:gpu); pt, Ae)
     set_simpath(id, d)
     d = PDEHarness.normalize!(d)
+    display(d)
     τg = 1 / d["ωg"]
     @show t_end = 10.0 * τg
-    dt = 5e-3 * Ae
+    dt_omega_p_tau = 0.5 / d["ωpτ"] * sqrt(Ae)
+    @show dt_omega_p_tau
+    dt_omega_c_tau = 0.04 / d["ωcτ"] * Ae
+    @show dt_omega_c_tau
+    dt = min(dt_omega_p_tau, dt_omega_c_tau)
+
     Braginskii.runsim!(sim, d, t_end, 
         restart_from_latest=true, 
         adaptive_dt=false,
