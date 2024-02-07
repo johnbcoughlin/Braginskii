@@ -56,6 +56,20 @@ function hou_li_filter(buffer, mode_numbers::Vector{Int64})
     return arraytype(buffer)(res)
 end
 
+orszag_two_thirds_filter(N::Int, buffer) = orszag_two_thirds_filter(buffer, collect(0:N-1))
+
+function orszag_two_thirds_filter(buffer, mode_numbers::Vector{Int64})
+    res = ones(length(mode_numbers))
+    N = maximum(abs, mode_numbers)
+    for (i, k) in enumerate(mode_numbers)
+        s = abs(k) / N
+        if s >= 2/3
+            res[i] = 0.0
+        end
+    end
+    return arraytype(buffer)(res)
+end
+
 struct PoissonHelper{A1, A2}
     centered_first_derivative_stencil::A1
     centered_second_derivative_stencil::A1
@@ -178,10 +192,10 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
         Kx = Nx÷2+1
         Ny = ygrid.N
         Ky = Ny
-        σx = hou_li_filter(Kx, buffer)
+        σx = orszag_two_thirds_filter(Kx, buffer)
 
         ky_mode_numbers = mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
-        σy = hou_li_filter(buffer, ky_mode_numbers)
+        σy = orszag_two_thirds_filter(buffer, ky_mode_numbers)
 
         filters = (σx, σy)
 
