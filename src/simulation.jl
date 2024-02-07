@@ -364,6 +364,6 @@ function load_from_frame!(sim::Simulation, frame)
     for i in 1:length(sim.species)
         α = sim.species[i]
         f = frame[α.name]["f"]
-        sim.u.x[i] .= f
+        sim.u.x[i] .= arraytype(sim.buffer)(f)
     end
 end
