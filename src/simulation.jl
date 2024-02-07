@@ -360,7 +360,7 @@ function process_snapshot(t, snapshot, snapshot_index, α::Species, d)
     end
 end
 
-function load_from_frame!(sim, frame)
+function load_from_frame!(sim::Simulation, frame)
     for i in 1:length(sim.species)
         α = sim.species[i]
         f = frame[α.name]
