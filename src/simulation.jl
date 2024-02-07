@@ -1,4 +1,5 @@
 import PDEHarness.frame_writeout
+import PDEHarness.load_from_frame!
 
 using LoopVectorization: initialize_outer_reductions!
 struct Species{DISC, FFTPLANS, Z_BCS}
@@ -356,5 +357,13 @@ function process_snapshot(t, snapshot, snapshot_index, α::Species, d)
             "q_y" => hostarray(snapshot.q_y),
             "q_z" => hostarray(snapshot.q_z),
         )
+    end
+end
+
+function load_from_frame!(sim, frame)
+    for i in 1:length(sim.species)
+        α = sim.species[i]
+        f = frame[α.name]
+        sim.u.x[i] .= f
     end
 end
