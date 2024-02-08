@@ -109,7 +109,7 @@ function vlasov_fokker_planck!(du, fs, sim, λmax, buffer)
 
     no_escape(buffer) do
         @timeit "poisson" E = poisson(sim, fs, buffer)
-        #eliminate_curl!(E, sim, buffer)
+        filter_E!(E, sim)
 
         if sim.νpτ != 0.0
             @timeit "collisional moments" collisional_moments!(sim, fs, buffer)
@@ -172,6 +172,17 @@ function filter!(f, species::Species, buffer)
     end
 
     filter_v!(f, species, buffer)
+end
+
+function filter_E!(E, sim)
+    (; x_grid, buffer) = sim
+
+    for Ei in E
+        in_kxy_domain!(Ei, buffer, sim.fft_plans) do modes
+            σx, σy = x_grid.xy_hou_li_filters
+            @. modes *= σx * σy'
+        end
+    end
 end
 
 # No-op for WENO disc.
