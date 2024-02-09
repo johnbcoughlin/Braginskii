@@ -415,7 +415,8 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
         plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
 
     sim = construct_sim_metadata(
-        [:x, :z], x_grid, (electrons, ions), free_streaming, By, ϕ_left, ϕ_right, νpτ, ωpτ, ωcτ, gz, device, buffer)
+        [:x, :z], x_grid, (electrons, ions), free_streaming, By, 
+        ϕ_left, ϕ_right, νpτ, ωpτ, ωcτ, gz, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 

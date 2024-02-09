@@ -69,7 +69,7 @@ function collisional_moments(xgrid, species, buffer)
 end
 
 function construct_sim_metadata(
-    x_dims, x_grid, species::Tuple, free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz,
+    x_dims, x_grid, species::Tuple, free_streaming, By, x_diffusion_profile, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz,
     device, buffer)
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
@@ -83,6 +83,7 @@ function construct_sim_metadata(
         plan_ffts(x_grid, buffer),
         plan_ffts(x_grid, allocator(:cpu)),
         factorize_poisson_operator(poisson_operator),
+        x_diffusion_profile,
         device, buffer)
 end
 
@@ -121,6 +122,7 @@ function vlasov_fokker_planck!(du, fs, sim, λmax, buffer)
             df = du.x[i]
             df .= 0
             f = fs.x[i]
+            filter!(f, α, buffer)
 
             λ = kinetic_rhs!(df, f, E, sim, α, buffer)
             λmax[] = max(λ, λmax[])
@@ -144,6 +146,8 @@ function vlasov_species_rhs!(df, f, E, sim, α, buffer)
     if sim.νpτ != 0.0
         @timeit "dfp" dfp!(df, f, α, sim, buffer)
     end
+
+    @timeit "hyperdiffusion" apply_hyperdiffusion!(df, f, sim, α, buffer)
 
     return 5 * (λ_es + λ_fs)
 end
