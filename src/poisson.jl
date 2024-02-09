@@ -197,7 +197,7 @@ function potential_gradient!(Ex, Ey, Ez, ϕ, ϕ_left, ϕ_right, grid, x_dims, bu
             Ez .= -arraytype(Ez)(ϕ_z)
             =#
             ϕ_z = alloc_array(Float64, buffer, Nx, Ny, Nz)
-            mul!(vec(ϕ_z), grid.Dz_3rd_order, vec(ϕ))
+            mul!(vec(ϕ_z), grid.Dz, vec(ϕ))
             Ez .= -arraytype(Ez)(ϕ_z)
         else
             Ez .= 0

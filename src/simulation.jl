@@ -1,4 +1,5 @@
 import PDEHarness.frame_writeout
+import PDEHarness.load_from_frame!
 
 using LoopVectorization: initialize_outer_reductions!
 struct Species{DISC, FFTPLANS, Z_BCS}
@@ -68,7 +69,7 @@ function collisional_moments(xgrid, species, buffer)
 end
 
 function construct_sim_metadata(
-    x_dims, x_grid, species::Tuple, free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz,
+    x_dims, x_grid, species::Tuple, free_streaming, By, x_diffusion_profile, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz,
     device, buffer)
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
@@ -82,6 +83,7 @@ function construct_sim_metadata(
         plan_ffts(x_grid, buffer),
         plan_ffts(x_grid, allocator(:cpu)),
         factorize_poisson_operator(poisson_operator),
+        x_diffusion_profile,
         device, buffer)
 end
 
@@ -108,7 +110,7 @@ function vlasov_fokker_planck!(du, fs, sim, λmax, buffer)
 
     no_escape(buffer) do
         @timeit "poisson" E = poisson(sim, fs, buffer)
-        #eliminate_curl!(E, sim, buffer)
+        filter_E!(E, sim)
 
         if sim.νpτ != 0.0
             @timeit "collisional moments" collisional_moments!(sim, fs, buffer)
@@ -120,6 +122,7 @@ function vlasov_fokker_planck!(du, fs, sim, λmax, buffer)
             df = du.x[i]
             df .= 0
             f = fs.x[i]
+            filter!(f, α, buffer)
 
             λ = kinetic_rhs!(df, f, E, sim, α, buffer)
             λmax[] = max(λ, λmax[])
@@ -143,6 +146,8 @@ function vlasov_species_rhs!(df, f, E, sim, α, buffer)
     if sim.νpτ != 0.0
         @timeit "dfp" dfp!(df, f, α, sim, buffer)
     end
+
+    @timeit "hyperdiffusion" apply_hyperdiffusion!(df, f, sim, α, buffer)
 
     return 5 * (λ_es + λ_fs)
 end
@@ -171,6 +176,17 @@ function filter!(f, species::Species, buffer)
     end
 
     filter_v!(f, species, buffer)
+end
+
+function filter_E!(E, sim)
+    (; x_grid, buffer) = sim
+
+    for Ei in E
+        in_kxy_domain!(Ei, buffer, sim.fft_plans) do modes
+            σx, σy = x_grid.xy_hou_li_filters
+            @. modes *= σx * σy'
+        end
+    end
 end
 
 # No-op for WENO disc.
@@ -258,9 +274,9 @@ function frame_writeout(sim::Simulation, t)
     no_escape(sim.buffer) do
         result["ρ_c"] = charge_density(sim, fs, sim.buffer) |> hostarray
         Ex, Ey, Ez = poisson(sim, fs, sim.buffer)
-        #result["ϕ"] = do_poisson_solve(sim.Δ_lu, result["ρ_c"], sim.x_grid, 
-            #sim.ϕ_left, sim.ϕ_right, sim.x_grid.poisson_helper,
-        #sim.x_dims, sim.fft_plans, sim.buffer) |> copy
+        result["ϕ"] = do_poisson_solve(sim.Δ_lu, result["ρ_c"], sim.x_grid, 
+            sim.ϕ_left, sim.ϕ_right, sim.x_grid.poisson_helper,
+            sim.x_dims, sim.fft_plans, sim.buffer) |> hostarray
         result["Ex"] = Ex |> hostarray
         #result["Ey"] = Ey |> copy
         result["Ez"] = Ez |> hostarray
@@ -356,5 +372,13 @@ function process_snapshot(t, snapshot, snapshot_index, α::Species, d)
             "q_y" => hostarray(snapshot.q_y),
             "q_z" => hostarray(snapshot.q_z),
         )
+    end
+end
+
+function load_from_frame!(sim::Simulation, frame)
+    for i in 1:length(sim.species)
+        α = sim.species[i]
+        f = frame[α.name]["f"]
+        sim.u.x[i] .= arraytype(sim.buffer)(f)
     end
 end

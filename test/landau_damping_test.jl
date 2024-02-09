@@ -4,7 +4,7 @@
     δ = 0.001
     q = 1.0
     k = 0.5
-    sim = single_species_1d1v_x(; Nx, Nvx, Lx=2π/k, q, vdisc=:weno) do x, vx
+    sim = single_species_1d1v_x(; Nx, Nvx, Lx=2π/k, q, vdisc=:hermite) do x, vx
         1 / sqrt(2π) * (1.0 + δ * cos(k*x)) * exp(-vx^2/2)
     end
 
@@ -21,7 +21,7 @@ end
     δ = 0.01
     q = 3.0
     k = 1.0
-    sim = single_species_1d1v_x(; Nx, Nvx, Lx=2π/k, q, vdisc=:weno) do x, vx
+    sim = single_species_1d1v_x(; Nx, Nvx, Lx=2π/k, q, vdisc=:hermite) do x, vx
         0.5 / sqrt(2π) * (1.0 + δ * cos(k*x)) * (exp(-(vx-1.5)^2/1) + exp(-(vx+1.5)^2/1))
     end
 

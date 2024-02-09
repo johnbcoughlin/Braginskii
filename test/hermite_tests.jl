@@ -57,7 +57,6 @@
 
             γ = 3 # 1 dimension
             p = (γ-1) * (M2/2 .- (M1x.^2) ./ (2M0))
-            display(p)
             @test p ≈ ones(10)
         end
     end

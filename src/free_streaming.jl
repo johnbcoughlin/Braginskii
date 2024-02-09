@@ -22,6 +22,7 @@ function free_streaming!(df, f, species, buffer)
         df .+= df_fs
         nothing
     end
+    #species.name == "electrons" && @info "after free streaming" df[1, 1, 1:5, 1, 1, 1:2] df[1, 1, 1:5, 1:2, 1, 1]
 
     return estimate_max_freestreaming_eigenvalue(f, species)
 end
@@ -90,6 +91,7 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
 
     no_escape(buffer) do
         f_with_boundaries = z_free_streaming_bcs(f, species, buffer)
+        #species.name == "electrons" && @info "" f_with_boundaries[1, 1, 1:10, 1, 1, 1:3]
 
         F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
         @timeit "mul" mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁻)')
@@ -120,6 +122,7 @@ function z_free_streaming_bcs(f, species, buffer)
         error("No BCs specified for z free streaming")
     end
 
+    #@info "" f_with_boundaries[1, 1, 1:10, 1, 1, 1]
     f_with_boundaries[:, :, 4:Nz+3, :, :, :] .= f
     return f_with_boundaries
 end

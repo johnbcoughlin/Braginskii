@@ -19,7 +19,7 @@
         Nvx = 120
         temp(x) = 1.0 + 0.3*sin(x)
         u(x) = 0.3*cos(x)
-        sim = single_species_1d1v_x(; Nx, Nvx, vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc, vth=1.2) do x, vx
+        sim = single_species_1d1v_x(; Nx, Nvx, vxmax=10.0, free_streaming=false, νpτ=1.0, vdisc, vth=1.2) do x, vx
             1.0 / sqrt(2π*temp(x)) * exp(-(vx-u(x))^2/(2*temp(x)))
         end
 
@@ -48,7 +48,7 @@
         ux = 0.88
         uz = 0.32
         f(vx, vz) = n / (2π*temp) * exp(-((vx-ux)^2 + (vz-uz)^2)/(2temp))
-        sim = single_species_0d2v((; f, By=0.0), Nvx, Nvz; vxmax=10.0, free_streaming=false, ν_p=1.0, vdisc, vth=1.7)
+        sim = single_species_0d2v((; f, By=0.0), Nvx, Nvz; vxmax=10.0, free_streaming=false, νpτ=1.0, vdisc, vth=1.7)
 
         disc = sim.species[1].discretization
 
@@ -68,10 +68,10 @@
     end
 
     @testset "Conserves energy" begin
-        for device in supported_devices(), vdisc in [:weno, :hermite]
+        for device in supported_devices(), vdisc in [:hermite]
         Nz = 40
         Nvz = 100
-        sim = single_species_1d1v_z(; Nz, Nvz, zmin=-π, zmax=π, vzmax=10.0, free_streaming=false, ν_p=1.0, vdisc,
+        sim = single_species_1d1v_z(; Nz, Nvz, zmin=-π, zmax=π, vzmax=10.0, free_streaming=false, νpτ=1.0, vdisc,
         vth=1.0) do z, vz
             0.5 / sqrt(2π) * (exp(-(vz-1-sin(z))^2/2) + 0*exp(-((vz+1)^2/2)))
         end

@@ -152,7 +152,7 @@ function collisional_moments_two_species(α, β, α_moments, β_moments, x_grid,
 
     νab = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
     νab_fac = sqrt(α.m * β.m) * (α.m + β.m) * (α.q * β.q)^2 / α.m
-    @. νab = νab_fac * nb / (α.m * Tb + β.m * Ta)^(3/2)
+    @. νab = νpτ * νab_fac * nb / (α.m * Tb + β.m * Ta)^(3/2)
 
     uab(ua, ub) = begin
         res = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
@@ -183,7 +183,10 @@ function collisional_moments_two_species(α, β, α_moments, β_moments, x_grid,
     @show uab_x
     @show uab_y
     @show uab_z
-    @show νab
+    @show extrema(Ta)
+    @show extrema(Tb)
+    @show extrema(Tab)
+    @show extrema(νab)
     =#
 
     return (uab_x, uab_y, uab_z), Tab, νab
