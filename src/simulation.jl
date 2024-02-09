@@ -69,7 +69,7 @@ function collisional_moments(xgrid, species, buffer)
 end
 
 function construct_sim_metadata(
-    x_dims, x_grid, species::Tuple, free_streaming, By, x_diffusion_profile, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz,
+    x_dims, x_grid, species::Tuple, free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz,
     device, buffer)
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
@@ -83,7 +83,6 @@ function construct_sim_metadata(
         plan_ffts(x_grid, buffer),
         plan_ffts(x_grid, allocator(:cpu)),
         factorize_poisson_operator(poisson_operator),
-        x_diffusion_profile,
         device, buffer)
 end
 
