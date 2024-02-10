@@ -275,9 +275,10 @@ function frame_writeout(sim::Simulation, t)
     result = Dict{String, Any}("t" => t)
     fs = sim.u
     no_escape(sim.buffer) do
-        result["ρ_c"] = charge_density(sim, fs, sim.buffer) |> hostarray
+        ρ_c = charge_density(sim, fs, sim.buffer)
+        result["ρ_c"] = ρ_c |> hostarray
         Ex, Ey, Ez = poisson(sim, fs, sim.buffer)
-        result["ϕ"] = do_poisson_solve(sim.Δ_lu, result["ρ_c"], sim.x_grid, 
+        result["ϕ"] = do_poisson_solve(sim.Δ_lu, ρ_c, sim.x_grid, 
             sim.ϕ_left, sim.ϕ_right, sim.x_grid.poisson_helper,
             sim.x_dims, sim.fft_plans, sim.buffer) |> hostarray
         result["Ex"] = Ex |> hostarray
