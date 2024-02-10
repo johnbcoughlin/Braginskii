@@ -2,7 +2,7 @@ import PDEHarness.frame_writeout
 import PDEHarness.load_from_frame!
 
 using LoopVectorization: initialize_outer_reductions!
-struct Species{DISC, FFTPLANS, Z_BCS}
+struct Species{DISC, XDISC, FFTPLANS, Z_BCS}
     name::String
     x_dims::Vector{Symbol}
     v_dims::Vector{Symbol}
@@ -10,7 +10,7 @@ struct Species{DISC, FFTPLANS, Z_BCS}
     m::Float64
 
     fft_plans::FFTPLANS
-    discretization::XVDiscretization{DISC}
+    discretization::XVDiscretization{DISC, XDISC}
     z_bcs::Z_BCS
 end
 
@@ -22,9 +22,9 @@ struct CollisionalMoments{uA, TA, νA}
     ν::νA
 end
 
-struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CPUFFTPLANS, CM_DICT, POISSON_LU, BUF}
+struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CPUFFTPLANS, CM_DICT, POISSON_LU, BUF, XDISC}
     x_dims::Vector{Symbol}
-    x_grid::XGrid
+    x_grid::XGrid{XDISC}
 
     By::BA
     ϕ_left::PHI_L

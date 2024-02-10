@@ -73,7 +73,26 @@ function poisson_direct!(ϕ, (Ex, Ey, Ez), ρ_c, Δ_lu, ϕ_left, ϕ_right,
         ϕ_left, ϕ_right, grid, x_dims, buffer, fft_plans, helper) 
 end
 
-function prepare_poisson_rhs(ρ, grid, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
+function prepare_poisson_rhs(ρ, grid::XGrid{<:FD5}, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
+    Nx, Ny, Nz = size(grid) 
+
+    ρ_modified = alloc_array(Float64, buffer, Nx, Ny, Nz)
+    ρ_modified .= ρ
+    if :z ∈ x_dims
+        ρ_modified[:, :, 1] .-= sum(ϕ_left .* helper.centered_second_derivative_stencil_sixth_order[1:3, :], dims=1)
+        ρ_modified[:, :, end] .-= sum(ϕ_right .* helper.centered_second_derivative_stencil_sixth_order[5:7, :], dims=1)
+        ρ_modified[:, :, 2] .-= sum(ϕ_left .* helper.centered_second_derivative_stencil_sixth_order[1:2, :], dims=1)
+        ρ_modified[:, :, end-1] .-= sum(ϕ_right .* helper.centered_second_derivative_stencil_sixth_order[6:7, :], dims=1)
+        ρ_modified[:, :, 3] .-= sum(ϕ_left .* helper.centered_second_derivative_stencil_sixth_order[1, :], dims=1)
+        ρ_modified[:, :, end-2] .-= sum(ϕ_right .* helper.centered_second_derivative_stencil_sixth_order[7, :], dims=1)
+
+        return ρ_modified
+    else
+        error("Unimplemented")
+    end
+end
+
+function prepare_poisson_rhs(ρ, grid::XGrid{<:PSFourier}, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
     Nx, Ny, Nz = size(grid) 
 
     ρ_modified = alloc_array(Float64, buffer, Nx, Ny, Nz)
@@ -292,7 +311,20 @@ function factorize_poisson_operator(Δ::CuSparseMatrixCSR)
     return CUSOLVERRF.RFLU(Δ)
 end
 
-function do_poisson_solve(Δ_lu, ρ_c, grid, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
+function do_poisson_solve(Δ_lu, ρ_c, grid::XGrid{<:FD5}, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
+    @timeit "prepare rhs" rhs = prepare_poisson_rhs(-ρ_c, grid, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
+    ϕ = alloc_array(Float64, buffer, size(rhs)...)
+
+    Nx, Ny, Nz = size(grid)
+
+    # Do in-place solve
+    @timeit "ldiv" ldiv!(Δ_lu, vec(rhs))
+    ϕ .= rhs
+
+    return ϕ
+end
+
+function do_poisson_solve(Δ_lu, ρ_c, grid::XGrid{<:PSFourier}, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
     @timeit "prepare rhs" ρ̂ = prepare_poisson_rhs(-ρ_c, grid, ϕ_left, ϕ_right, helper, x_dims, fft_plans, buffer)
     ρ̂_re = alloc_array(Float64, buffer, size(ρ̂)...)
     ρ̂_re .= real.(ρ̂)

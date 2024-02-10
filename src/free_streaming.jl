@@ -138,7 +138,50 @@ function broadcast_mul_over_vz(F, vz)
     F
 end
 
-function free_streaming_x!(df, f, species::Species, buffer)
+function free_streaming_x!(df, f, species::Species{<:Hermite, <:FD5}, buffer)
+    (; discretization) = species
+
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+    xgrid = discretization.x_grid
+    Ξx⁻ = discretization.vdisc.Ξx⁻
+    Ξx⁺ = discretization.vdisc.Ξx⁺
+
+    no_escape(buffer) do
+        f_with_boundaries = x_free_streaming_bcs(f, species, buffer)
+
+        F⁻ = alloc_array(Float64, buffer, Nx+6, Ny, Nz, Nvx*Nvy*Nvz)
+        @timeit "mul" mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξx⁻)')
+
+        F⁺ = alloc_array(Float64, buffer, Nx+6, Ny, Nz, Nvx*Nvy*Nvz)
+        @timeit "mul" mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξx⁺)')
+
+        #right_biased_dx, left_biased_dx = xgrid.x_fd_sparsearrays
+        right_biased_stencil, left_biased_stencil = xgrid.x_fd_stencils
+        convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
+
+        @timeit "conv" convolve_x!(convolved, reshape(F⁻, (Nx+6, Ny, Nz, Nvx, Nvy, Nvz)), right_biased_stencil, true, buffer)
+        df .+= convolved
+        @timeit "conv" convolve_x!(convolved, reshape(F⁺, (Nx+6, Ny, Nz, Nvx, Nvy, Nvz)), left_biased_stencil, true, buffer)
+        df .+= convolved
+
+        #@timeit "conv-mul" mul!(reshape(result, (Nx, :)), right_biased_dx, reshape(F⁻, (Nx, :)))
+        #@timeit "conv-mul" mul!(reshape(result, (Nx, :)), left_biased_dx, reshape(F⁺, (Nx, :)))
+        #df .+= result
+        nothing
+    end
+end
+
+function x_free_streaming_bcs(f, α, buffer)
+    (; discretization) = α
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+    f_with_boundaries = alloc_array(Float64, buffer, Nx+6, Ny, Nz, Nvx, Nvy, Nvz)
+    f_with_boundaries[4:Nx+3, :, :, :, :, :] .= f
+    f_with_boundaries[1:3, :, :, :, :, :] .= @view f[Nx-2:Nx, :, :, :, :, :]
+    f_with_boundaries[Nx+4:Nx+6, :, :, :, :, :] .= @view f[1:3, :, :, :, :, :]
+    f_with_boundaries
+end
+
+function free_streaming_x!(df, f, species::Species{<:Any, <:PSFourier}, buffer)
     (; discretization) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
