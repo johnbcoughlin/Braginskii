@@ -36,6 +36,7 @@ include("rk.jl")
 include("discretizations.jl")
 include("bc.jl")
 
+include("utils.jl")
 include("derivatives.jl")
 include("simulation.jl")
 include("convolve.jl")

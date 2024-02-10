@@ -2,6 +2,12 @@
 # Physical space discretization
 ===============================#
 
+# Pseudospectral Fourier discretization
+struct PSFourier end
+
+# Fifth-order finite difference discretization
+struct FD5 end
+
 struct Grid1D
     N::Int
     dx::Float64
@@ -124,7 +130,7 @@ function poisson_helper(dz, buffer)
     )
 end
 
-struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
+struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
     x::PeriodicGrid1D
     y::PeriodicGrid1D
     z::Grid1D
@@ -139,6 +145,8 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
 
     xy_hou_li_filters::FILTERS
     z_fd_stencils::STENCILS
+    x_fd_stencils::STENCILS
+    x_fd_sparsearrays::Tuple{SPARSE, SPARSE}
     poisson_helper::POISSON
 
     XGrid(xgrid, ygrid, zgrid, buffer) = begin
@@ -178,15 +186,29 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
             Dz_3rd_order = spdiagm(0 => ones(1))
             Dz_inv = ones(1, 1)
         end
-        Dz = kron(Dz, I(Ny), I(Nx)) |> sparsearraytype(buffer)
-        Dz_3rd_order = kron(Dz_3rd_order, I(Ny), I(Nx)) |> sparsearraytype(buffer)
+
+        ST = sparsearraytype(buffer)
+        Dz = kron(Dz, I(Ny), I(Nx)) |> ST
+        Dz_3rd_order = kron(Dz_3rd_order, I(Ny), I(Nx)) |> ST
         Dz_inv = Dz_inv |> arraytype(buffer)
 
-        right_biased_stencil = arraytype(buffer)([0, 1/20, -1/2, -1/3, 1, -1/4, 1/30]) * (-1 / dz)
-        left_biased_stencil =  arraytype(buffer)([-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]) * (-1 / dz)
-        stencils = (right_biased_stencil, left_biased_stencil)
+
+        dx = xgrid.dx
+        right_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30]
+        left_stencil = [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]
+        right_biased_stencil = arraytype(buffer)(right_stencil)
+        left_biased_stencil =  arraytype(buffer)(left_stencil)
+        z_stencils = (right_biased_stencil * (-1 / dz), left_biased_stencil * (-1 / dz))
+        x_stencils = (right_biased_stencil * (-1 / dx), left_biased_stencil * (-1 / dx))
 
         helper = poisson_helper(dz, buffer)
+
+        dx = xgrid.dx
+        x_fd_right_biased = make_sparse_array_from_stencil(
+            [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1/dx), Nx; periodic=true) |> ST
+        x_fd_left_biased = make_sparse_array_from_stencil(
+            [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1/dx), Nx; periodic=true) |> ST
+        x_fd_sparsearrays = (x_fd_right_biased, x_fd_left_biased)
 
         Nx = xgrid.N
         Kx = Nx÷2+1
@@ -199,8 +221,9 @@ struct XGrid{XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
 
         filters = (σx, σy)
 
-        new{typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(stencils), typeof(helper), typeof(Dz), typeof(Dz_inv)}(
-            xgrid, ygrid, zgrid, X, Y, Z, Dz, Dz_3rd_order, Dz_inv, filters, stencils, helper)
+        new{FD5, typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(z_stencils), typeof(helper), typeof(Dz), typeof(Dz_inv)}(
+            xgrid, ygrid, zgrid, X, Y, Z, Dz, Dz_3rd_order, Dz_inv, filters, z_stencils, x_stencils, 
+            x_fd_sparsearrays, helper)
     end
 end
 
@@ -218,7 +241,36 @@ function min_dx(grid::XGrid)
     return result
 end
 
-function form_fourier_domain_poisson_operator(grid, x_dims, buffer)
+function form_fourier_domain_poisson_operator(grid::XGrid{<:FD5}, x_dims, buffer)
+    Nx, Ny, Nz = size(grid)
+
+    helper = grid.poisson_helper
+
+    T = arraytype(buffer)
+    ST = sparsearraytype(buffer)
+
+    stencil = [1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90]
+    if :z ∈ x_dims
+        dz = grid.z.dx
+        Dzz = make_sparse_array_from_stencil(stencil / dz^2, Nz; periodic=false)
+    else
+        Dzz = 0*I(1)
+    end
+
+    if :x ∈ x_dims
+        dx = grid.x.dx
+        Dxx = make_sparse_array_from_stencil(stencil / dx^2, Nx; periodic=true)
+    else
+        Dxx = 0*I(1)
+    end
+
+    Dyy = 0*I(1)
+
+    result = ST(sparse(kron(I(Nz), I(Ny), Dxx) + kron(I(Nz), Dyy, I(Nx)) + kron(Dzz, I(Ny), I(Nx))))
+    result
+end
+
+function form_fourier_domain_poisson_operator(grid::XGrid{<:PSFourier}, x_dims, buffer)
     Nx, Ny, Nz = size(grid)
 
     helper = grid.poisson_helper
@@ -532,8 +584,8 @@ end
 
 size(grid::GyroVGrid) = (grid.μ.N, grid.y.N)
 
-struct XVDiscretization{VDISC}
-    x_grid::XGrid
+struct XVDiscretization{VDISC, XDISC}
+    x_grid::XGrid{XDISC}
     vdisc::VDISC
 end
 

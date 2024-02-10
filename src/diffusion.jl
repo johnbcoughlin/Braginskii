@@ -1,4 +1,8 @@
-function apply_hyperdiffusion!(dF, F, sim, α, buffer)
+function apply_hyperdiffusion!(dF, F, sim, α::Species{<:Any, <:FD5}, buffer)
+    # no-op
+end
+
+function apply_hyperdiffusion!(dF, F, sim, α::Species{<:Any, <:PSFourier}, buffer)
     x_dims = sim.x_dims
     helper = sim.x_grid.poisson_helper
     Nx, Ny, Nz = size(sim.x_grid)
@@ -64,7 +68,11 @@ function z_diffusion_bcs(F, α::Species{<:HermiteLaguerre})
     return f_with_boundaries
 end
 
-function apply_x_diffusion!(df, f, sim, α, buffer)
+function apply_x_diffusion!(df, f, sim, α::Species{<:Any, <:FD5}, buffer)
+    # no-op
+end
+
+function apply_x_diffusion!(df, f, sim, α::Species{<:Any, <:PSFourier}, buffer)
     x_dims = sim.x_dims
     if :x ∉ x_dims
         return
