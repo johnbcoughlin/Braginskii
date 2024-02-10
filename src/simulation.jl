@@ -150,7 +150,7 @@ function vlasov_species_rhs!(df, f, E, sim, α, buffer)
         @timeit "dfp" dfp!(df, f, α, sim, buffer)
     end
 
-    @timeit "hyperdiffusion" apply_hyperdiffusion!(df, f, sim, α, buffer)
+    #@timeit "hyperdiffusion" apply_hyperdiffusion!(df, f, sim, α, buffer)
 
     return (λ_es + λ_fs)
 end

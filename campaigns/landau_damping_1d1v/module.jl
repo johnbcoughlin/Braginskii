@@ -7,12 +7,12 @@ using PDEHarness
 using Interpolations
 
 function params(; α, k)
-    Nx = 96
-    Nvx = 320
+    Nx = 24
+    Nvx = 100
 
     Lx = 2pi / k
 
-    fe_eq(x, vx) = (1 + α * cos(k * x)) / sqrt(2pi) * exp(-vx^2/2)
+    fe_eq(x, vx) = (1 + α * cos(k * x) + 1e-8*rand()) / sqrt(2pi) * exp(-vx^2/2)
 
     return (; 
         Nx, Nvx, α, k,
@@ -37,7 +37,7 @@ function make_sim_vlasov(::Val{device}; k=1.0, α=1e-3) where {device}
         Nx, Nvx, Lx,
         vdisc=:hermite,
         device,
-        νpτ=0.0, ωpτ=1.0, ωcτ=0.0, q=1.0, 
+        νpτ=0.0, ωpτ=20.0, ωcτ=0.0, q=1.0, 
         z_bcs=:reservoir);
     @info "Done setting up sim"
 
