@@ -70,9 +70,9 @@ end
 
 function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mvz::Int, X, Y, Z, v₀)
     # The factor by which we dilate the integrand to ensure the convergence is fast enough.
-    #η = 1 / v₀
+    η = 1 / v₀
     #η = 1.0 / v₀
-    η = 1.0
+    #η = 1.0
 
     # Overintegration factor
     k = 3
@@ -84,9 +84,9 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     #vx_nodes, vx_w = FastGaussQuadrature.unweightedgausshermite(Nvx)
     #vy_nodes, vy_w = FastGaussQuadrature.unweightedgausshermite(Nvy)
     #vz_nodes, vz_w = FastGaussQuadrature.unweightedgausshermite(Nvz)
-    vx_nodes, vx_w = FastGaussQuadrature.gausslegendre(Mvx == 0 ? 1 : 100)
-    vy_nodes, vy_w = FastGaussQuadrature.gausslegendre(Mvy == 0 ? 1 : 100)
-    vz_nodes, vz_w = FastGaussQuadrature.gausslegendre(Mvz == 0 ? 1 : 100)
+    vx_nodes, vx_w = FastGaussQuadrature.gausslegendre(Nvx)
+    vy_nodes, vy_w = FastGaussQuadrature.gausslegendre(Nvy)
+    vz_nodes, vz_w = FastGaussQuadrature.gausslegendre(Nvz)
     vx_nodes *= (8v₀)
     vx_w *= (8v₀)
     vy_nodes *= (8v₀)
