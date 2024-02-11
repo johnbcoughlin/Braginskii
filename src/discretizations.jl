@@ -221,7 +221,7 @@ struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
 
         filters = (σx, σy)
 
-        new{FD5, typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(z_stencils), typeof(helper), typeof(Dz), typeof(Dz_inv)}(
+        new{PSFourier, typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(z_stencils), typeof(helper), typeof(Dz), typeof(Dz_inv)}(
             xgrid, ygrid, zgrid, X, Y, Z, Dz, Dz_3rd_order, Dz_inv, filters, z_stencils, x_stencils, 
             x_fd_sparsearrays, helper)
     end
@@ -278,20 +278,10 @@ function form_fourier_domain_poisson_operator(grid::XGrid{<:PSFourier}, x_dims, 
     T = arraytype(buffer)
     ST = sparsearraytype(buffer)
 
+    stencil = [1, -2, 1]
     if :z ∈ x_dims
-        no_escape(buffer) do
-            Dzz = spzeros(Nz, Nz)
-            u = T(zeros(1, 1, Nz))
-            b = T(zeros(1, 1, Nz))
-            z_grid = Helpers.z_grid_1d(Nz, grid.z.min, grid.z.max, buffer)
-            ffts = plan_ffts(z_grid, buffer)
-            for i in 1:Nz
-                u .= 0.0
-                u[i] = 1.0
-                apply_laplacian!(b, u, T([0.]), T([0.]), z_grid, [:z], buffer, ffts, helper)
-                Dzz[:, i] .= sparse(vec(b))
-            end
-        end
+        dz = grid.z.dx
+        Dzz = make_sparse_array_from_stencil(stencil / dz^2, Nz; periodic=false)
     else
         Dzz = 0*I(1)
     end
