@@ -24,9 +24,9 @@ function make_sim_vlasov(::Val{device}; ωpτ, ωcτ, Ae=1/25) where {device}
     fe_0 = fe_eq
     
     Nx = 96
-    Nz = 120
-    Nvx = 10
-    Nvz = 10
+    Nz = 36
+    Nvx = 16
+    Nvz = 16
     zmin = -Lz/2
     zmax = Lz/2
     x_grid = Helpers.z_grid_1d(Nz, zmin, zmax, allocator(device))
