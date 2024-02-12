@@ -7,29 +7,46 @@ function apply_hyperdiffusion!(dF, F, sim, α::Species{<:Any, <:PSFourier}, buff
     helper = sim.x_grid.poisson_helper
     Nx, Ny, Nz = size(sim.x_grid)
 
-    hyperdiffusion_df = alloc_zeros(Float64, buffer, size(dF)...)
+    hyperdiffusion = alloc_zeros(Float64, buffer, size(dF)...)
+
+    dz = sim.x_grid.z.dx
+    grid_scale_coef = 0.1
+    K_cutoff = Nx ÷ 3
+    η_x = grid_scale_coef * (2pi * K_cutoff)^(-4)
+    #@show η_x
+    η_z = grid_scale_coef * dz^4
+    #@show η_z
 
     no_escape(buffer) do
-        @timeit "z" if :z ∈ x_dims
-            F_with_bcs = z_diffusion_bcs(F, α)
+        F_with_bcs = z_diffusion_bcs(F, α)
 
-            dz = sim.x_grid.z.dx
-            η = dz^4
-            stencil = -η * helper.centered_fourth_derivative_stencil_fourth_order
-            @timeit "conv" convolve_z!(hyperdiffusion_df, F_with_bcs, stencil, true, buffer)
+        @timeit "z" if :z ∈ x_dims
+            stencil = η_z * helper.centered_fourth_derivative_stencil_fourth_order
+            @timeit "conv" convolve_z!(hyperdiffusion, F_with_bcs, stencil, true, buffer)
         end
-        #@info "" hyperdiffusion_df[10, 1, 1:5, 1, 1, 1]
 
         @timeit "x" if :x ∈ x_dims
-            F_xxxx = alloc_array(Float64, buffer, size(F)...)
+            F_xxxx = alloc_zeros(Float64, buffer, size(F)...)
             F_xxxx .= F
             in_kxy_domain!(F_xxxx, buffer, α.fft_plans) do F̂
                 kxs = 0:Nx÷2
                 @timeit "kxs" @. F̂ *= kxs^4 * (2π / sim.x_grid.x.L)^4
             end
-            K_cutoff = Nx ÷ 3
-            η = (2pi * K_cutoff)^(-4)
-            hyperdiffusion_df .+= η * F_xxxx
+            @. hyperdiffusion += η_x * F_xxxx
+        end
+
+        @timeit "xz" if false && :x ∈ x_dims && :z ∈ x_dims
+            F_zz = alloc_zeros(Float64, buffer, size(F)...)
+            stencil = sqrt(η_z) * helper.centered_second_derivative_stencil_sixth_order
+            convolve_z!(F_zz, F_with_bcs, stencil, true, buffer)
+
+            F_xxzz = F_zz
+            in_kxy_domain!(F_xxzz, buffer, α.fft_plans) do F̂
+                kxs = 0:Nx÷2
+                @. F̂ *= -kxs^2 * (2π / sim.x_grid.x.L)^2
+            end
+            sqrt_eta_x = sqrt(η_x)
+            @. hyperdiffusion += 2 * sqrt_eta_x * F_xxzz
         end
 
         @timeit "y" if :y ∈ x_dims
@@ -37,7 +54,9 @@ function apply_hyperdiffusion!(dF, F, sim, α::Species{<:Any, <:PSFourier}, buff
         end
     end
 
-    dF .+= hyperdiffusion_df
+    #@show norm(hyperdiffusion)
+
+    dF .-= hyperdiffusion
 end
 
 function z_diffusion_bcs(f, α::Species{<:Hermite})
