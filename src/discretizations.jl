@@ -203,11 +203,16 @@ struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
 
         helper = poisson_helper(dz, buffer)
 
-        dx = xgrid.dx
-        x_fd_right_biased = make_sparse_array_from_stencil(
-            [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1/dx), Nx; periodic=true) |> ST
-        x_fd_left_biased = make_sparse_array_from_stencil(
-            [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1/dx), Nx; periodic=true) |> ST
+        if Nx > 1
+            dx = xgrid.dx
+            x_fd_right_biased = make_sparse_array_from_stencil(
+                [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1/dx), Nx; periodic=true) |> ST
+            x_fd_left_biased = make_sparse_array_from_stencil(
+                [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1/dx), Nx; periodic=true) |> ST
+        else
+            x_fd_right_biased = 0 * I(1) |> ST
+            x_fd_left_biased = 0 * I(1) |> ST
+        end
         x_fd_sparsearrays = (x_fd_right_biased, x_fd_left_biased)
 
         Nx = xgrid.N
