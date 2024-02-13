@@ -194,8 +194,11 @@ struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
 
 
         dx = xgrid.dx
-        right_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30]
-        left_stencil = [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]
+        #right_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30]
+        #left_stencil = [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]
+        # Trying out first-order differencing to check stability
+        right_stencil = [0, 0, 0, -1, 1, 0, 0]
+        left_stencil = [0, 0, -1, 1, 0, 0, 0]
         right_biased_stencil = arraytype(buffer)(right_stencil)
         left_biased_stencil =  arraytype(buffer)(left_stencil)
         z_stencils = (right_biased_stencil * (-1 / dz), left_biased_stencil * (-1 / dz))
@@ -206,9 +209,9 @@ struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
         if Nx > 1
             dx = xgrid.dx
             x_fd_right_biased = make_sparse_array_from_stencil(
-                [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30] * (-1/dx), Nx; periodic=true) |> ST
+                right_stencil * (-1/dx), Nx; periodic=true) |> ST
             x_fd_left_biased = make_sparse_array_from_stencil(
-                [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0] * (-1/dx), Nx; periodic=true) |> ST
+                left_stencil * (-1/dx), Nx; periodic=true) |> ST
         else
             x_fd_right_biased = 0 * I(1) |> ST
             x_fd_left_biased = 0 * I(1) |> ST

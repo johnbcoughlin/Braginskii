@@ -22,7 +22,7 @@ t_end = 6.0
 
 TimerOutputs.reset_timer!()
 Braginskii.runsim!(sim, d, t_end, restart_from_latest=false, adaptive_dt=true,
-    initial_dt=dt, writeout_dt=0.5, log=true,
+    initial_dt=dt, writeout_dt=0.2, log=true,
     snapshot_interval_dt=0.1)
 TimerOutputs.print_timer()
 

@@ -366,6 +366,52 @@ function two_species_xz_1d2v(::Val{device}, (; fe_0, fi_0, By0);
     Simulation(sim, ArrayPartition(fe, fi))
 end
 
+function two_species_x_1d1v(::Val{device}, (; fe_0, fi_0, By0); 
+    Nx, Nvx, 
+    νpτ=0.0, vdisc, free_streaming=true, 
+    Lx=2π, 
+    ωpτ, ωcτ, Ze, Zi, Ae, Ai, 
+    vth_i=1.0, vth_e=vth_i/sqrt(Ae/Ai), gz=0.0,
+    # Supply these arguments if you want to calculate your own moments
+    # rather than using the default routine.
+    fe_ic=nothing, fi_ic=nothing,
+    ion_bc_lr=nothing, electron_bc_lr=nothing
+    ) where {device}
+    buffer = allocator(device)
+    x_grid = x_grid_1d(Nx, Lx, buffer)
+
+    By = By0.(x_grid.X, x_grid.Z)
+
+    ve_disc = v_discretization(vdisc, [:vx]; Nvx, vxmax=8.0, buffer, vth=vth_e, device)
+    electron_bcs = nothing
+    electron_disc = XVDiscretization(x_grid, ve_disc)
+    if isnothing(fe_ic)
+        @timeit "approx" fe = approximate_f(fe_0, electron_disc, (1, 4), buffer)
+    else
+        fe = fe_ic
+    end
+    electrons = Species("electrons", [:x], [:vx], Ze, Ae, 
+        plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
+
+    vi_disc = v_discretization(vdisc, [:vx]; Nvx, vxmax=8.0, buffer, vth=vth_i, device)
+    ion_bcs = nothing
+    ion_disc = XVDiscretization(x_grid, vi_disc)
+    if isnothing(fi_ic)
+        @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 4), buffer)
+    else
+        fi = fi_ic
+    end
+    ions = Species("ions", [:x], [:vx], Zi, Ai,
+        plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
+    
+    ϕ_left = ϕ_right = 0.0
+
+    sim = construct_sim_metadata(
+        [:x], x_grid, (electrons, ions), free_streaming, By, 
+        ϕ_left, ϕ_right, νpτ, ωpτ, ωcτ, gz, device, buffer)
+    Simulation(sim, ArrayPartition(fe, fi))
+end
+
 function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0); 
     Nx, Nz, Nvx, Nvz, 
     q=1.0, νpτ=0.0, vdisc, free_streaming=true, 
@@ -392,7 +438,7 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
     end
     electron_disc = XVDiscretization(x_grid, ve_disc)
     if isnothing(fe_ic)
-        @timeit "approx" fe = approximate_f(fe_0, electron_disc, (3, 4, 6), buffer)
+        @timeit "approx" fe = approximate_f(fe_0, electron_disc, (1, 3, 4, 6), buffer)
     else
         fe = fe_ic
     end
@@ -407,7 +453,7 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
     end
     ion_disc = XVDiscretization(x_grid, vi_disc)
     if isnothing(fi_ic)
-        @timeit "approx" fi = approximate_f(fi_0, ion_disc, (3, 4, 6), buffer)
+        @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4, 6), buffer)
     else
         fi = fi_ic
     end

@@ -70,4 +70,46 @@ function make_sim_vlasov(::Val{device}) where {device}
     return (; d, sim)
 end
 
+function make_1d1v_x_fd_sim()
+    
+    ωpτ = 1.0
+    ωcτ = 1.0
+    n0 = 1e22u"m^-3"
+    
+    Ae = 1/25
+    Ai = 1.0
+    Zi = 1.0
+    Ze = -1.0
+    Tref = 1e-4
+    vte = sqrt(Tref / Ae)
+    vti = sqrt(Tref / Ai)
+    fe_eq(x, vx) = 1 / sqrt(2pi * Tref / Ae) * exp(-Ae*(vx^2)/(2Tref))
+    fi_eq(x, vx) = 1 / sqrt(2pi * Tref / Ai) * exp(-Ai*(vx^2)/(2Tref))
+    perturbation_x(x) = 0.001*sin(2pi * x) + 1e-8*rand()
+    fe_0(x, vx) = fe_eq(x, vx) * perturbation_x(x)
+    fi_0(x, vx) = fi_eq(x, vx) * perturbation_x(x)
+    Nx = 36
+    Nvx = 160
+
+    Lx = 1.0
+    
+    sim = Helpers.two_species_x_1d1v(Val(:cpu),
+        (; fe_0, fi_0, By0=Returns(0.0));
+        Nx, Nvx,
+        Lx,
+        vdisc=:hermite,
+        vth_i=vti, vth_e=vte,
+        νpτ=0.0, ωpτ, ωcτ, Ze, Zi, Ae, Ai,
+        gz=0.0
+        );
+
+
+
+    problem="spectral_blocking_debugging_1d1v_x"
+    d = Dict{String, Any}()
+    merge!(d, @strdict problem Nx Nvx Ae ωpτ ωcτ)
+
+    return (; d, sim)
+end
+
 end
