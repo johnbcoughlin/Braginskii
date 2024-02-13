@@ -101,6 +101,7 @@ function single_species_1d1v_z(f; Nz, Nvz,
     zmin=-1., zmax=1., vdisc, vzmax=8.0,
     free_streaming=true, q=1.0, ϕ_left=0., ϕ_right=0., νpτ=0.0,
     ωpτ=1.0, ωcτ=1.0,
+    grid_scale_hyperdiffusion_coef=0.0,
     device=:cpu, vth=1.0, gz=0.0, z_bcs=:reflecting)
     buffer = allocator(device)
 
@@ -121,12 +122,13 @@ function single_species_1d1v_z(f; Nz, Nvz,
     electrons = Species("electrons", [:z], [:vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
 
     sim = construct_sim_metadata(
-        [:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
+        [:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
 function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, νpτ=0.0, gz=0.0, 
     ωpτ=1.0, ωcτ=1.0,
+    grid_scale_hyperdiffusion_coef=0.0,
     vdisc, free_streaming=true, device=:cpu, vth=1.0, z_bcs=nothing)
     buffer = allocator(device)
     @timeit "xgrid" x_grid = x_grid_1d(Nx, Lx, buffer)
@@ -142,12 +144,13 @@ function single_species_1d1v_x(f; Nx, Nvx, Lx=2π, vxmax=8.0, q=1.0, νpτ=0.0, 
 
     electrons = Species("electrons", [:x], [:vx], q, 1.0, plan_ffts(disc, buffer), disc, nothing)
     sim = construct_sim_metadata(
-        [:x], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
+        [:x], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
 function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, νpτ=0.0, 
     ωpτ=1.0, ωcτ=1.0,
+    grid_scale_hyperdiffusion_coef=0.0,
     vdisc, free_streaming=true,
     device=:cpu, vth=1.0, gz=0.0, z_bcs=nothing)
     buffer = allocator(device)
@@ -164,7 +167,7 @@ function single_species_1d1v_y(f; Ny, Nvy, Ly=2π, vymax=8.0, q=1.0, νpτ=0.0,
 
     electrons = Species("electrons", [:y], [:vy], q, 1.0, plan_ffts(disc, buffer), disc, nothing)
     sim = construct_sim_metadata(
-        [:y], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
+        [:y], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -187,6 +190,7 @@ end
 
 function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0, 
     q=1.0, νpτ=0.0, ωpτ=1.0, ωcτ=1.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu, 
+    grid_scale_hyperdiffusion_coef=0.0,
     z_bcs=:reflecting, f_ic=nothing)
     buffer = allocator(device)
     x_grid = x_grid_0d(buffer)
@@ -204,12 +208,13 @@ function single_species_0d2v((; f, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0,
 
     electrons = Species("electrons", Symbol[], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
     sim = construct_sim_metadata(
-        Symbol[], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
+        Symbol[], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
 function two_species_0d2v((; fi, fe, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0, 
     νpτ=0.0, ωpτ=1.0, ωcτ=1.0, gz=0.0, vdisc, free_streaming=true, 
+    grid_scale_hyperdiffusion_coef=0.0,
     vth_e, vth_i,
     Ae, Ai, Ze, Zi,
     device=:cpu, 
@@ -235,12 +240,13 @@ function two_species_0d2v((; fi, fe, By), Nvx, Nvz; vxmax=5.0, vzmax=5.0,
     ϕr = alloc_zeros(Float64, buffer, 1, 1)
 
     sim = construct_sim_metadata(
-        Symbol[], x_grid, (electrons, ions), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
+        Symbol[], x_grid, (electrons, ions), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 
 function single_species_z_xz_1d2v((; f, By); Nz, Nvx, Nvz, vxmax=5.0, vzmax=5.0,
     q=1.0, νpτ=0.0, gz=0.0, vdisc, free_streaming=true, vth=1.0, device=:cpu,
+    grid_scale_hyperdiffusion_coef=0.0,
     z_bcs=:reflecting, f_ic=nothing, ϕ_left=0.0, ϕ_right=0.0)
     buffer = allocator(device)
 
@@ -261,7 +267,7 @@ function single_species_z_xz_1d2v((; f, By); Nz, Nvx, Nvz, vxmax=5.0, vzmax=5.0,
 
     electrons = Species("electrons", Symbol[:z], [:vx, :vz], q, 1.0, plan_ffts(disc, buffer), disc, bcs)
     sim = construct_sim_metadata(
-        Symbol[:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, gz, device, buffer)
+        Symbol[:z], x_grid, (electrons,), free_streaming, By, ϕl, ϕr, νpτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe))
 end
 
@@ -282,6 +288,7 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
     device=:cpu, vth=1.0, z_bcs=:reflecting,
     Lx=2π, zmin=-1.0, zmax=1.0,
     ϕ_left, ϕ_right,
+    grid_scale_hyperdiffusion_coef=0.0,
     f_ic=nothing
     )
     buffer = allocator(device)
@@ -308,7 +315,7 @@ function single_species_xz_2d2v((; f_0, By0); Nx, Nz, Nvx, Nvz,
         plan_ffts(ion_disc, buffer), ion_disc, bcs)
 
     sim = construct_sim_metadata(
-        Symbol[:x, :z], x_grid, (ions,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
+        Symbol[:x, :z], x_grid, (ions,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
 
     Simulation(sim, ArrayPartition(fi))
 end
@@ -319,6 +326,7 @@ function two_species_xz_1d2v(::Val{device}, (; fe_0, fi_0, By0);
     zmin=-1.0, zmax=1.0,
     ωpτ, ωcτ, Ze, Zi, Ae, Ai, 
     vth_i=1.0, vth_e=vth_i/sqrt(Ae/Ai), gz=0.0,
+    grid_scale_hyperdiffusion_coef=0.0,
     z_bcs,
     ϕ_left, ϕ_right,
     # Supply these arguments if you want to calculate your own moments
@@ -362,7 +370,7 @@ function two_species_xz_1d2v(::Val{device}, (; fe_0, fi_0, By0);
         plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
 
     sim = construct_sim_metadata(
-        [:z], x_grid, (electrons, ions), free_streaming, By, ϕ_left, ϕ_right, νpτ, ωpτ, ωcτ, gz, device, buffer)
+        [:z], x_grid, (electrons, ions), free_streaming, By, ϕ_left, ϕ_right, νpτ, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 
@@ -371,6 +379,7 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
     q=1.0, νpτ=0.0, vdisc, free_streaming=true, 
     Lx=2π, zmin=-1.0, zmax=1.0,
     ωpτ, ωcτ, Ze, Zi, Ae, Ai, 
+    grid_scale_hyperdiffusion_coef=0.0,
     vth_i=1.0, vth_e=vth_i/sqrt(Ae/Ai), gz=0.0,
     z_bcs,
     ϕ_left, ϕ_right,
@@ -416,13 +425,14 @@ function two_species_xz_2d2v(::Val{device}, (; fe_0, fi_0, By0);
 
     sim = construct_sim_metadata(
         [:x, :z], x_grid, (electrons, ions), free_streaming, By, 
-        ϕ_left, ϕ_right, νpτ, ωpτ, ωcτ, gz, device, buffer)
+        ϕ_left, ϕ_right, νpτ, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 
 function two_species_2d_drift_kinetic((; fe_0, fi_0, By0); Nx, Nz, Nμ,
     qe=-1.0, qi=1.0,
     me=0.1, mi=1.0,
+    grid_scale_hyperdiffusion_coef=0.0,
     νpτ=0.0, ωpτ=1.0, ωcτ=1.0, device=:cpu, vth=1.0, μ0=0.5, gz=0.0,
     Lx=2π, zmin=-1.0, zmax=1.0,
     ϕ_left, ϕ_right, z_bcs)
@@ -452,13 +462,14 @@ function two_species_2d_drift_kinetic((; fe_0, fi_0, By0); Nx, Nz, Nμ,
 
     free_streaming = true
     sim = construct_sim_metadata(
-        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, device, buffer)
+        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, νpτ, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 
 function two_species_1d2v_vlasov_dk_hybrid((; Fe_0, fi_0, By0); Nz, Nμ, Nvx, Nvz,
     qe=-1.0, qi=1.0,
     me=0.1, mi=1.0,
+    grid_scale_hyperdiffusion_coef=0.0,
     ν_p=0.0, ωpτ, ωcτ, device=:cpu, vth=1.0, μ0=0.5, gz=0.0,
     zmin=-1.0, zmax=1.0,
     ϕ_left, ϕ_right, z_bcs)
@@ -488,13 +499,14 @@ function two_species_1d2v_vlasov_dk_hybrid((; Fe_0, fi_0, By0); Nz, Nμ, Nvx, Nv
 
     free_streaming = true
     sim = construct_sim_metadata(
-        [:z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, device, buffer)
+        [:z], x_grid, (electrons, ions,), free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 
 function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx, Nz, Nμ, Nvx, Nvz,
     qe=-1.0, qi=1.0,
     me=0.1, mi=1.0,
+    grid_scale_hyperdiffusion_coef=0.0,
     ν_p=0.0, ωpτ, ωcτ, vth=1.0, μ0=0.5, gz=0.0,
     Lx=2π, zmin=-1.0, zmax=1.0,
     ϕ_left, ϕ_right, z_bcs) where {device}
@@ -520,7 +532,7 @@ function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx,
 
     free_streaming = true
     sim = construct_sim_metadata(
-        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕ_left, ϕ_right, ν_p, ωpτ, ωcτ, gz, device, buffer)
+        [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕ_left, ϕ_right, ν_p, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
     Simulation(sim, ArrayPartition(fe, fi))
 end
 end

@@ -48,6 +48,8 @@ struct SimulationMetadata{BA, PHI_L, PHI_R, PHI, SP, FFTPLANS, CPUFFTPLANS, CM_D
 
     Δ_lu::POISSON_LU
 
+    grid_scale_hyperdiffusion_coef::Float64
+
     device::Symbol
     buffer::BUF
 end
@@ -70,6 +72,7 @@ end
 
 function construct_sim_metadata(
     x_dims, x_grid, species::Tuple, free_streaming, By, ϕl, ϕr, ν_p, ωpτ, ωcτ, gz,
+    grid_scale_hyperdiffusion_coef,
     device, buffer)
     ϕ = alloc_zeros(Float64, buffer, size(x_grid)...)
 
@@ -83,6 +86,7 @@ function construct_sim_metadata(
         plan_ffts(x_grid, buffer),
         plan_ffts(x_grid, allocator(:cpu)),
         factorize_poisson_operator(poisson_operator),
+        grid_scale_hyperdiffusion_coef,
         device, buffer)
 end
 

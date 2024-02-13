@@ -10,12 +10,10 @@ function apply_hyperdiffusion!(dF, F, sim, α::Species{<:Any, <:PSFourier}, buff
     hyperdiffusion = alloc_zeros(Float64, buffer, size(dF)...)
 
     dz = sim.x_grid.z.dx
-    grid_scale_coef = 0.1
+    grid_scale_coef = sim.grid_scale_hyperdiffusion_coef
     K_cutoff = Nx ÷ 3
     η_x = grid_scale_coef * (2pi * K_cutoff)^(-4)
-    #@show η_x
     η_z = grid_scale_coef * dz^4
-    #@show η_z
 
     no_escape(buffer) do
         F_with_bcs = z_diffusion_bcs(F, α)
