@@ -152,7 +152,7 @@ function vlasov_species_rhs!(df, f, E, sim, α, buffer)
 
     @timeit "hyperdiffusion" apply_hyperdiffusion!(df, f, sim, α, buffer)
 
-    return 5 * (λ_es + λ_fs)
+    return (λ_es + λ_fs)
 end
 
 function drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)

@@ -18,19 +18,17 @@ function electrostatic!(df, f, Ex, Ey, Ez, sim, species, buffer, xgrid_fft_plans
         nothing
     end
 
-    #return estimate_max_eigenvalue(Ex, Ey, Ez, sim, species)
-    return 0.0
+    return estimate_max_eigenvalue(Ex, Ey, Ez, sim, species)
+    #return 0.0
 end
 
 function estimate_max_eigenvalue(Ex, Ey, Ez, sim, α)
     (; By, ωpτ, ωcτ) = sim
     (; vth, Nvx, Nvy, Nvz) = α.discretization.vdisc
-    dvx = 1 / (vth * sqrt(Nvx))
-    dvy = 1 / (vth * sqrt(Nvy))
-    dvz = 1 / (vth * sqrt(Nvz))
-    λx = ωpτ*maximum(abs, Ex) / dvx + ωcτ*maximum(abs, By)
-    λy = ωpτ*maximum(abs, Ey) / dvy
-    λz = ωpτ*maximum(abs, Ez) / dvz + ωcτ*maximum(abs, By)
+
+    λx = (ωpτ*maximum(abs, Ex) + ωcτ*vth*sqrt(Nvx)*maximum(abs, By)) * sqrt(Nvx) / vth
+    λy = (ωpτ*maximum(abs, Ey)) * sqrt(Nvy) / vth
+    λz = (ωpτ*maximum(abs, Ez) + ωcτ*vth*sqrt(Nvz)*maximum(abs, By)) * sqrt(Nvz) / vth
 
     return (λx + λy + λz) * α.q / α.m
 end
