@@ -509,7 +509,10 @@ function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx,
     grid_scale_hyperdiffusion_coef=0.0,
     ν_p=0.0, ωpτ, ωcτ, vth=1.0, μ0=0.5, gz=0.0,
     Lx=2π, zmin=-1.0, zmax=1.0,
-    ϕ_left, ϕ_right, z_bcs) where {device}
+    ϕ_left, ϕ_right, z_bcs,
+    fi_ic=nothing,
+    ion_bc_lr=nothing
+    ) where {device}
     buffer = allocator(device)
     x_grid = xz_grid_2d(Nx, Nz, zmin, zmax, Lx, buffer)
     @info "created x grid"
@@ -524,9 +527,17 @@ function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx,
         plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
 
     vi_disc = hermite_disc(; Nvx, Nvy=1, Nvz, vth, device)
-    ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    if isnothing(ion_bc_lr)
+        ion_bcs = make_bcs(x_grid, vi_disc, fi_0, buffer, z_bcs)
+    else
+        ion_bcs = make_reservoir_bcs(x_grid, vi_disc, ion_bc_lr..., buffer)
+    end
     ion_disc = XVDiscretization(x_grid, vi_disc)
-    @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4, 6), buffer)
+    if isnothing(fi_ic)
+        @timeit "approx" fi = approximate_f(fi_0, ion_disc, (1, 3, 4, 6), buffer)
+    else
+        fi = fi_ic
+    end
     ions = Species("ions", [:x, :z], [:vx, :vz], qi, mi,
         plan_ffts(ion_disc, buffer), ion_disc, ion_bcs)
 
