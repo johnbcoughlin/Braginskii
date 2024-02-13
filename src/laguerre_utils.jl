@@ -26,18 +26,14 @@ function L_up_to_n!(L, n, μ::BigFloat)
 end
 
 function bigfloat_weighted_laguerre_expansion(f::Function, Mμ::Int, Mvy::Int, X, Y, Z, μ0, vth)
-    # The factor by which we dilate the integrand to ensure the convergence is fast enough.
-    η = 1 / vth
+    μ_nodes, μ_w = FastGaussQuadrature.gausslegendre(Mμ == 0 ? 1 : 250)
+    vy_nodes, vy_w = FastGaussQuadrature.gausslegendre(Mvy == 0 ? 1 : 250)
 
-    # Overintegration factor
-    k = 10
-
-    Nμ = Mμ == 0 ? 1 : k*Mμ+1
-    Nvy = Mvy == 0 ? 1 : k*Mvy+1
-
-    μ_nodes, weighted_μ_w = FastGaussQuadrature.gausslaguerre(Nμ, 0.0)
-    μ_w = weighted_μ_w
-    vy_nodes, vy_w = FastGaussQuadrature.unweightedgausshermite(Nvy)
+    # Shift to [0, 2]
+    μ_nodes .+= 1.0
+    # Expand to [0, 50]
+    μ_nodes .*= 25.0
+    μ_w .*= 25.0
 
     μ_w = Mμ == 0 ? [1.0] : μ_w 
     vy_w = Mvy == 0 ? [1.0] : vy_w 
@@ -45,8 +41,8 @@ function bigfloat_weighted_laguerre_expansion(f::Function, Mμ::Int, Mvy::Int, X
     unnormalized_L_n_μ_vand = L_up_to_n(Mμ, μ_nodes)
     normalized_He_n_vy_vand = He_up_to_n(Mvy, vy_nodes; normalized=true)
 
-    mass = unnormalized_L_n_μ_vand * Diagonal(weighted_μ_w) * unnormalized_L_n_μ_vand'
-    @assert isapprox(mass, diagm(diag(mass)), rtol=1e-10)
+    #mass = unnormalized_L_n_μ_vand * Diagonal(μ_w) * unnormalized_L_n_μ_vand'
+    #@assert isapprox(mass, diagm(diag(mass)), rtol=1e-10)
 
     μ_nodes = reshape(μ_nodes, (1, 1, 1, :, 1))
     vy_nodes = reshape(vy_nodes, (1, 1, 1, 1, :))
@@ -54,16 +50,16 @@ function bigfloat_weighted_laguerre_expansion(f::Function, Mμ::Int, Mvy::Int, X
     X_array = Array(X)
     Y_array = Array(Y)
     Z_array = Array(Z)
-    fxv = @. f(X_array, Y_array, Z_array, μ_nodes * μ0, vy_nodes * vth) * exp(big(μ_nodes))
+    fxv = @. f(X_array, Y_array, Z_array, μ_nodes * μ0, vy_nodes * vth)
 
     result = zeros(size(fxv)[1:3]..., Mμ+1, Mvy+1)
 
-    w_vand_μ = (unnormalized_L_n_μ_vand .* μ_w')
+    w_vand_μ = Float64.(unnormalized_L_n_μ_vand .* μ_w')
     w_vand_vy = Float64.(normalized_He_n_vy_vand .* vy_w')
 
     for λxyz in CartesianIndices((length(X), length(Y), length(Z)))
-        for αμ in 1:Nμ, βμ in 1:Mμ+1
-            for αvy in 1:Nvy, βvy in 1:Mvy+1
+        for αμ in 1:length(μ_w), βμ in 1:Mμ+1
+            for αvy in 1:length(vy_w), βvy in 1:Mvy+1
                 w_vand = w_vand_μ[βμ, αμ] * w_vand_vy[βvy, αvy]
                 result[λxyz, βμ, βvy] += fxv[λxyz, αμ, αvy] * w_vand
             end

@@ -206,7 +206,7 @@ end
 function density(f, α::Species{<:HermiteLaguerre}, B, buffer)
     Nx, Ny, Nz, Nμ, Nvy = size(f)
     M0 = alloc_zeros(Float64, buffer, Nx, Ny, Nz)
-    @. M0 = (@view f[:, :, :, 1, 1]) * B / α.m * 2π * α.discretization.vdisc.μ0
+    @. M0 = (@view f[:, :, :, 1, 1])
     return M0
 end
 

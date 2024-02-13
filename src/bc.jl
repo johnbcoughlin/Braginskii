@@ -54,7 +54,7 @@ function make_reservoir_bcs(x_grid, vdisc, f0::Function, buffer)
     return make_reservoir_bcs(x_grid, vdisc, left_f, right_f, buffer)
 end
 
-function make_reservoir_bcs(x_grid, vdisc::HermiteLaguerre, f0, buffer)
+function make_reservoir_bcs(x_grid, vdisc::HermiteLaguerre, f0::Function, buffer)
     Nx, Ny, Nz = size(x_grid)
     Nμ, Nvy = size(vdisc)
 
