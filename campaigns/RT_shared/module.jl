@@ -39,17 +39,12 @@ function do_flexible_normalization(; n0=1e20u"m^-3", ωpτ, ωcτ)
     return dict
 end
 
-function params(; n0, ωpτ, ωcτ, Ae=1/25)
+function params(; gz, T_ref, n0, ωpτ, ωcτ, Ae=1/25)
     norm = do_flexible_normalization(; n0, ωpτ, ωcτ)
-
-    gz = -3e-5
 
     Lz = 1.0
     Lx = 1.0
-
     n_ref = 1.0
-    T_ref = 1e-4
-
     B_ref = 1.0
 
     α = 1 / 25.0
@@ -187,13 +182,13 @@ end
 # Computes the Hermite expansion of our perturbed equilibrium,
 # given the perturbation as product of separable factors depending
 # solely on x and z.
-function vlasov_eq_hermite_expansions(fe_eq, fi_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vte, vti)
+function vlasov_eq_hermite_expansions(fe_eq, fi_eq, ion_perturbation_x, ion_perturbation_z, electron_perturbation_x, electron_perturbation_z, X, Z, Nvx, Nvz, vte, vti)
     # We can compute the equilibrium moments first
 
     ArrayType = typeof(X).name.wrapper
 
-    fe_moments = vlasov_eq_hermite_expansions_species(fe_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vte, 11*vte) |> ArrayType
-    fi_moments = vlasov_eq_hermite_expansions_species(fi_eq, perturbation_x, perturbation_z, X, Z, Nvx, Nvz, vti, 11*vti) |> ArrayType
+    fe_moments = vlasov_eq_hermite_expansions_species(fe_eq, electron_perturbation_x, electron_perturbation_z, X, Z, Nvx, Nvz, vte, 11*vte) |> ArrayType
+    fi_moments = vlasov_eq_hermite_expansions_species(fi_eq, ion_perturbation_x, ion_perturbation_z, X, Z, Nvx, Nvz, vti, 11*vti) |> ArrayType
 
     return (; fe_moments, fi_moments)
 end
@@ -230,37 +225,6 @@ function vlasov_eq_hermite_expansions_species(f_eq, perturbation_x, perturbation
     @. result *= (1 + perturbation_x(Xa) * perturbation_z(Za))
 
     result
-end
-
-function opt_oct_values()
-    points_oct = vcat(
-    0.8*ones(5),
-    1.2*ones(5),
-    1.6*ones(4),
-    2.4*ones(4),
-    4.0*ones(4),
-    6.0*ones(4),
-    10.0*ones(4),
-    15.0*ones(4),
-    20.0*ones(4)
-    ) ./ 2
-    points_opt = vcat(
-    2:4:18,
-    10:4:26,
-    15:5:30,
-    15:5:30,
-    15:5:30,
-    15:5:30,
-    15:5:30,
-    15:5:30,
-    15:5:30,
-    ) .* 2.0
-
-    return points_opt, points_oct
-end
-
-function kinetic_examples()
-    return [5, 10, 14]
 end
 
 end
