@@ -49,6 +49,7 @@ include("moments.jl")
 include("diagnostics.jl")
 include("drifts.jl")
 include("diffusion.jl")
+include("weno.jl")
 
 include("hermite_utils.jl")
 include("laguerre_utils.jl")

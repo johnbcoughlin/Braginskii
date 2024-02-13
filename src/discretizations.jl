@@ -130,7 +130,7 @@ function poisson_helper(dz, buffer)
     )
 end
 
-struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
+struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE, WENO_STENCILS}
     x::PeriodicGrid1D
     y::PeriodicGrid1D
     z::Grid1D
@@ -148,6 +148,9 @@ struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
     x_fd_stencils::STENCILS
     x_fd_sparsearrays::Tuple{SPARSE, SPARSE}
     poisson_helper::POISSON
+
+    z_weno_left::WENO_STENCILS
+    z_weno_right::WENO_STENCILS
 
     XGrid(xgrid, ygrid, zgrid, buffer) = begin
         X = alloc_zeros(Float64, buffer, length(xgrid.nodes), 1, 1)
@@ -229,9 +232,12 @@ struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
 
         filters = (σx, σy)
 
-        new{PSFourier, typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(z_stencils), typeof(helper), typeof(Dz), typeof(Dz_inv)}(
+        z_weno_left = left_biased_weno5_stencil(arraytype)
+        z_weno_right = right_biased_weno5_stencil(arraytype)
+
+        new{PSFourier, typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(z_stencils), typeof(helper), typeof(Dz), typeof(Dz_inv), typeof(z_weno_left)}(
             xgrid, ygrid, zgrid, X, Y, Z, Dz, Dz_3rd_order, Dz_inv, filters, z_stencils, x_stencils, 
-            x_fd_sparsearrays, helper)
+            x_fd_sparsearrays, helper, z_weno_left, z_weno_right)
     end
 end
 
@@ -368,7 +374,7 @@ end
 
 size(fd::WENO5) = size(fd.grid)
 
-struct Hermite{SPARSE, FILTERS, FLIPS}
+struct Hermite{SPARSE, DENSE, VECTOR, FILTERS, FLIPS}
     Nvx::Int
     Nvy::Int
     Nvz::Int
@@ -386,6 +392,10 @@ struct Hermite{SPARSE, FILTERS, FLIPS}
     Ξx⁺::SPARSE
     Ξy⁺::SPARSE
     Ξz⁺::SPARSE
+
+    RΞz::DENSE
+    RΞz_inv::DENSE
+    Λvz::VECTOR
 
     Dvx::SPARSE
     Dvy::SPARSE
@@ -416,7 +426,8 @@ Hermite(Nvx, Nvy, Nvz, vth, device) = begin
     Ξy⁻ = kron(I(Nvz), 0.5*Ξy - 0.5 * I * sqrt(Nvy) * vth, I(Nvx))
     Ξy⁺ = kron(I(Nvz), 0.5*Ξy + 0.5 * I * sqrt(Nvy) * vth, I(Nvx))
 
-    #Λz, Rz = eigen(Array(Ξz))
+    Λz, Rz = eigen(Array(Ξz))
+    Rzinv = inv(Rz)
     #Ξz⁻ = kron(sparsify(Rz * Diagonal(min.(Λz, 0.0)) / Rz), I(Nvy), I(Nvx))
     #Ξz⁺ = kron(sparsify(Rz * Diagonal(max.(Λz, 0.0)) / Rz), I(Nvy), I(Nvx))
     Ξz⁻ = kron(0.5*Ξz - 0.5 * I * sqrt(Nvz) * vth, I(Nvy), I(Nvx))
@@ -437,6 +448,11 @@ Hermite(Nvx, Nvy, Nvz, vth, device) = begin
     elseif device == :gpu
         CuSparseMatrixCSC
     end
+    densecx = if device == :cpu
+        identity
+    elseif device == :gpu
+        cuda
+    end
 
     flip = i -> iseven(i-1) ? 1 : -1
     flips = reshape(arraytype(device)(flip.(1:Nvz)), (1, 1, 1, 1, Nvz))
@@ -448,7 +464,9 @@ Hermite(Nvx, Nvy, Nvz, vth, device) = begin
     filters = (σvx, σvy, σvz)
 
     Hermite(Nvx, Nvy, Nvz, vth, cx(Ξx), cx(Ξy), cx(Ξz), cx(Ξx⁻), cx(Ξy⁻), cx(Ξz⁻), 
-        cx(Ξx⁺), cx(Ξy⁺), cx(Ξz⁺), cx(Dvx), cx(Dvy), cx(Dvz),
+        cx(Ξx⁺), cx(Ξy⁺), cx(Ξz⁺), 
+        densecx(Rz), densecx(Rzinv), densecx(Λz),
+        cx(Dvx), cx(Dvy), cx(Dvz),
         filters, flips)
 end
 

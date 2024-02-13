@@ -62,14 +62,15 @@ end
 function convolve_over!(
     dest::AbstractArray{T, N}, u::AbstractArray{T, N}, 
     stencil::AbstractVector{T}, has_boundary, buffer,
+    n_channels,
     pad_wrapper, stencil_shape) where {T, N}
 
     @assert isodd(length(stencil))
     pad = has_boundary ? 0 : length(stencil) ÷ 2
 
-    reshaped_u = reshape(u, (size(u)..., 1, 1))
-    reshaped_dest = reshape(dest, (size(dest)..., 1, 1))
-    reshaped_stencil = reshape(convert_stencil(stencil, typeof(u)), (stencil_shape..., 1, 1))
+    reshaped_u = reshape(u, (size(u)..., n_channels, 1))
+    reshaped_dest = reshape(dest, (size(dest)..., n_channels, 1))
+    reshaped_stencil = reshape(convert_stencil(stencil, typeof(u)), (stencil_shape..., n_channels, 1))
 
     cdims = DenseConvDims(size(reshaped_u), size(reshaped_stencil), 
         padding=pad_wrapper(pad), flipkernel=true)

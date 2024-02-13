@@ -71,16 +71,16 @@ function free_streaming_z!(df, f, species::Species{WENO5}, buffer)
 
         convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz÷2)
 
-        convolve_z!(convolved, F⁻, right_biased_stencil, true, buffer)
+        convolve_z!(convolved, F⁻, right_biased_stencil, true, buffer, 1)
         df[:, :, :, :, :, 1:Nvz÷2] .+= convolved
-        convolve_z!(convolved, F⁺, left_biased_stencil, true, buffer)
+        convolve_z!(convolved, F⁺, left_biased_stencil, true, buffer, 1)
         df[:, :, :, :, :, Nvz÷2+1:Nvz] .+= convolved
 
         nothing
     end
 end
 
-function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
+function free_streaming_z_nonweno!(df, f, species::Species{<:Hermite}, buffer)
     (; discretization) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
@@ -108,6 +108,39 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
         df .+= convolved
     end
 end
+
+function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
+    (; discretization) = species
+
+    Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
+    xgrid = discretization.x_grid
+    dz = xgrid.z.dx
+    Ξz⁻ = discretization.vdisc.Ξz⁻
+    Ξz⁺ = discretization.vdisc.Ξz⁺
+    Rz = discretization.vdisc.RΞz
+    Rzinv = discretization.vdisc.RΞz_inv
+    Λz = discretization.vdisc.Λvz
+
+    no_escape(buffer) do
+        f_with_boundaries = z_free_streaming_bcs(f, species, buffer)
+        f_with_boundaries = reshape(f_with_boundaries, (:, Nvz))
+
+        f_characteristics = alloc_array(Float64, buffer, Nx*Ny*(Nz+6)*Nvx*Nvy, Nvz)
+        mul!(f_characteristics', f_with_boundaries', Rzinv)
+
+        Λz = reshape(Λz, (1, Nvz))
+
+        F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)
+        @. F⁻ = f_characteristics * min(Λz, 0.0)
+
+        F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
+        @. F⁺ = f_characteristics * max(Λz, 0.0)
+
+        perform_weno_differencing_z!(df, F⁺, F⁻, xgrid.z_weno_left,
+            xgrid.z_weno_right, xgrid, species, buffer)
+    end
+end
+
 
 function z_free_streaming_bcs(f, species, buffer)
     (; discretization) = species
