@@ -33,7 +33,9 @@ function perform_weno_differencing_z!(df, F⁺, F⁻,
 
     dz = x_grid.z.dx
 
-    @. df += ((@view F̂⁻[:, 2:end-1, :]) - (@view F̂⁺[:, 2:end-1, :])) / dz
+    df = reshape(df, (Nx*Ny, Nz, Nvx*Nvy*Nvz))
+    @. df += 1/dz * ((@view F̂⁺[:, 1:end-2, :]) + (@view F̂⁻[:, 2:end-1, :])
+        - (@view F̂⁺[:, 2:end-1, :]) - (@view F̂⁻[:, 3:end, :]))
 end
 
 function weno_reconstruction_z!(F::AbstractArray{Float64, 3}, stencils, buffer; ϵ=1e-6)
@@ -42,21 +44,21 @@ function weno_reconstruction_z!(F::AbstractArray{Float64, 3}, stencils, buffer; 
     Nz2 = Nz+2
 
     S1S2S3 = alloc_array(Float64, buffer, Nxy, Nz2, Nvxyz, 3)
-    convolve_z!(S1S2S3, F, stencils.S1S2S3.stencils, true, buffer, 3)
+    convolve_over_middle!(S1S2S3, F, stencils.S1S2S3_stencils, true, buffer, 3)
 
     β_terms = alloc_array(Float64, buffer, Nxy, Nz2, Nvxyz, 6)
-    convolve_z!(β_terms, F, stencils.β_stencils, true, buffer, 6)
+    convolve_over_middle!(β_terms, F, stencils.β_stencils, true, buffer, 6)
 
     # Square terms as per eqn (17) of Zhang and Shu (2016)
-    @. β_terms *= β_terms
+    @. β_terms ^= 2
 
     β_terms = reshape(β_terms, (:, 6))
     β = alloc_array(Float64, buffer, Nxy*Nz2*Nvxyz, 3)
-    mul!(β, β_terms, β_combiner)
+    mul!(β, β_terms, stencils.β_combiner)
 
     γ = stencils.γ
     α = alloc_array(Float64, buffer, Nxy*Nz2*Nvxyz, 3)
-    @. α = γ / (ϵ + β)
+    @. α = γ / (ϵ + β)^2
 
     α_sum = sum(α, dims=2)
 
@@ -78,7 +80,7 @@ function left_biased_weno5_stencils(T=Array)
     0      0     1/3  5/6  -1/6]' |> T
 
     β_stencils = [
-    1  -2   1   0  0;
+    1.  -2   1   0  0;
     1  -4   3   0  0;
     0   1  -2   1  0;
     0   1   0  -1  0;
@@ -106,7 +108,7 @@ function right_biased_weno5_stencils(T=Array)
     0   0   11/6   -7/6   1/3]' |> T
 
     β_stencils = [
-    1  -2   1  0  0;
+    1.  -2   1  0  0;
     1  -4   3  0  0;
     0  1  -2   1   0;
     0 1  0  -1  0;

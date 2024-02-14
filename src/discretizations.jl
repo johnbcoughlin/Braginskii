@@ -197,11 +197,11 @@ struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE, WENO_
 
 
         dx = xgrid.dx
-        #right_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30]
-        #left_stencil = [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]
+        right_stencil = [0, 1/20, -1/2, -1/3, 1, -1/4, 1/30]
+        left_stencil = [-1/30, 1/4, -1, 1/3, 1/2, -1/20, 0]
         # Trying out first-order differencing to check stability
-        right_stencil = [0, 0, 0, -1, 1, 0, 0]
-        left_stencil = [0, 0, -1, 1, 0, 0, 0]
+        #right_stencil = [0, 0, 0, -1, 1, 0, 0]
+        #left_stencil = [0, 0, -1, 1, 0, 0, 0]
         right_biased_stencil = arraytype(buffer)(right_stencil)
         left_biased_stencil =  arraytype(buffer)(left_stencil)
         z_stencils = (right_biased_stencil * (-1 / dz), left_biased_stencil * (-1 / dz))
@@ -232,8 +232,8 @@ struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE, WENO_
 
         filters = (σx, σy)
 
-        z_weno_left = left_biased_weno5_stencil(arraytype)
-        z_weno_right = right_biased_weno5_stencil(arraytype)
+        z_weno_left = left_biased_weno5_stencils(arraytype(buffer))
+        z_weno_right = right_biased_weno5_stencils(arraytype(buffer))
 
         new{PSFourier, typeof(X), typeof(Y), typeof(Z), typeof(filters), typeof(z_stencils), typeof(helper), typeof(Dz), typeof(Dz_inv), typeof(z_weno_left)}(
             xgrid, ygrid, zgrid, X, Y, Z, Dz, Dz_3rd_order, Dz_inv, filters, z_stencils, x_stencils, 

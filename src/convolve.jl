@@ -7,7 +7,7 @@ function convolve_x!(dest::AbstractArray{T, N}, u::AbstractArray{T, N}, args...)
     convolve_over_first!(dest, u, args...)
 end
 
-function convolve_z!(dest::AbstractArray{T, N}, u::AbstractArray{T, N}, args...) where {T, N}
+function convolve_z!(dest::AbstractArray{T, N}, u::AbstractArray{T, N1}, args...) where {T, N, N1}
     Nx, Ny, Nz, = size(u)
     u = reshape(u, (Nx*Ny, Nz, :))
 
@@ -47,6 +47,10 @@ function convolve_over_first!(dest::AbstractArray{T, 2}, u::AbstractArray{T, 2},
     convolve_over!(dest, u, args..., pad -> (pad, 0), (Colon(), 1))
 end
 
+function convolve_over_middle!(dest::AbstractArray{T, 4}, u::AbstractArray{T, 3}, args...) where {T}
+    convolve_over!(dest, u, args..., pad -> (0, pad, 0), (1, Colon(), 1))
+end
+
 function convolve_over_middle!(dest::AbstractArray{T, 3}, u::AbstractArray{T, 3}, args...) where {T}
     convolve_over!(dest, u, args..., pad -> (0, pad, 0), (1, Colon(), 1))
 end
@@ -61,26 +65,53 @@ end
 
 function convolve_over!(
     dest::AbstractArray{T, N}, u::AbstractArray{T, N}, 
-    stencil::AbstractVector{T}, has_boundary, buffer,
-    n_channels,
+    args...) where {T, N, N1}
+    convolve_over!(reshape(dest, (size(dest)..., 1)), u, args...)
+end
+
+function convolve_over!(
+    dest::AbstractArray{T, N}, u::AbstractArray{T, N}, 
+    stencil::AbstractArray{T}, has_boundary, buffer,
     pad_wrapper, stencil_shape) where {T, N}
 
-    @assert isodd(length(stencil))
+    @assert isodd(size(stencil, 1))
     pad = has_boundary ? 0 : length(stencil) ÷ 2
 
-    reshaped_u = reshape(u, (size(u)..., n_channels, 1))
-    reshaped_dest = reshape(dest, (size(dest)..., n_channels, 1))
-    reshaped_stencil = reshape(convert_stencil(stencil, typeof(u)), (stencil_shape..., n_channels, 1))
+    reshaped_u = reshape(u, (size(u)..., 1, 1))
+    reshaped_dest = reshape(dest, (size(dest)..., 1, 1))
+    reshaped_stencil = reshape(convert_stencil(stencil, typeof(u)), (stencil_shape..., 1, 1))
 
     cdims = DenseConvDims(size(reshaped_u), size(reshaped_stencil), 
         padding=pad_wrapper(pad), flipkernel=true)
 
-
     if (isa(u, Array))
-        col = alloc_array(Float64, buffer, prod(size(reshaped_dest)), length(reshaped_stencil), 1)
-        conv!(reshaped_dest, reshaped_u, reshaped_stencil, cdims; col)
+        conv!(reshaped_dest, reshaped_u, reshaped_stencil, cdims)
     else
         conv!(reshaped_dest, reshaped_u, reshaped_stencil, cdims)
+    end
+end
+
+function convolve_over!(
+    dest::AbstractArray{T, N1}, u::AbstractArray{T, N}, 
+    stencil::AbstractArray{T}, has_boundary, buffer,
+    n_channels,
+    pad_wrapper, stencil_shape) where {T, N, N1}
+
+    @assert isodd(size(stencil, 1))
+    pad = has_boundary ? 0 : length(stencil) ÷ 2
+
+    reshaped_u = reshape(u, (size(u)..., 1, 1))
+    reshaped_dest = reshape(dest, (size(dest)..., 1))
+    reshaped_stencil = reshape(convert_stencil(stencil, typeof(u)), (stencil_shape..., n_channels, 1))
+
+    cdims = DepthwiseConvDims(size(reshaped_u), size(reshaped_stencil), 
+        padding=pad_wrapper(pad), flipkernel=true)
+
+
+    if (isa(u, Array))
+        depthwiseconv!(reshaped_dest, reshaped_u, reshaped_stencil, cdims)
+    else
+        depthwiseconv!(reshaped_dest, reshaped_u, reshaped_stencil, cdims)
     end
 end
 

@@ -15,7 +15,7 @@ function free_streaming!(df, f, species, buffer)
         end
         if :z ∈ species.x_dims
             df_z = alloc_zeros(Float64, buffer, size(species.discretization)...)
-            @timeit "z" free_streaming_z!(df_z, f, species, buffer)
+            @timeit "z" free_streaming_z_weno!(df_z, f, species, buffer)
             df_fs .+= df_z
         end
 
@@ -109,7 +109,7 @@ function free_streaming_z_nonweno!(df, f, species::Species{<:Hermite}, buffer)
     end
 end
 
-function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
+function free_streaming_z_weno!(df, f, species::Species{<:Hermite}, buffer)
     (; discretization) = species
 
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(discretization)
@@ -121,23 +121,38 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
     Rzinv = discretization.vdisc.RΞz_inv
     Λz = discretization.vdisc.Λvz
 
+    #display(Rz)
+    #display(Rzinv)
+
     no_escape(buffer) do
         f_with_boundaries = z_free_streaming_bcs(f, species, buffer)
         f_with_boundaries = reshape(f_with_boundaries, (:, Nvz))
 
+        #@info "" reshape(f_with_boundaries, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)[1, 1, :, 1, 1, :]
         f_characteristics = alloc_array(Float64, buffer, Nx*Ny*(Nz+6)*Nvx*Nvy, Nvz)
-        mul!(f_characteristics', f_with_boundaries', Rzinv)
+        mul!(f_characteristics, f_with_boundaries, Rzinv')
+
+        #@info "" reshape(f_characteristics, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)[1, 1, :, 1, 1, :]
 
         Λz = reshape(Λz, (1, Nvz))
+        #@info "" Λz
 
-        F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)
+        F⁻ = alloc_array(Float64, buffer, Nx*Ny*(Nz+6)*Nvx*Nvy, Nvz)
         @. F⁻ = f_characteristics * min(Λz, 0.0)
+        F⁻ = reshape(F⁻, (Nx*Ny, Nz+6, :))
+        #@info "" reshape(F⁻, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)[1, 1, :, 1, 1, :]
 
-        F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
+        F⁺ = alloc_array(Float64, buffer, Nx*Ny*(Nz+6)*Nvx*Nvy, Nvz)
         @. F⁺ = f_characteristics * max(Λz, 0.0)
+        F⁺ = reshape(F⁺, (Nx*Ny, Nz+6, :))
+        #@info "" reshape(F⁺, Nx, Ny, Nz+6, Nvx, Nvy, Nvz)[1, 1, :, 1, 1, :]
 
-        perform_weno_differencing_z!(df, F⁺, F⁻, xgrid.z_weno_left,
+        df_characteristics = alloc_zeros(Float64, buffer, size(df)...)
+        
+        perform_weno_differencing_z!(df_characteristics, F⁺, F⁻, xgrid.z_weno_left,
             xgrid.z_weno_right, xgrid, species, buffer)
+
+        mul!(reshape(df, (:, Nvz)), reshape(df_characteristics, (:, Nvz)), Rz', 1.0, 0.0)
     end
 end
 
