@@ -14,6 +14,10 @@ using Unitful
 using PhysicalConstants.CODATA2018: e, μ_0, m_p, ε_0, m_e, c_0
 using HCubature
 
+function interface_width()
+    return 1 / 25
+end
+
 function do_flexible_normalization(; n0=1e20u"m^-3", ωpτ, ωcτ)
     ωp = sqrt(e^2 * n0 / (ε_0 * m_p)) |> upreferred
     tau = ωpτ / ωp |> upreferred
@@ -47,7 +51,7 @@ function params(; gz, T_ref, n0, ωpτ, ωcτ, Ae=1/25)
     n_ref = 1.0
     B_ref = 1.0
 
-    α = 1 / 25.0
+    α = interface_width()
 
     Ai = 1.0
     Zi = 1.0
@@ -210,9 +214,10 @@ function vlasov_eq_hermite_expansions_species(f_eq, perturbation_x, perturbation
         res
     end
  
+    Za = Array(Z)
     z_vx_moments = zeros(length(Z), Nvx)
     for i in 1:length(Z)
-        z_vx_moments[i, :] .= moments(Z[i])
+        z_vx_moments[i, :] .= moments(Za[i])
     end
     z_vx_moments = z_vx_moments
     result = zeros(length(X), 1, length(Z), Nvx, 1, Nvz)
@@ -221,7 +226,6 @@ function vlasov_eq_hermite_expansions_species(f_eq, perturbation_x, perturbation
     # Higher vz moments are all zero.
 
     Xa = Array(X)
-    Za = Array(Z)
     @. result *= (1 + perturbation_x(Xa) * perturbation_z(Za))
 
     result
