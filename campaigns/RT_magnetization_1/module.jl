@@ -33,7 +33,7 @@ function make_sim_hybrid(::Val{device}; ωcτ) where {device}
         Ai, Ae, Zi, Ze,
         vti, vte, ωcτ, ωpτ, ωg,
         kx, gz, δ,
-        By0, gi, Pxi, Pxe, Wi, We, ϕ_star
+        ωg, By0, gi, Pxi, Pxe, Wi, We, ϕ_star
         ) = params
 
     (; fi_eq, ne_eq) = RTShared.construct_vlasov_eq(params)
@@ -47,23 +47,25 @@ function make_sim_hybrid(::Val{device}; ωcτ) where {device}
     Nvz = 16
     zmin = -Lz/2
     zmax = Lz/2
-    x_grid = Helpers.xz_grid_2d(Nx, Nz, zmin, zmax, Lx, allocator(device))
+    buffer = allocator(device)
+    x_grid = Helpers.xz_grid_2d(Nx, Nz, zmin, zmax, Lx, buffer)
+    @show device
 
-    merge!(d, @strdict problem ωcτ ωpτ Ae Ai Ze Zi Nx Nz Nvx Nvz Nμ B_ref α Lx Lz n_ref T_ref kx δ gz)
+    merge!(d, @strdict problem ωcτ ωpτ Ae Ai Ze Zi Nx Nz Nvx Nvz Nμ B_ref α Lx Lz n_ref T_ref kx δ gz ωg)
 
     fi_moments = RTShared.vlasov_eq_hermite_expansions_species(
         fi_eq, Returns(0.0), Returns(0.0),
-        x_grid.X, x_grid.Z, Nvx, Nvz, vti, 11*vti)
+        x_grid.X, x_grid.Z, Nvx, Nvz, vti, 11*vti) |> Braginskii.arraytype(buffer)
 
     dz = x_grid.z.dx
-    left_grid = Helpers.xz_grid_2d(Nx, 3, zmin-3dz, zmin, Lx, allocator(device))
+    left_grid = Helpers.xz_grid_2d(Nx, 3, zmin-3dz, zmin, Lx, buffer)
     fi_left = RTShared.vlasov_eq_hermite_expansions_species(
         fi_eq, Returns(0.0), Returns(0.0),
-        left_grid.X, left_grid.Z, Nvx, Nvz, vti, 11vti)
-    right_grid = Helpers.xz_grid_2d(Nx, 3, zmax, zmax+3dz, Lx, allocator(device))
+        left_grid.X, left_grid.Z, Nvx, Nvz, vti, 11vti) |> Braginskii.arraytype(buffer)
+    right_grid = Helpers.xz_grid_2d(Nx, 3, zmax, zmax+3dz, Lx, buffer)
     fi_right = RTShared.vlasov_eq_hermite_expansions_species(
         fi_eq, Returns(0.0), Returns(0.0),
-        right_grid.X, right_grid.Z, Nvx, Nvz, vti, 11vti)
+        right_grid.X, right_grid.Z, Nvx, Nvz, vti, 11vti) |> Braginskii.arraytype(buffer)
 
     Fe_eq(Rz, μ) = begin
         ne_eq(Rz) * exp(-μ / μ0)
