@@ -8,7 +8,7 @@ using Bumper
 Bumper.reset_buffer!()
 
 ωcτ = 1.0
-d, sim = RTMagnetization1.make_sim_hybrid(Val(:cpu); ωcτ=1.0)
+d, sim = RTMagnetization1.make_sim_hybrid(Val(:gpu); ωcτ=1.0)
 d = PDEHarness.normalize!(d)
 @show dt = 0.01 / ωcτ
 t_end = 5.0
