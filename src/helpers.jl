@@ -510,7 +510,7 @@ function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx,
     ν_p=0.0, ωpτ, ωcτ, vth=1.0, μ0=0.5, gz=0.0,
     Lx=2π, zmin=-1.0, zmax=1.0,
     ϕ_left, ϕ_right, z_bcs,
-    fi_ic=nothing,
+    fi_ic=nothing, Fe_ic=nothing,
     ion_bc_lr=nothing
     ) where {device}
     buffer = allocator(device)
@@ -522,7 +522,11 @@ function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx,
     ve_disc = hermite_laguerre_disc(; Nμ, Nvy=1, μ0, vth, device)
     electron_bcs = make_bcs(x_grid, ve_disc, Fe_0, buffer, z_bcs)
     electron_disc = XVDiscretization(x_grid, ve_disc)
-    @timeit "approx" fe = approximate_f(Fe_0, electron_disc, (1, 3, 4), buffer)
+    if isnothing(Fe_ic)
+        @timeit "approx" Fe = approximate_f(Fe_0, electron_disc, (1, 3, 4), buffer)
+    else
+        Fe = Fe_ic
+    end
     electrons = Species("electrons", [:x, :z], [:μ], qe, me, 
         plan_ffts(electron_disc, buffer), electron_disc, electron_bcs)
 
@@ -544,6 +548,6 @@ function two_species_2d_vlasov_dk_hybrid(::Val{device}, (; Fe_0, fi_0, By0); Nx,
     free_streaming = true
     sim = construct_sim_metadata(
         [:x, :z], x_grid, (electrons, ions,), free_streaming, By, ϕ_left, ϕ_right, ν_p, ωpτ, ωcτ, gz, grid_scale_hyperdiffusion_coef, device, buffer)
-    Simulation(sim, ArrayPartition(fe, fi))
+    Simulation(sim, ArrayPartition(Fe, fi))
 end
 end
