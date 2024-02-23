@@ -374,6 +374,12 @@ function moments_for_wsindy(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer
     u_y = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
     u_z = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
     T = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
+    Pi_xx = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
+    Pi_yy = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
+    Pi_zz = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
+    Pi_xy = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
+    Pi_xz = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
+    Pi_yz = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
     q_x = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
     q_y = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
     q_z = alloc_zeros(Float64, buffer, Nx*Ny*Nz)
@@ -388,6 +394,22 @@ function moments_for_wsindy(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer
     u2 = @. u_x^2 + u_y^2 + u_z^2
 
     @. T = (Tr_M2 - M0 * u2) / (d * M0)
+
+    # Full pressure tensor
+    #Pxx = @. (@view M2[1, 1, :]) - n * u_x^2
+    #Pyy = @. (@view M2[2, 2, :]) - n * u_y^2
+    #Pzz = @. (@view M2[3, 3, :]) - n * u_z^2
+    #Pxy = @. (@view M2[1, 2, :]) - n * u_x * u_y
+    #Pxz = @. (@view M2[1, 3, :]) - n * u_x * u_z
+    #Pyz = @. (@view M2[2, 3, :]) - n * u_y * u_z
+
+    # Deviatoric part of pressure tensor
+    @. Pi_xx = (@view M2[1, 1, :]) - n * u_x^2 - n * T
+    @. Pi_yy = (@view M2[2, 2, :]) - n * u_y^2 - n * T
+    @. Pi_zz = (@view M2[3, 3, :]) - n * u_z^2 - n * T
+    @. Pi_xy = (@view M2[1, 2, :]) - n * u_x * u_y
+    @. Pi_xz = (@view M2[1, 3, :]) - n * u_x * u_z
+    @. Pi_yz = (@view M2[2, 3, :]) - n * u_y * u_z
 
     Q3(comp) = @. @views (M3[comp, 1, 1, :] + M3[comp, 2, 2, :] + M3[comp, 3, 3, :])
     M2_dot_u(comp) = @. @views (M2[comp, 1, :] * u_x + M2[comp, 2, :] * u_y + M2[comp, 3, :] * u_z)
@@ -407,6 +429,8 @@ function moments_for_wsindy(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer
         re(n), 
         re(u_x), re(u_y), re(u_z), 
         re(T), 
+        re(Pi_xx), re(Pi_yy), re(Pi_zz),
+        re(Pi_xy), re(Pi_xz), re(Pi_yz),
         re(q_x), re(q_y), re(q_z)
     )
 end

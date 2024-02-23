@@ -19,6 +19,14 @@ struct SnapshotSample{A}
     # The isotropic temperature
     T::A
 
+    # Deviatoric part of pressure tensor
+    Pi_xx::A
+    Pi_yy::A
+    Pi_zz::A
+    Pi_xy::A
+    Pi_xz::A
+    Pi_yz::A
+
     # The heat flux
     q_x::A
     q_y::A
@@ -26,6 +34,12 @@ struct SnapshotSample{A}
 end
 
 empty_snapshot_sample(::Type{A}, sz) where A = SnapshotSample(
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
+    alloc_zeros(Float64, A, sz...),
     alloc_zeros(Float64, A, sz...),
     alloc_zeros(Float64, A, sz...),
     alloc_zeros(Float64, A, sz...),
@@ -127,6 +141,12 @@ function add_onto!(sample_sum::SnapshotSample, sample::SnapshotSample, weight)
     @. sample_sum.u_y += sample.u_y * weight
     @. sample_sum.u_z += sample.u_z * weight
     @. sample_sum.T += sample.T * weight
+    @. sample_sum.Pi_xx += sample.Pi_xx * weight
+    @. sample_sum.Pi_yy += sample.Pi_yy * weight
+    @. sample_sum.Pi_zz += sample.Pi_zz * weight
+    @. sample_sum.Pi_xy += sample.Pi_xy * weight
+    @. sample_sum.Pi_xz += sample.Pi_xz * weight
+    @. sample_sum.Pi_yz += sample.Pi_yz * weight
     @. sample_sum.q_x += sample.q_x * weight
     @. sample_sum.q_y += sample.q_y * weight
     @. sample_sum.q_z += sample.q_z * weight
@@ -139,6 +159,12 @@ function average_out(snapshot::Snapshot)
         snapshot.sample_sum.u_y / snapshot.weight_sum,
         snapshot.sample_sum.u_z / snapshot.weight_sum,
         snapshot.sample_sum.T / snapshot.weight_sum,
+        snapshot.sample_sum.Pi_xx / snapshot.weight_sum,
+        snapshot.sample_sum.Pi_yy / snapshot.weight_sum,
+        snapshot.sample_sum.Pi_zz / snapshot.weight_sum,
+        snapshot.sample_sum.Pi_xy / snapshot.weight_sum,
+        snapshot.sample_sum.Pi_xz / snapshot.weight_sum,
+        snapshot.sample_sum.Pi_yz / snapshot.weight_sum,
         snapshot.sample_sum.q_x / snapshot.weight_sum,
         snapshot.sample_sum.q_y / snapshot.weight_sum,
         snapshot.sample_sum.q_z / snapshot.weight_sum
@@ -147,10 +173,12 @@ end
 
 function snapshot_sample(sim, species_index)
     α = sim.species[species_index]
-    n, u_x, u_y, u_z, T, q_x, q_y, q_z = moments_for_wsindy(
+    n, u_x, u_y, u_z, T, Pi_xx, Pi_yy, Pi_zz, Pi_xy, Pi_xz, Pi_yz, q_x, q_y, q_z = moments_for_wsindy(
         sim.u.x[species_index],
         α.discretization,
         α.v_dims,
         sim.buffer)
-    return SnapshotSample(n, u_x, u_y, u_z, T, q_x, q_y, q_z)
+    return SnapshotSample(n, u_x, u_y, u_z, T, 
+        Pi_xx, Pi_yy, Pi_zz, Pi_xy, Pi_xz, Pi_yz,
+        q_x, q_y, q_z)
 end
