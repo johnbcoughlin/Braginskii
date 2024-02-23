@@ -43,10 +43,9 @@ function do_flexible_normalization(; n0=1e20u"m^-3", ωpτ, ωcτ)
     return dict
 end
 
-function params(; gz, T_ref, n0, ωpτ, ωcτ, Ae=1/25)
+function params(; gz, T_ref, n0, ωpτ, ωcτ, Ae=1/25, Lz=1.0)
     norm = do_flexible_normalization(; n0, ωpτ, ωcτ)
 
-    Lz = 1.0
     Lx = 1.0
     n_ref = 1.0
     B_ref = 1.0
