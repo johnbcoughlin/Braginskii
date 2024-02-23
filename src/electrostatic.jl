@@ -5,6 +5,9 @@ function electrostatic!(df, f, Ex, Ey, Ez, sim, species, buffer, xgrid_fft_plans
         if :vx ∈ species.v_dims
             @timeit "x" electrostatic_x!(df_es, f, Ex, sim, species, buffer, xgrid_fft_plans)
             #species.name == "electrons" && @info "after electrostatics_x" df_es[1, 1, 1:5, 1, 1, 1:2] df_es[1, 1, 1:5, 1:2, 1, 1] Ez[1, 1, 1:5]
+
+            @info "After es_x" #df_es[10, 1, 100, :, 1, 1]
+            identify_gridscale_magnitudes(df_es)
         end
         if :vy ∈ species.v_dims
             electrostatic_y!(df_es, f, Ey, sim, species, buffer, xgrid_fft_plans)
@@ -12,6 +15,8 @@ function electrostatic!(df, f, Ex, Ey, Ez, sim, species, buffer, xgrid_fft_plans
         if :vz ∈ species.v_dims
             @timeit "z" electrostatic_z!(df_es, f, Ez, sim, species, buffer, xgrid_fft_plans)
             #species.name == "electrons" && @info "after electrostatics_z" df_es[1, 1, 1:5, 1, 1, 1:2] df_es[1, 1, 1:5, 1:2, 1, 1] Ez[1, 1, 1:5]
+            @info "After es_z" #df_es[10, 1, 100, :, 1, 1]
+            identify_gridscale_magnitudes(df_es)
         end
 
         df .+= df_es

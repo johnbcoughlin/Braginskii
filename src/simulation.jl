@@ -161,6 +161,29 @@ function drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)
     return λ
 end
 
+#=
+function identify_gridscale_magnitudes(df)
+    df_size = size(df)
+    df = reshape(df, (size(df, 1), :))
+    modes = CUDA.CUFFT.rfft(df, 1)
+    absmodes = abs.(modes)
+    absmodes = reshape(absmodes, (:, df_size[2:end]...))
+    absmodes_middle = absmodes[:, 1, 40:160, :, :, :]
+    absmodes_sum = sum(absmodes_middle, dims=2)
+    @info "Mode 31 sum over z for each Hermite mode" absmodes_sum[31, 1, :, 1, :] 
+end
+=#
+function identify_gridscale_magnitudes(df)
+    df_size = size(df)
+    df = reshape(df, (size(df, 1), :))
+    modes = CUDA.CUFFT.rfft(df, 1)
+    absmodes = abs.(modes)
+    absmodes = reshape(absmodes, (:, df_size[2:end]...))
+    absmodes_middle = absmodes[:, 1, 40:160, :, :, :]
+    absmodes_sum = sum(absmodes_middle, dims=2)
+    @info "Mode 31 sum over z for each Hermite mode" absmodes_sum[31, 1, :, 1, :] 
+end
+
 function filter!(f, sim, buffer)
     for i in eachindex(sim.species)
         α = sim.species[i]

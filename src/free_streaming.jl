@@ -6,6 +6,8 @@ function free_streaming!(df, f, species, buffer)
         if :x ∈ species.x_dims
             df_x = alloc_zeros(Float64, buffer, size(species.discretization)...)
             @timeit "x" free_streaming_x!(df_x, f, species, buffer)
+            @info "From df_x" #df_x[10, 1, 100, :, 1, 1]
+            identify_gridscale_magnitudes(df_x)
             df_fs .+= df_x
         end
         if :y ∈ species.x_dims
@@ -16,6 +18,8 @@ function free_streaming!(df, f, species, buffer)
         if :z ∈ species.x_dims
             df_z = alloc_zeros(Float64, buffer, size(species.discretization)...)
             @timeit "z" free_streaming_z!(df_z, f, species, buffer)
+            @info "From df_z" #df_z[10, 1, 100, :, 1, 1]
+            identify_gridscale_magnitudes(df_x)
             df_fs .+= df_z
         end
 
