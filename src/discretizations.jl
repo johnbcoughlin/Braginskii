@@ -219,10 +219,10 @@ struct XGrid{XDISC, XA, YA, ZA, FILTERS, STENCILS, POISSON, SPARSE, DENSE}
         Kx = Nx÷2+1
         Ny = ygrid.N
         Ky = Ny
-        σx = orszag_two_thirds_filter(Kx, buffer)
+        σx = hou_li_filter(Kx, buffer)
 
         ky_mode_numbers = mod.(0:Ny-1, Ref(-Ny÷2:(Ny-1)÷2))
-        σy = orszag_two_thirds_filter(buffer, ky_mode_numbers)
+        σy = hou_li_filter(buffer, ky_mode_numbers)
 
         filters = (σx, σy)
 
