@@ -59,4 +59,7 @@ include("grid.jl")
 include("dispersion_analysis.jl")
 include("datagathering.jl")
 
+include("cuda_qr.jl")
+include("lowrank.jl")
+
 end

@@ -109,12 +109,17 @@ function vlasov_fokker_planck_step!(du, u, p, t)
 end
 
 function vlasov_fokker_planck!(du, fs, sim, λmax, buffer)
-    λmax[] = 0.0
-
     no_escape(buffer) do
         @timeit "poisson" E = poisson(sim, fs, buffer)
         filter_E!(E, sim)
+        vlasov_fokker_planck!(du, fs, E, sim, λmax, buffer)
+    end
+end
 
+function vlasov_fokker_planck!(du, fs, E, sim, λmax, buffer)
+    λmax[] = 0.0
+
+    no_escape(buffer) do
         if sim.νpτ != 0.0
             @timeit "collisional moments" collisional_moments!(sim, fs, buffer)
         end
@@ -152,7 +157,7 @@ function vlasov_species_rhs!(df, f, E, sim, α, buffer)
 
     @timeit "hyperdiffusion" apply_hyperdiffusion!(df, f, sim, α, buffer)
 
-    return (λ_es + λ_fs)
+    return (abs(λ_es) + abs(λ_fs))
 end
 
 function drift_kinetic_species_rhs!(df, f, E, sim, α, buffer)

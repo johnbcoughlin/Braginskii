@@ -20,6 +20,41 @@ function alloc_vec(buffer, template)
     end)...)
 end
 
+function forward_euler(F!, uⁿ, dt, buffer)
+    result = alloc_vec(buffer, uⁿ)
+    Bumper.no_escape(buffer) do
+        k1 = alloc_vec(buffer, uⁿ)
+        F!(k1, uⁿ)
+        @.. result = uⁿ + dt * k1
+    end
+    result
+end
+
+function explicit_midpoint(F!, uⁿ, u½, dt, buffer)
+    result = alloc_vec(buffer, uⁿ)
+    Bumper.no_escape(buffer) do
+        k1 = alloc_vec(buffer, uⁿ)
+        F!(k1, u½)
+        @.. result = uⁿ + dt * k1
+    end
+    result
+end
+
+function ssp_rk2(F!, uⁿ, dt, buffer)
+    result = alloc_vec(buffer, uⁿ)
+    Bumper.no_escape(buffer) do
+        u_star = alloc_vec(buffer, uⁿ)
+        k1 = alloc_vec(buffer, uⁿ)
+        k2 = alloc_vec(buffer, uⁿ)
+        F!(k1, uⁿ)
+        @.. u_star = uⁿ + dt * k1
+
+        F!(k2, u_star)
+        @.. result = 0.5*uⁿ + 0.5*u_star + 0.5*dt*k2
+    end
+    result
+end
+
 """
 The four-stage RK method from https://gkeyll.readthedocs.io/en/latest/dev/ssp-rk.html
 http://ketch.github.io/numipedia/methods/SSPRK43.html
