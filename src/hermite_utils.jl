@@ -118,9 +118,9 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     w_vand_vz = Float64.(normalized_He_n_vz_vand .* vz_w')
 
     @turbo for λxyz in CartesianIndices((length(X), length(Y), length(Z)))
-        for αvx in 1:Nvx, βvx in 1:Mvx+1
-            for αvy in 1:Nvy, βvy in 1:Mvy+1
-                for αvz in 1:Nvz, βvz in 1:Mvz+1
+        for αvx in eachindex(vx_nodes), βvx in 1:Mvx+1
+            for αvy in eachindex(vy_nodes), βvy in 1:Mvy+1
+                for αvz in eachindex(vz_nodes), βvz in 1:Mvz+1
                     w_vand = w_vand_vx[βvx, αvx] * w_vand_vy[βvy, αvy] * w_vand_vz[βvz, αvz]
                     result[λxyz, βvx, βvy, βvz] += fxv[λxyz, αvx, αvy, αvz] * w_vand
                 end
