@@ -58,7 +58,6 @@ function run_sim(; id)
     set_simpath(id, d)
     d = PDEHarness.normalize!(d)
     display(d)
-    τg = 1 / d["ωg"]
     @show t_end = 600.0
     dt_omega_c_tau = 0.01 / ωcτ
     @show dt_omega_c_tau
