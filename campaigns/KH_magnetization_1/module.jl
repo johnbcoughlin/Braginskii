@@ -59,7 +59,7 @@ function make_sim_hybrid(::Val{device}; ωcτ, just_setup=false) where {device}
     ux(x, z) = u_ref * (1.5 + 0.5 * tanh(z / α))
     uz(x, z) = u_ref * (0.5 * cos(2pi*x/Lx) * exp(-z^2/α))
 
-    fi_0(x, z, vx, vz) = Ai * n(x, z) / (2pi * T) * exp(-Ai*(vx^2 + vz^2)/(2T))
+    fi_0(x, z, vx, vz) = Ai * n(x, z) / (2pi * T) * exp(-Ai*((vx-ux(x, z))^2 + (vz-uz(x, z))^2)/(2T))
     Fe_0(x, z, μ) = n(x, z) * exp(-μ / μ0)
     By0(args...) = B_ref
 
