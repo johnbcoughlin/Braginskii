@@ -66,9 +66,9 @@ function run_sim(; id)
     d = PDEHarness.normalize!(d)
     display(d)
     @show t_end = 400.0
-    dt_omega_c_tau = magnetization == 5
+    dt_omega_c_tau = if magnetization == 5
         0.006 / ωcτ
-    else if magnetization == 4
+    elseif magnetization == 4
         0.008 / ωcτ
     else
         0.01 / ωcτ
