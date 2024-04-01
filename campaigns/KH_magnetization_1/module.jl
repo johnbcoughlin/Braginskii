@@ -71,7 +71,7 @@ function make_sim_hybrid(::Val{device}; ωcτ, just_setup=false) where {device}
 
     @info "Setting up sim"
     sim = Helpers.two_species_2d_vlasov_dk_hybrid(Val(device),
-        (; Fe_0, fi_0=BatchFunc(fi_0_batch), By0);
+        (; Fe_0, fi_0=Braginskii.BatchFunc(fi_0_batch), By0);
         Nx, Nz, Nμ, Nvx, Nvz, μ0,
         zmin=-Lz/2, zmax=Lz/2, Lx,
         ϕ_left=0.0, ϕ_right=0.0, vth=vti,
