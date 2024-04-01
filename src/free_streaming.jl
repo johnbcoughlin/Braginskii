@@ -2,21 +2,21 @@ include("free_streaming_kernels.jl")
 
 function free_streaming!(df, f, species, buffer)
     no_escape(buffer) do
-        df_fs = alloc_zeros(Float64, buffer, size(df)...)
+        df_fs = alloc_array(Float64, buffer, size(df)...)
         if :x ∈ species.x_dims
-            df_x = alloc_zeros(Float64, buffer, size(species.discretization)...)
-            @timeit "x" free_streaming_x!(df_x, f, species, buffer)
-            df_fs .+= df_x
+            df_fs .= 0
+            @timeit "x" free_streaming_x!(df_fs, f, species, buffer)
+            df .+= df_fs
         end
         if :y ∈ species.x_dims
-            df_y = alloc_zeros(Float64, buffer, size(species.discretization)...)
-            free_streaming_y!(df_y, f, species, buffer)
-            df_fs .+= df_y
+            df_fs .= 0
+            free_streaming_y!(df_fs, f, species, buffer)
+            df .+= df_fs
         end
         if :z ∈ species.x_dims
-            df_z = alloc_zeros(Float64, buffer, size(species.discretization)...)
-            @timeit "z" free_streaming_z!(df_z, f, species, buffer)
-            df_fs .+= df_z
+            df_fs .= 0
+            @timeit "z" free_streaming_z!(df_fs, f, species, buffer)
+            df .+= df_fs
         end
 
         df .+= df_fs
@@ -92,18 +92,17 @@ function free_streaming_z!(df, f, species::Species{<:Hermite}, buffer)
     no_escape(buffer) do
         f_with_boundaries = z_free_streaming_bcs(f, species, buffer)
         #species.name == "electrons" && @info "" f_with_boundaries[1, 1, 1:10, 1, 1, 1:3]
-
-        F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
-        @timeit "mul" mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁻)')
-
-        F⁺ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
-        @timeit "mul" mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁺)')
-
+        
         right_biased_stencil, left_biased_stencil = xgrid.z_fd_stencils
         convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
+        F⁻ = alloc_array(Float64, buffer, Nx, Ny, Nz+6, Nvx*Nvy*Nvz)
+        @timeit "mul" mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁻)')
         @timeit "conv" convolve_z!(convolved, reshape(F⁻, (Nx, Ny, Nz+6, Nvx, Nvy, Nvz)), right_biased_stencil, true, buffer)
         df .+= convolved
+
+        F⁺ = F⁻
+        @timeit "mul" mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξz⁺)')
         @timeit "conv" convolve_z!(convolved, reshape(F⁺, (Nx, Ny, Nz+6, Nvx, Nvy, Nvz)), left_biased_stencil, true, buffer)
         df .+= convolved
     end
@@ -149,24 +148,19 @@ function free_streaming_x!(df, f, species::Species{<:Hermite, <:FD5}, buffer)
     no_escape(buffer) do
         f_with_boundaries = x_free_streaming_bcs(f, species, buffer)
 
-        F⁻ = alloc_array(Float64, buffer, Nx+6, Ny, Nz, Nvx*Nvy*Nvz)
-        @timeit "mul" mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξx⁻)')
-
-        F⁺ = alloc_array(Float64, buffer, Nx+6, Ny, Nz, Nvx*Nvy*Nvz)
-        @timeit "mul" mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξx⁺)')
-
-        #right_biased_dx, left_biased_dx = xgrid.x_fd_sparsearrays
         right_biased_stencil, left_biased_stencil = xgrid.x_fd_stencils
         convolved = alloc_array(Float64, buffer, Nx, Ny, Nz, Nvx, Nvy, Nvz)
 
+        F⁻ = alloc_array(Float64, buffer, Nx+6, Ny, Nz, Nvx*Nvy*Nvz)
+        @timeit "mul" mul!(reshape(F⁻, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξx⁻)')
         @timeit "conv" convolve_x!(convolved, reshape(F⁻, (Nx+6, Ny, Nz, Nvx, Nvy, Nvz)), right_biased_stencil, true, buffer)
         df .+= convolved
+
+        F⁺ = F⁻
+        @timeit "mul" mul!(reshape(F⁺, (:, Nvx*Nvy*Nvz)), reshape(f_with_boundaries, (:, Nvx*Nvy*Nvz)), (Ξx⁺)')
         @timeit "conv" convolve_x!(convolved, reshape(F⁺, (Nx+6, Ny, Nz, Nvx, Nvy, Nvz)), left_biased_stencil, true, buffer)
         df .+= convolved
 
-        #@timeit "conv-mul" mul!(reshape(result, (Nx, :)), right_biased_dx, reshape(F⁻, (Nx, :)))
-        #@timeit "conv-mul" mul!(reshape(result, (Nx, :)), left_biased_dx, reshape(F⁺, (Nx, :)))
-        #df .+= result
         nothing
     end
 end

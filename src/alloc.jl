@@ -66,6 +66,7 @@ alloc_array(::Type{T}, buffer::GPUAllocator, s::Vararg{Int64, N}) where {T, N} =
     arr = if length(pool) == 0
         CuArray{T}(undef, s...)
     else
+        @info "Reusing allocation of $(pool_key)"
         pop!(pool)
     end
     push!(buffer.checked_out, arr)
