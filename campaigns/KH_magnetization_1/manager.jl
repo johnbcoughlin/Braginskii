@@ -59,7 +59,12 @@ function run_sim(; id)
     d = PDEHarness.normalize!(d)
     display(d)
     @show t_end = 600.0
-    dt_omega_c_tau = 0.01 / ωcτ
+    dt_omega_c_tau = id == 5
+        0.006 / ωcτ
+    else
+        0.01 / ωcτ
+    else
+    end
     @show dt_omega_c_tau
     dt = dt_omega_c_tau
 
