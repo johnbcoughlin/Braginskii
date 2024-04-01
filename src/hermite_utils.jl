@@ -68,7 +68,7 @@ function bigfloat_weighted_hermite_expansion(f::Function, M::Int, x::AbstractVec
     return mat
 end
 
-function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mvz::Int, X, Y, Z, v₀)
+function bigfloat_weighted_hermite_expansion(f, Mvx::Int, Mvy::Int, Mvz::Int, X, Y, Z, v₀)
     # The factor by which we dilate the integrand to ensure the convergence is fast enough.
     #η = 1 / v₀
     #η = 1.0 / v₀
@@ -84,15 +84,15 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     #vx_nodes, vx_w = FastGaussQuadrature.unweightedgausshermite(Nvx)
     #vy_nodes, vy_w = FastGaussQuadrature.unweightedgausshermite(Nvy)
     #vz_nodes, vz_w = FastGaussQuadrature.unweightedgausshermite(Nvz)
-    vx_nodes, vx_w = FastGaussQuadrature.gausslegendre(Mvx == 0 ? 1 : 250)
-    vy_nodes, vy_w = FastGaussQuadrature.gausslegendre(Mvy == 0 ? 1 : 250)
-    vz_nodes, vz_w = FastGaussQuadrature.gausslegendre(Mvz == 0 ? 1 : 250)
-    vx_nodes *= (10v₀)
-    vx_w *= (10v₀)
-    vy_nodes *= (10v₀)
-    vy_w *= (10v₀)
-    vz_nodes *= (10v₀)
-    vz_w *= (10v₀)
+    vx_nodes, vx_w = FastGaussQuadrature.gausslegendre(Mvx == 0 ? 1 : 100)
+    vy_nodes, vy_w = FastGaussQuadrature.gausslegendre(Mvy == 0 ? 1 : 100)
+    vz_nodes, vz_w = FastGaussQuadrature.gausslegendre(Mvz == 0 ? 1 : 100)
+    vx_nodes *= (6v₀)
+    vx_w *= (6v₀)
+    vy_nodes *= (6v₀)
+    vy_w *= (6v₀)
+    vz_nodes *= (6v₀)
+    vz_w *= (6v₀)
 
     vx_w = Mvx == 0 ? [1.0] : vx_w 
     vy_w = Mvy == 0 ? [1.0] : vy_w 
@@ -109,7 +109,7 @@ function bigfloat_weighted_hermite_expansion(f::Function, Mvx::Int, Mvy::Int, Mv
     X_array = Array(X)
     Y_array = Array(Y)
     Z_array = Array(Z)
-    fxv = @. f(X_array, Y_array, Z_array, vx_nodes / η, vy_nodes / η, vz_nodes / η)
+    fxv = batched_broadcast(f, X_array, Y_array, Z_array, vx_nodes / η, vy_nodes / η, vz_nodes / η) |> Array{Float64, 6}
 
     result = zeros(size(fxv)[1:3]..., Mvx+1, Mvy+1, Mvz+1)
 

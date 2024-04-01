@@ -588,6 +588,13 @@ average_vth(disc::XVDiscretization{<:Hermite}) = disc.vdisc.vth
 
 size(disc::XVDiscretization) = tuple(size(disc.x_grid)..., size(disc.vdisc)...)
 
+struct BatchFunc{F}
+    f::F
+end
+
+batched_broadcast(f::Function, args...) = f.(args...)
+batched_broadcast(bf::BatchFunc, args...) = bf.f(args...)
+
 approximate_f(f, disc::XVDiscretization, dims, buffer) = begin
     result = alloc_zeros(Float64, buffer, size(disc)...)
     approximate_f!(result, f, disc.x_grid, disc.vdisc, dims)
@@ -600,15 +607,23 @@ approximate_f!(result, f, x_grid, vdisc::WENO5, dims) = begin
     result .= f.(dimensions...)
 end
 
-approximate_f!(result, f, x_grid, vdisc::Hermite, dims) = begin
+reduce_dims(f::Function, dims) = begin
     f_all(args...) = f((args[dim] for dim in dims)...)
+end
+reduce_dims(bf::BatchFunc, dims) = begin
+    f_all(args...) = bf.f((args[dim] for dim in dims)...)
+    BatchFunc(f_all)
+end
+
+approximate_f!(result, f, x_grid, vdisc::Hermite, dims) = begin
+    f_all = reduce_dims(f, dims)
     (; Nvx, Nvy, Nvz, vth) = vdisc
     (; X, Y, Z) = x_grid
     result .= Float64.(bigfloat_weighted_hermite_expansion(f_all, Nvx-1, Nvy-1, Nvz-1, X, Y, Z, vth))
 end
 
 approximate_f!(result, f, x_grid, vdisc::HermiteLaguerre, dims) = begin
-    f_all(args...) = f((args[dim] for dim in dims)...)
+    f_all = reduce_dims(f, dims)
     (; Nμ, Nvy, μ0, vth) = vdisc
     (; X, Y, Z) = x_grid
     result .= Float64.(bigfloat_weighted_laguerre_expansion(f_all, Nμ-1, Nvy-1, X, Y, Z, μ0, vth))
