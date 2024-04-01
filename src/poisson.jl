@@ -98,8 +98,12 @@ function prepare_poisson_rhs(ρ, grid::XGrid{<:PSFourier}, ϕ_left, ϕ_right, he
     ρ_modified = alloc_array(Float64, buffer, Nx, Ny, Nz)
     ρ_modified .= ρ
     if :z ∈ x_dims
-        ρ_modified[:, :, 1] .-= ϕ_left .* helper.centered_second_derivative_stencil[1, :] 
-        ρ_modified[:, :, end] .-= ϕ_right .* helper.centered_second_derivative_stencil[3, :]
+        ρ_modified[:, :, 1] .-= sum(ϕ_left .* helper.centered_second_derivative_stencil_sixth_order[1:3, :], dims=1)
+        ρ_modified[:, :, end] .-= sum(ϕ_right .* helper.centered_second_derivative_stencil_sixth_order[5:7, :], dims=1)
+        ρ_modified[:, :, 2] .-= sum(ϕ_left .* helper.centered_second_derivative_stencil_sixth_order[1:2, :], dims=1)
+        ρ_modified[:, :, end-1] .-= sum(ϕ_right .* helper.centered_second_derivative_stencil_sixth_order[6:7, :], dims=1)
+        ρ_modified[:, :, 3] .-= sum(ϕ_left .* helper.centered_second_derivative_stencil_sixth_order[1, :], dims=1)
+        ρ_modified[:, :, end-2] .-= sum(ϕ_right .* helper.centered_second_derivative_stencil_sixth_order[7, :], dims=1)
     end
 
     Kx = Nx ÷ 2 + 1

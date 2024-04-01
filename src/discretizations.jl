@@ -283,7 +283,7 @@ function form_fourier_domain_poisson_operator(grid::XGrid{<:PSFourier}, x_dims, 
     T = arraytype(buffer)
     ST = sparsearraytype(buffer)
 
-    stencil = [1, -2, 1]
+    stencil = [1/90, -3/20, 3/2, -49/18, 3/2, -3/20, 1/90]
     if :z ∈ x_dims
         dz = grid.z.dx
         Dzz = make_sparse_array_from_stencil(stencil / dz^2, Nz; periodic=false)
