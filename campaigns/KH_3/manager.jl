@@ -12,7 +12,7 @@ function campaign_sims()
     rLis = [0.2, 0.4, 0.65, 1.0, 1.5] .* α
     etas = [0.6, 0.4, .27, 0.2, 0.2]
     sz = 4
-    kxs = [2pi, 4pi]
+    kxs = [4pi, 12pi]
     mags = [0.05, 0.1]
 
     T_ref = KH2.reference_temp()
