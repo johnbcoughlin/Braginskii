@@ -9,8 +9,8 @@ include("module.jl")
 
 function campaign_sims()
     α = KH5.interface_width()
-    rLis = [0.2, 0.4, 0.65, 1.0, 1.5] .* α
-    etas = [0.6, 0.4, .27, 0.2, 0.2]
+    rLis = [1.5, 1.0, 0.65, 0.4, 0.2] .* α
+    etas = [0.2, 0.2, 0.27, 0.4, 0.6]
     sz = 4
     kxs = [2pi, 6pi]
     mags = [0.04, 0.08]
@@ -65,9 +65,9 @@ function run_sim(; id)
     d = PDEHarness.normalize!(d)
     display(d)
     @show t_end = 400.0
-    dt_omega_c_tau = if magnetization == 5
+    dt_omega_c_tau = if magnetization == 1
         0.006 / ωcτ
-    elseif magnetization == 4
+    elseif magnetization == 2
         0.008 / ωcτ
     else
         0.01 / ωcτ
