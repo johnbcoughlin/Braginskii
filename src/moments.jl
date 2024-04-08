@@ -272,10 +272,13 @@ function heat_flux(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer, (M0, M1
     end
 end
 
-# Computes the sequence of dyadic moment tensors up to order 3.
 function dyadic_moments(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer)
+    dyadic_moments_hermite(f, disc.vdisc.vth, v_dims, buffer)
+end
+
+# Computes the sequence of dyadic moment tensors up to order 3.
+function dyadic_moments_hermite(f, vth, v_dims, buffer)
     Nx, Ny, Nz, Nvx, Nvy, Nvz = size(f)
-    vth = disc.vdisc.vth
 
     f = reshape(f, (:, Nvx, Nvy, Nvz))
 
@@ -362,7 +365,11 @@ function dyadic_moments(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer)
 end
 
 function moments_for_wsindy(f, disc::XVDiscretization{<:Hermite}, v_dims, buffer)
-    M0, M1, M2, M3 = dyadic_moments(f, disc, v_dims, buffer)
+    moments_for_wsindy(f, disc.vdisc.vth, v_dims, buffer)
+end
+
+function moments_for_wsindy(f, vth, v_dims, buffer)
+    M0, M1, M2, M3 = dyadic_moments_hermite(f, vth, v_dims, buffer)
 
     d = length(v_dims)
 
