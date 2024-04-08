@@ -39,7 +39,7 @@ function do_flexible_normalization(; n0=1e20u"m^-3", ωpτ, ωcτ)
     return dict
 end
 
-function params(; T_ref, n0, ωpτ, ωcτ, Ae=1/1836, Lz=1.2, α)
+function params(; T_ref, n0, ωpτ, ωcτ, Ae=1/1836, Lz=1.2, α, n_ratio=0.4)
     norm = do_flexible_normalization(; n0, ωpτ, ωcτ)
 
     Lx = 1.0
@@ -55,8 +55,6 @@ function params(; T_ref, n0, ωpτ, ωcτ, Ae=1/1836, Lz=1.2, α)
 
     μ0 = T_ref / B_ref
     @show μ0
-
-    n_ratio = 0.4
 
     # Magnetic field profile
     By0(args...) = B_ref
