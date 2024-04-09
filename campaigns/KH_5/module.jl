@@ -55,6 +55,9 @@ function make_sim_hybrid(::Val{device}; ωcτ, eta, sz, kx=0.0, mag, just_setup=
     @show device
 
     merge!(d, @strdict problem ωcτ ωpτ Ae Ai Ze Zi Nx Nz Nvx Nvz Nμ B_ref α Lx Lz n_ref T_ref kx mag)
+    if just_setup
+        return (; d)
+    end
 
     # Charge density perturbation is vti * mag * kx sin(kx*x)
     # So electric field perturbation is -vti * mag * cos(kx*x),

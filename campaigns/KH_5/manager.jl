@@ -64,23 +64,31 @@ function run_sim(; id)
     set_simpath(id, d)
     d = PDEHarness.normalize!(d)
     display(d)
+
+    Nv = d["Nvx"]
+    dx = d["Lx"] / d["Nx"]
+    dz = d["Lz"] / d["Nz"]
+    vt = sqrt(d["T_ref"])
+    # vx and vz terms from cyclotron rotation
+    lambda_B = ωcτ * Nv * 2
+    # Free streaming terms
+    lambda_x = vt * sqrt(Nv) / dx
+    lambda_z = vt * sqrt(Nv) / dz
+
+    # Use a CFL number of 0.7
+    dt = 0.7 / sum(lambda_B + lambda_x + lambda_z)
+
     @show t_end = 400.0
-    dt_omega_c_tau = if magnetization == 1
-        0.006 / ωcτ
-    elseif magnetization == 2
-        0.008 / ωcτ
-    else
-        0.01 / ωcτ
-    end
-    @show dt_omega_c_tau
-    dt = dt_omega_c_tau
+    @show dt
+
+    flush(stdout)
 
     Braginskii.runsim!(sim, d, t_end, 
         restart_from_latest=true, 
         adaptive_dt=false,
         initial_dt=dt, 
-        writeout_dt=2.0, 
-        snapshot_interval_dt=0.5,
+        writeout_dt=5.0, 
+        snapshot_interval_dt=2.0,
         log=true)
 end
 
