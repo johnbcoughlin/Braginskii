@@ -80,6 +80,9 @@ create_ctx(int sim_id)
   int n_moments_array[] = {5, 10};
   int n_moments = n_moments_array[sim_id % 2];
 
+  double end_times[] = {250.0, 200.0, 150.0};
+  double t_end = end_times[sim_id / 12];
+
   double q = oct;
 
   // Physical constants (using normalized code units).
@@ -87,7 +90,7 @@ create_ctx(int sim_id)
   double mu0 = 1.0; // Permeability of free space.
   double mass_ion = 1.0; // Ion mass.
   double charge_ion = q; // Ion charge.
-  double mass_elc = 1.0 / 1836.0; // Electron mass.
+  double mass_elc = 1.0 / 36.0; // Electron mass.
   double charge_elc = -q; // Electron charge.
   double B0 = 1.0; // Reference magnetic field strength.
   
@@ -95,12 +98,11 @@ create_ctx(int sim_id)
   double n_ref = 1.0;
 
   // Simulation parameters.
-  int Nx = 256; // Cell count (x-direction).
-  int Ny = 256; // Cell count (y-direction).
+  int Nx = 100; // Cell count (x-direction).
+  int Ny = 100; // Cell count (y-direction).
   double Lx = 1.0; // Domain size (x-direction).
   double Ly = 1.2; // Domain size (y-direction).
   double cfl_frac = 1.0; // CFL coefficient.
-  double t_end = 150.0; // Final simulation time.
   int num_frames = 50; // Number of output frames.
 
   double kx = 2*M_PI;
@@ -108,6 +110,7 @@ create_ctx(int sim_id)
   double vte = sqrt(T_ref / mass_elc);
   double u_s = u_s_factor*vti; // Shear velocity
   double u_V = 0.1*vti; // Vorticity velocity
+  //double u_V = 0.0;
   double gamma = 0.25;
   double alpha = 0.04;
   double w = 2*alpha;
@@ -188,7 +191,7 @@ double rhoc(double x, double y, struct sf_ctx* app) {
     return -L / (h*h) / app->opt;
 }
 
-double dpi_dz(double y, struct sf_ctx* app) {
+double dpi_dy(double y, struct sf_ctx* app) {
     double h = 1e-6;
     return app->n_ref * app->T_ref * (phat(y+h, app) - phat(y-h, app)) / (2.0*h);
 }
@@ -199,8 +202,7 @@ double uEy(double x, double y, struct sf_ctx* app) {
     return -app->opt / app->oct * Ex0(x, y, app) / app->B0;
 }
 double uidx(double y, struct sf_ctx *app) {
-    double p_ref = app->n_ref * app->T_ref;
-    return -p_ref / app->oct * dpi_dz(y, app) / app->B0;
+    return -1.0 / app->oct * dpi_dy(y, app) / app->B0;
 }
 
 double ne0(double x, double y, struct sf_ctx *app) {
@@ -319,7 +321,7 @@ main(int argc, char **argv)
   int sim_id = atoi(argv[1]);
   printf("sim_id: %d\n", sim_id);
   struct gkyl_app_args app_args = parse_app_args(argc, argv);
-  app_args.use_mpi = 0;
+  app_args.use_mpi = 1;
 
 #ifdef GKYL_HAVE_MPI
   printf("Have MPI\n", sim_id);
@@ -402,7 +404,8 @@ main(int argc, char **argv)
 #ifdef GKYL_HAVE_MPI
   for (int d = 0; d < dim; d++) {
     if (app_args.use_mpi) {
-      cuts[d] = app_args.cuts[d];
+      cuts[d] = 2;
+      //cuts[d] = app_args.cuts[d];
     }
     else {
       cuts[d] = 1;
