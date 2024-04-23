@@ -90,7 +90,7 @@ create_ctx(int sim_id)
   double mu0 = 1.0; // Permeability of free space.
   double mass_ion = 1.0; // Ion mass.
   double charge_ion = q; // Ion charge.
-  double mass_elc = 1.0 / 36.0; // Electron mass.
+  double mass_elc = 1.0 / 1836.0; // Electron mass.
   double charge_elc = -q; // Electron charge.
   double B0 = 1.0; // Reference magnetic field strength.
   
@@ -98,8 +98,8 @@ create_ctx(int sim_id)
   double n_ref = 1.0;
 
   // Simulation parameters.
-  int Nx = 100; // Cell count (x-direction).
-  int Ny = 100; // Cell count (y-direction).
+  int Nx = 256; // Cell count (x-direction).
+  int Ny = 256; // Cell count (y-direction).
   double Lx = 1.0; // Domain size (x-direction).
   double Ly = 1.2; // Domain size (y-direction).
   double cfl_frac = 1.0; // CFL coefficient.
@@ -110,7 +110,6 @@ create_ctx(int sim_id)
   double vte = sqrt(T_ref / mass_elc);
   double u_s = u_s_factor*vti; // Shear velocity
   double u_V = 0.1*vti; // Vorticity velocity
-  //double u_V = 0.0;
   double gamma = 0.25;
   double alpha = 0.04;
   double w = 2*alpha;
