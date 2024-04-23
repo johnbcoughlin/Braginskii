@@ -304,7 +304,8 @@ function make_snapshot_takers(sim, d; snapshot_interval_dt=Inf, kwargs...)
         end
 
         # Δx / vth
-        halfwidth = min(0.5*snapshot_interval_dt, min_dx(sim.x_grid) / (1*average_vth(α.discretization)))
+        #halfwidth = min(0.5*snapshot_interval_dt, min_dx(sim.x_grid) / (1*average_vth(α.discretization)))
+        halfwidth = 0.75 * snapshot_interval_dt
 
         # 3D arrays of the buffer type
         arraytype = typeof(alloc_array(Float64, sim.buffer, 1, 1, 1))
