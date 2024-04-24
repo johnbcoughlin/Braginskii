@@ -69,19 +69,19 @@ create_ctx(int sim_id)
   double pi = M_PI;
 
   double oct_array[] = {0.5, 1.0, 2.0};
-  double oct = oct_array[sim_id / 12];
+  double oct = oct_array[sim_id / 6];
 
   double zeta_array[] = {0.5, 1.0, 1.5};
-  double zeta = zeta_array[(sim_id / 4) % 3];
+  double zeta = zeta_array[(sim_id / 2) % 3];
 
   double u_s_factor_array[] = {0.2, -0.2};
-  double u_s_factor = u_s_factor_array[(sim_id / 2) % 2];
+  double u_s_factor = u_s_factor_array[sim_id % 2];
 
-  int n_moments_array[] = {5, 10};
-  int n_moments = n_moments_array[sim_id % 2];
+  //int n_moments_array[] = {5, 10};
+  //int n_moments = n_moments_array[sim_id % 2];
+  int n_moments = 10;
 
-  double end_times[] = {250.0, 200.0, 150.0};
-  double t_end = end_times[sim_id / 12];
+  double t_end = 200.0;
 
   double q = oct;
 
@@ -98,18 +98,18 @@ create_ctx(int sim_id)
   double n_ref = 1.0;
 
   // Simulation parameters.
-  int Nx = 256; // Cell count (x-direction).
-  int Ny = 256; // Cell count (y-direction).
+  int Nx = 160; // Cell count (x-direction).
+  int Ny = 160; // Cell count (y-direction).
   double Lx = 1.0; // Domain size (x-direction).
   double Ly = 1.2; // Domain size (y-direction).
-  double cfl_frac = 1.0; // CFL coefficient.
+  double cfl_frac = 0.5; // CFL coefficient.
   int num_frames = 50; // Number of output frames.
 
   double kx = 2*M_PI;
   double vti = sqrt(T_ref / mass_ion);
   double vte = sqrt(T_ref / mass_elc);
   double u_s = u_s_factor*vti; // Shear velocity
-  double u_V = 0.1*vti; // Vorticity velocity
+  double u_V = -0.1*vti; // Vorticity velocity
   double gamma = 0.25;
   double alpha = 0.04;
   double w = 2*alpha;
