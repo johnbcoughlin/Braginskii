@@ -68,7 +68,7 @@ function run_sim(; id)
     # Use a CFL number of 0.7
     dt = 0.7 / sum(lambda_B + lambda_x + lambda_z)
 
-    @show t_end = 250.0
+    @show t_end = 200.0
     @show dt
 
     flush(stdout)
@@ -78,7 +78,7 @@ function run_sim(; id)
         adaptive_dt=false,
         initial_dt=dt, 
         writeout_dt=10.0, 
-        snapshot_interval_dt=2.0,
+        snapshot_interval_dt=0.25,
         log=true)
 end
 
