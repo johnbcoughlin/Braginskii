@@ -428,3 +428,4 @@ campaigns/**/sims
 campaigns/RT_kinetic_reference/sims_pre_diffusion/
 
 **/*.gkyl
+**/*.dSYM
