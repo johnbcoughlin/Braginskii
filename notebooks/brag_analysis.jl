@@ -137,11 +137,11 @@ function q(snapshot::Snapshot)
 end
 
 function q_x(snapshot::Snapshot)
-    return snapshot.dict["q_x"] |> as_xz
+    return (snapshot.dict["q_x"] |> as_xz) / 2
 end
 
 function q_z(snapshot::Snapshot)
-    return snapshot.dict["q_z"] |> as_xz
+    return (snapshot.dict["q_z"] |> as_xz) / 2
 end
 
 function Tperp0(snapshot::Snapshot)
@@ -150,7 +150,7 @@ function Tperp0(snapshot::Snapshot)
     ux = u_x(snapshot)
     uy = u_y(snapshot)
 
-    return @. T + n * ux^2 + uy^2 / 2
+    return @. T + n * (ux^2 + uy^2) / 2
 end
 
 function grad(scalar, ctx)
@@ -158,6 +158,12 @@ function grad(scalar, ctx)
     dz = d_dz(scalar, ctx)
     func(x, z) = @SVector[x, z]
     func.(dx, dz)
+end
+
+function div(vector, ctx)
+    dx = d_dx(x_comp(vector), ctx)
+    dz = d_dz(z_comp(vector), ctx)
+    dx .+ dz
 end
 
 function dot(vec1, vec2)
@@ -263,8 +269,10 @@ function temp(f::Writeout, ctx)
     ux = u_x(f, ctx)
     uz = u_z(f, ctx)
 
-    T = (Tperp0(f, ctx) - n .* (ux.^2 + uz.^2)) ./ 2n
-    T
+    T0 = Tperp0(f, ctx)
+    p0 = T0 .* n
+    p = p0 - n .* (ux.^2 + uz.^2)/2
+    p ./ n
 end
 
 function uD(writeout, E, sim_id, ctx)
@@ -280,6 +288,19 @@ function uD(writeout, E, sim_id, ctx)
     return (ud - ExB) / oct(sim_id, ctx)
 end
 
+function uD_proper(writeout, E, sim_id, ctx)
+    T = temp(writeout, ctx)
+    n = density(writeout)
+    p = T .* n
+
+    ud = crossB(grad(p, ctx)) ./ n
+    for i in eachindex(ud)
+        ud[i] = ud[i] + @SVector[-ctx.gz, 0.0]
+    end
+    ExB = opt(sim_id, ctx) * crossB(E)
+    return (ud - ExB) / oct(sim_id, ctx)
+end
+
 function ug(writeout, sim_id, ctx)
     n = density(writeout)
     -map(n) do ni 
@@ -287,11 +308,23 @@ function ug(writeout, sim_id, ctx)
     end / oct(sim_id, ctx)
 end
 
+function uE(writeout, E, sim_id, ctx)
+    ExB = opt(sim_id, ctx) * crossB(E)
+    return -ExB / oct(sim_id, ctx)
+end
+
 function uT(writeout, sim_id, ctx)
     T0 = Tperp0(writeout, ctx)
     n = density(writeout)
 
     return crossB(grad(T0, ctx)) / oct(sim_id, ctx)
+end
+
+function un(writeout, sim_id, ctx)
+    T0 = Tperp0(writeout, ctx)
+    n = density(writeout)
+
+    return (T0 ./ n) .* crossB(grad(n, ctx)) / oct(sim_id, ctx)
 end
 
 function all_moments(wr::Writeout, ctx)
