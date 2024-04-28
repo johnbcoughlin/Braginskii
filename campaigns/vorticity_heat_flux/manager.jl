@@ -50,7 +50,7 @@ end
 
 function run_sim(; id)
     (; ωcτ, γ, u_s_fac, u_V_fac, ζ) = campaign_sims()[id]
-    (; d) = VorticityHeatFlux.make_sim_hybrid(Val(:gpu); ωcτ, γ, u_s_fac, u_V_fac, sz=4, ζ, just_setup=true)
+    (; sim, d) = VorticityHeatFlux.make_sim_hybrid(Val(:gpu); ωcτ, γ, u_s_fac, u_V_fac, sz=4, ζ, just_setup=false)
     set_simpath(id, d)
     d = PDEHarness.normalize!(d)
     display(d)

@@ -143,7 +143,7 @@ function make_sim_hybrid(::Val{device}; ωcτ, γ=0.2, u_s_fac=0.2, u_V_fac=0.1,
     w, u_s, u_V, kx, vti) = params(; ωcτ, γ, u_s_fac, u_V_fac, ζ)
 
     (; phat, ni0, Ti0, ne0, Ex, Ez, rhoc, uEx, 
-        uEz, udx, P_tensor, T_tensor, qi0) = profiles(; ωcτ, γ, u_s_fac, u_V_fac)
+        uEz, udx, P_tensor, T_tensor, qi0) = profiles(; ωcτ, γ, u_s_fac, u_V_fac, ζ)
 
     d = Dict{String, Any}()
 
