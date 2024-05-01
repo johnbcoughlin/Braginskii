@@ -15,7 +15,7 @@ function simulations()
         (; ωcτ=0.5, ζ=0.5, u_s_fac=0.2, u_V_fac, γ),
         (; ωcτ=0.75, ζ=0.5, u_s_fac=0.2, u_V_fac, γ),
         (; ωcτ=1.0, ζ=0.5, u_s_fac=0.2, u_V_fac, γ),
-        (; ωcτ=1.5, ζ=0.5, u_s_fac=-0.2, u_V_fac, γ),
+        (; ωcτ=1.5, ζ=0.5, u_s_fac=0.2, u_V_fac, γ),
         (; ωcτ=2.0, ζ=0.5, u_s_fac=0.2, u_V_fac, γ),
         (; ωcτ=3.0, ζ=0.5, u_s_fac=0.2, u_V_fac, γ),
     ]

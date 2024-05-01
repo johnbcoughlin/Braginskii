@@ -3,12 +3,12 @@
 #SBATCH --job-name=vorticity_heat_flux
 
 #SBATCH --account=amath
-#SBATCH --partition=ckpt
+#SBATCH --partition=gpu-rtx6k
 #SBATCH --nodes=1
 #SBATCH --gpus-per-task=1
-#SBATCH --gpus=6
+#SBATCH --gpus=1
 #SBATCH --cpus-per-task=2
-#SBATCH --array=1-6
+#SBATCH --array=4
 #SBATCH --mem=20G
 #SBATCH --time=24:00:00
 
