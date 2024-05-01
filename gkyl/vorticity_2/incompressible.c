@@ -68,14 +68,15 @@ create_ctx(int sim_id)
   // Mathematical constants (dimensionless).
   double pi = M_PI;
 
-  double oct_array[] = {0.5, 1.0, 2.0, 2.0, 2.0, 2.0};
+  double oct_array[] = {0.5, 0.75, 1.0, 1.5, 2.0, 3.0};
   double oct = oct_array[sim_id];
 
-  double zeta_array[] = {0.5, 0.5, 0.5, 0.5, 1.0, 1.5};
-  double zeta = zeta_array[sim_id];
+  //double zeta_array[] = {0.5, 0};
+  //double zeta = zeta_array[sim_id];
+  double zeta = 0.5;
 
-  double u_s_factor_array[] = {0.2, 0.2, 0.2, -0.2, 0.2, 0.2};
-  double u_s_factor = u_s_factor_array[sim_id];
+  //double u_s_factor_array[] = {0.2, 0.2, 0.2, 0.2, 0.2, 0.2};
+  double u_s_factor = 0.2;
 
   //int n_moments_array[] = {5, 10};
   //int n_moments = n_moments_array[sim_id % 2];
@@ -98,19 +99,19 @@ create_ctx(int sim_id)
   double n_ref = 1.0;
 
   // Simulation parameters.
-  int Nx = 120; // Cell count (x-direction).
-  int Ny = 120; // Cell count (y-direction).
+  int Nx = 256; // Cell count (x-direction).
+  int Ny = 256; // Cell count (y-direction).
   double Lx = 1.0; // Domain size (x-direction).
   double Ly = 1.2; // Domain size (y-direction).
-  double cfl_frac = 0.5; // CFL coefficient.
-  int num_frames = 50; // Number of output frames.
+  double cfl_frac = 1.0; // CFL coefficient.
+  int num_frames = 400; // Number of output frames.
 
   double kx = 2*M_PI;
   double vti = sqrt(T_ref / mass_ion);
   double vte = sqrt(T_ref / mass_elc);
   double u_s = u_s_factor*vti; // Shear velocity
-  double u_V = -0.1*vti; // Vorticity velocity
-  double gamma = 0.25;
+  double u_V = -0.06*vti; // Vorticity velocity
+  double gamma = 0.4;
   double alpha = 0.04;
   double w = 2*alpha;
 
@@ -234,7 +235,8 @@ evalElcInit(double t, const double* GKYL_RESTRICT xn, double* GKYL_RESTRICT fout
       // Set electron pressure tensor.
       fout[4] = pre + rhoe * uex * uex; fout[5] = rhoe * uex * uey; fout[6] = 0.0;
       fout[7] = pre + rhoe * uey * uey; fout[8] = 0.0; 
-      fout[9] = pre;
+      //fout[9] = pre;
+      fout[9] = 0.0;
   } else if (app->n_moments == 5) {
     fout[4] = 1.5*pre + 0.5 * rhoe * (uex * uex + uey * uey);
   } else {
@@ -265,7 +267,8 @@ evalIonInit(double t, const double* GKYL_RESTRICT xn, double* GKYL_RESTRICT fout
       // Set ion pressure tensor.
       fout[4] = pri + rhoi * uix * uix; fout[5] = rhoi * uix * uiy; fout[6] = 0.0;
       fout[7] = pri + rhoi * uiy * uiy; fout[8] = 0.0; 
-      fout[9] = pri;
+      //fout[9] = pri;
+      fout[9] = 0.0;
   } else if (app->n_moments == 5) {
     fout[4] = 1.5*pri + 0.5 * rhoi * (uix * uix + uiy * uiy);
   } else {
