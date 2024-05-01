@@ -68,14 +68,16 @@ create_ctx(int sim_id)
   // Mathematical constants (dimensionless).
   double pi = M_PI;
 
-  double oct_array[] = {0.5, 1.0, 2.0, 2.0, 2.0, 2.0};
+  double oct_array[] = {0.5, 0.75, 1.0, 1.5, 2.0, 3.0};
   double oct = oct_array[sim_id];
 
-  double zeta_array[] = {0.5, 0.5, 0.5, 0.5, 1.0, 1.5};
-  double zeta = zeta_array[sim_id];
+  //double zeta_array[] = {0.5, 0.5, 0.5, 0.5, 1.0, 1.5};
+  //double zeta = zeta_array[sim_id];
+  double zeta = 0.5;
 
-  double u_s_factor_array[] = {0.2, 0.2, 0.2, -0.2, 0.2, 0.2};
-  double u_s_factor = u_s_factor_array[sim_id];
+  //double u_s_factor_array[] = {0.2, 0.2, 0.2, -0.2, 0.2, 0.2};
+  //double u_s_factor = u_s_factor_array[sim_id];
+  double u_s_factor = 0.2;
 
   //int n_moments_array[] = {5, 10};
   //int n_moments = n_moments_array[sim_id % 2];
@@ -98,19 +100,19 @@ create_ctx(int sim_id)
   double n_ref = 1.0;
 
   // Simulation parameters.
-  int Nx = 120; // Cell count (x-direction).
-  int Ny = 120; // Cell count (y-direction).
+  int Nx = 256; // Cell count (x-direction).
+  int Ny = 256; // Cell count (y-direction).
   double Lx = 1.0; // Domain size (x-direction).
   double Ly = 1.2; // Domain size (y-direction).
-  double cfl_frac = 0.5; // CFL coefficient.
-  int num_frames = 50; // Number of output frames.
+  double cfl_frac = 1.0; // CFL coefficient.
+  int num_frames = 200; // Number of output frames.
 
   double kx = 2*M_PI;
   double vti = sqrt(T_ref / mass_ion);
   double vte = sqrt(T_ref / mass_elc);
   double u_s = u_s_factor*vti; // Shear velocity
-  double u_V = -0.1*vti; // Vorticity velocity
-  double gamma = 0.25;
+  double u_V = -0.06*vti; // Vorticity velocity
+  double gamma = 0.4;
   double alpha = 0.04;
   double w = 2*alpha;
 
@@ -144,6 +146,7 @@ create_ctx(int sim_id)
     .t_end = t_end,
     .num_frames = num_frames,
     .n_moments = n_moments,
+    .k0 = 0.0,
   };
 
   return ctx;
@@ -203,12 +206,92 @@ double uEy(double x, double y, struct sf_ctx* app) {
 double uidx(double y, struct sf_ctx *app) {
     return -1.0 / app->oct * dpi_dy(y, app) / app->B0;
 }
+double uix(double x, double y, struct sf_ctx* app) {
+    return uEx(x, y, app) + uidx(y, app);
+}
+double uiy(double x, double y, struct sf_ctx* app) {
+    return uEy(x, y, app);
+}
+
+double d_dx(double x, double y, double (*functionPtr)(double, double, struct sf_ctx*), struct sf_ctx* app, double h) {
+    return ((*functionPtr)(x+h, y, app) - (*functionPtr)(x-h, y, app)) / (2.0*h);
+}
+double d_dy(double x, double y, double (*functionPtr)(double, double, struct sf_ctx*), struct sf_ctx* app, double h) {
+    return ((*functionPtr)(x, y+h, app) - (*functionPtr)(x, y-h, app)) / (2.0*h);
+}
 
 double ne0(double x, double y, struct sf_ctx *app) {
     return (-app->charge_ion * ni0(y, app) + rhoc(x, y, app)) / app->charge_elc;
 }
 double Te0(double x, double y, struct sf_ctx *app) {
     return pi0(y, app) / ne0(x, y, app);
+}
+
+void fill_ion_W_tensor(double x, double y, double* W, struct sf_ctx *app) {
+    double h = 1e-6;
+
+    double duix_dx = d_dx(x, y, &uix, app, h);
+    double duiy_dy = d_dy(x, y, &uiy, app, h);
+
+    double duiy_dx = d_dx(x, y, &uiy, app, h);
+    double duix_dy = d_dy(x, y, &uix, app, h);
+
+    double div_ui = d_dx(x, y, &uix, app, h) + d_dy(x, y, &uiy, app, h);
+
+    // W_xx
+    W[0] = 2*duix_dx - 1.0 / 2.0 * div_ui;
+    // W_xy
+    W[1] = duix_dy + duiy_dx;
+    // W_yx
+    W[2] = duiy_dx + duix_dy;
+    // W_yy
+    W[3] = 2*duiy_dy - 1.0 / 2.0 * div_ui;
+}
+
+void fill_ion_Pi_tensor(double x, double y, double pri, double* Pi, struct sf_ctx* app) {
+    double W[4];
+    fill_ion_W_tensor(x, y, W, app);
+
+    double eta3 = 1.0 / (2.0 * app->oct * app->B0);
+    // Pi_xx ~ -W_xy
+    Pi[0] = eta3 * pri * (-W[1]);
+    Pi[1] = eta3 * pri * 0.5 * (W[0] - W[3]);
+    Pi[2] = eta3 * pri * 0.5 * (W[0] - W[3]);
+    Pi[3] = eta3 * pri * W[1];
+}
+
+void
+evalIonInit(double t, const double* GKYL_RESTRICT xn, double* GKYL_RESTRICT fout, void* ctx)
+{
+  double x = xn[0], y = xn[1];
+  struct sf_ctx *app = ctx;
+
+  double mass_ion = app -> mass_ion;
+
+  double n = ni0(y, app);
+  double T = Ti0(y, app);
+  double pri = n * T; // Ion pressure (scalar).
+  double rhoi = n * mass_ion; // Ion mass density
+  double uix = uEx(x, y, app) + uidx(y, app);
+  double uiy = uEy(x, y, app);
+
+  double Pi[4];
+  fill_ion_Pi_tensor(x, y, pri, Pi, app);
+
+  // Set ion mass density.
+  fout[0] = rhoi;
+  // Set ion momentum density.
+  fout[1] = rhoi * uix; fout[2] = rhoi * uiy; fout[3] = 0.0;
+  if (app->n_moments == 10) {
+      // Set ion pressure tensor.
+      fout[4] = pri + Pi[0] + rhoi * uix * uix; fout[5] = Pi[1] + rhoi * uix * uiy; fout[6] = 0.0;
+      fout[7] = pri + Pi[3] + rhoi * uiy * uiy; fout[8] = 0.0; 
+      fout[9] = 0.0;
+  } else if (app->n_moments == 5) {
+    fout[4] = 1.5*pri + 0.5 * rhoi * (uix * uix + uiy * uiy);
+  } else {
+      exit(1);
+  }
 }
 
 void
@@ -234,40 +317,9 @@ evalElcInit(double t, const double* GKYL_RESTRICT xn, double* GKYL_RESTRICT fout
       // Set electron pressure tensor.
       fout[4] = pre + rhoe * uex * uex; fout[5] = rhoe * uex * uey; fout[6] = 0.0;
       fout[7] = pre + rhoe * uey * uey; fout[8] = 0.0; 
-      fout[9] = pre;
+      fout[9] = 0.0;
   } else if (app->n_moments == 5) {
     fout[4] = 1.5*pre + 0.5 * rhoe * (uex * uex + uey * uey);
-  } else {
-      exit(1);
-  }
-}
-
-void
-evalIonInit(double t, const double* GKYL_RESTRICT xn, double* GKYL_RESTRICT fout, void* ctx)
-{
-  double x = xn[0], y = xn[1];
-  struct sf_ctx *app = ctx;
-
-  double mass_ion = app -> mass_ion;
-
-  double n = ni0(y, app);
-  double T = Ti0(y, app);
-  double pri = n * T; // Ion pressure (scalar).
-  double rhoi = n * mass_ion; // Ion mass density
-  double uix = uEx(x, y, app) + uidx(y, app);
-  double uiy = uEy(x, y, app);
-
-  // Set ion mass density.
-  fout[0] = rhoi;
-  // Set ion momentum density.
-  fout[1] = rhoi * uix; fout[2] = rhoi * uiy; fout[3] = 0.0;
-  if (app->n_moments == 10) {
-      // Set ion pressure tensor.
-      fout[4] = pri + rhoi * uix * uix; fout[5] = rhoi * uix * uiy; fout[6] = 0.0;
-      fout[7] = pri + rhoi * uiy * uiy; fout[8] = 0.0; 
-      fout[9] = pri;
-  } else if (app->n_moments == 5) {
-    fout[4] = 1.5*pri + 0.5 * rhoi * (uix * uix + uiy * uiy);
   } else {
       exit(1);
   }
