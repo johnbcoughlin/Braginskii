@@ -1,5 +1,5 @@
 using LinearAlgebra
-#using SpecialFunctions
+using SpecialFunctions
 
 function find_peaks(E)
     vcat(false, false, (diff(sign.(diff(log.(E)))) .== -2))
